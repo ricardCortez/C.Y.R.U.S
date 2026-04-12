@@ -1,0 +1,55 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Environment
+.env
+*.env.local
+
+# Logs
+logs/
+*.log
+
+# Models (large files — download on demand)
+*.pt
+*.bin
+*.safetensors
+~/.cyrus/models/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Test artefacts
+.pytest_cache/
+.coverage
+htmlcov/
+*.junit.xml
+
+# Docker
+*.pid
+
+# Claude Code local settings
+.claude/
+.ruff_cache/

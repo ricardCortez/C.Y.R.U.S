@@ -1,0 +1,98 @@
+/* C.Y.R.U.S — Hologram Theme */
+
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700&display=swap');
+
+:root {
+  --bg:      #040d1a;
+  --panel:   #071224;
+  --border:  #0a4060;
+  --cyan:    #00d4ff;
+  --blue:    #0088ff;
+  --glow:    #00ffff;
+  --dim:     #004060;
+  --text:    #b0e8ff;
+  --muted:   #406080;
+  --error:   #ff4444;
+  --success: #00ff88;
+}
+
+/* Scanline overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 212, 255, 0.015) 2px,
+    rgba(0, 212, 255, 0.015) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Neon glow text */
+.glow-text {
+  text-shadow:
+    0 0 7px var(--cyan),
+    0 0 10px var(--cyan),
+    0 0 21px var(--cyan),
+    0 0 42px var(--blue);
+}
+
+.glow-border {
+  box-shadow:
+    0 0 5px var(--cyan),
+    inset 0 0 5px rgba(0, 212, 255, 0.1);
+}
+
+/* Corner decorations */
+.corner-tl::before,
+.corner-tl::after,
+.corner-br::before,
+.corner-br::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: var(--cyan);
+  border-style: solid;
+}
+
+.corner-tl::before {
+  top: 0; left: 0;
+  border-width: 2px 0 0 2px;
+}
+
+.corner-br::after {
+  bottom: 0; right: 0;
+  border-width: 0 2px 2px 0;
+}
+
+/* Status pulse ring */
+@keyframes pulse-ring {
+  0%   { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 212, 255, 0.7); }
+  70%  { transform: scale(1);    box-shadow: 0 0 0 20px rgba(0, 212, 255, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 212, 255, 0); }
+}
+
+.pulse-ring { animation: pulse-ring 2s infinite; }
+
+/* Blink caret */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+.cursor-blink::after {
+  content: '▮';
+  animation: blink 1s step-end infinite;
+  color: var(--cyan);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--cyan); }

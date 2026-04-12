@@ -1,0 +1,108 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# C.Y.R.U.S — Cognitive sYstem for Real-time Utility & Services
+# Main configuration — Phase 1
+# Override any value via environment variable:  CYRUS_<SECTION>_<KEY>
+# ─────────────────────────────────────────────────────────────────────────────
+
+system:
+  name: "C.Y.R.U.S"
+  version: "1.0.0"
+  # LOCAL  → everything runs on-device (Ollama + Kokoro + ctranslate2)
+  # HYBRID → prefer local, fall back to API services on failure
+  mode: "LOCAL"
+  log_level: "INFO"
+
+# ── Local services (always tried first) ──────────────────────────────────────
+local:
+  llm:
+    provider: "ollama"
+    model: "mistral:latest"
+    host: "http://localhost:11434"
+    timeout: 30               # seconds before fallback is triggered
+    stream: true
+
+  tts:
+    provider: "kokoro"
+    voice: "af_sarah"         # kokoro voice ID (British-ish)
+    speed: 0.95
+    sample_rate: 24000
+
+  translation:
+    provider: "ctranslate2"
+    model: "mt5-small"        # auto-downloaded on first run
+    cache_dir: "~/.cyrus/models/translation"
+
+# ── API fallback services (used when local fails and mode == HYBRID) ─────────
+api:
+  enabled: true
+  fallback_mode: true
+
+  llm:
+    provider: "anthropic"
+    api_key: "${CLAUDE_API_KEY}"
+    model: "claude-opus-4-1"
+    max_tokens: 500
+    timeout: 60
+
+  tts:
+    provider: "edge-tts"      # free Microsoft TTS — no key required
+    voice: "en-GB-RyanNeural"
+    rate: "+0%"
+    volume: "+0%"
+
+# ── Audio hardware ───────────────────────────────────────────────────────────
+audio:
+  input:
+    device: "default"         # "default" or exact device name from pyaudio
+    sample_rate: 16000
+    chunk_size: 1024
+    channels: 1
+    format: "int16"
+    silence_threshold: 500    # amplitude RMS below which is silence
+    silence_duration: 1.5     # seconds of silence that ends a turn
+
+  output:
+    device: "default"
+    volume: 0.85
+    sample_rate: 24000
+
+# ── Wake-word / trigger detection ────────────────────────────────────────────
+trigger:
+  wake_words:
+    - "hola cyrus"
+    - "oye cyrus"
+    - "hey cyrus"
+    - "cyrus"
+  fuzzy_matching: true
+  threshold: 85               # 0–100 fuzzywuzzy ratio
+
+# ── ASR (Whisper) ─────────────────────────────────────────────────────────────
+asr:
+  model: "tiny"               # tiny | base | small | medium | large-v3
+  device: "cuda"              # cuda | cpu
+  compute_type: "float16"     # float16 | int8 (int8 for CPU)
+  language: null              # null = auto-detect; or "es", "en", etc.
+  beam_size: 5
+  vad_filter: true
+
+# ── Conversation ─────────────────────────────────────────────────────────────
+conversation:
+  max_history_turns: 10       # how many past turns to include in context
+  system_prompt_file: "config/soul.md"
+  prompts_file: "config/prompts.yaml"
+
+# ── WebSocket server ─────────────────────────────────────────────────────────
+websocket:
+  host: "localhost"
+  port: 8765
+  ping_interval: 20
+  ping_timeout: 10
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+logging:
+  level: "INFO"               # DEBUG | INFO | WARNING | ERROR
+  console: true
+  file: true
+  log_dir: "logs"             # relative to project root (created automatically)
+  max_bytes: 10485760         # 10 MB
+  backup_count: 5

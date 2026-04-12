@@ -1,0 +1,34 @@
+# C.Y.R.U.S — LLM Prompt Templates
+# All prompts are Jinja2-compatible templates.
+# Variables are injected at runtime by llm_manager.py
+
+# ── System prompt (loaded from soul.md, exposed here for overrides) ──────────
+system_prompt_override: null   # set to a string to override soul.md entirely
+
+# ── Context template injected before every user turn ─────────────────────────
+context_template: |
+  Current datetime: {current_time}
+  User's apparent language: {language}
+  Conversation turn: {turn_count}
+  System mode: {system_mode}
+
+# ── Response style guidelines ─────────────────────────────────────────────────
+response_style:
+  max_tokens: 300
+  temperature: 0.7
+  top_p: 0.9
+
+# ── Canned responses for known error states ───────────────────────────────────
+canned:
+  llm_unavailable: >
+    I'm sorry, I'm currently unable to process your request.
+    My reasoning engine appears to be offline.
+    Please check that Ollama is running and try again.
+  tts_unavailable: >
+    [C.Y.R.U.S]: I received your message but cannot produce audio output right now.
+  asr_unavailable: >
+    I could not transcribe your speech. Please try again or check your microphone.
+  repeat_request: >
+    I didn't quite catch that. Could you please repeat your request?
+  greeting: >
+    C.Y.R.U.S online. How can I assist you, Ricardo?

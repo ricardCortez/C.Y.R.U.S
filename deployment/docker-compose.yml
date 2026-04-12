@@ -1,0 +1,102 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# C.Y.R.U.S — Docker Compose  (Phase 1)
+# ─────────────────────────────────────────────────────────────────────────────
+# Start everything:   docker-compose up
+# Rebuild backend:    docker-compose up --build cyrus
+# ─────────────────────────────────────────────────────────────────────────────
+
+networks:
+  cyrus_net:
+    driver: bridge
+
+volumes:
+  ollama_data:
+  qdrant_data:
+
+services:
+
+  # ── Ollama — local LLM inference ─────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: cyrus_ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - cyrus_net
+    # Pull the model on first start
+    entrypoint: >
+      sh -c "ollama serve &
+             sleep 5 &&
+             ollama pull mistral:latest &&
+             wait"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # ── Qdrant — vector database (empty in Phase 1) ──────────────────────────
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: cyrus_qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - cyrus_net
+
+  # ── C.Y.R.U.S Backend ────────────────────────────────────────────────────
+  cyrus:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile.backend
+    container_name: cyrus_backend
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    volumes:
+      - ../config:/app/config:ro
+      - ../logs:/app/logs
+    environment:
+      - CYRUS_LOG_LEVEL=INFO
+      - OLLAMA_HOST=http://ollama:11434
+    env_file:
+      - ../.env
+    depends_on:
+      - ollama
+    networks:
+      - cyrus_net
+    # NOTE: Audio devices are not available inside Docker.
+    # For voice I/O, run the backend natively (python -m backend.core.cyrus_engine).
+    # Docker deployment is intended for the WebSocket server only (headless mode).
+
+  # ── C.Y.R.U.S Frontend — React dev server ────────────────────────────────
+  frontend:
+    image: node:20-alpine
+    container_name: cyrus_frontend
+    restart: unless-stopped
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules        # anonymous volume so host node_modules don't shadow
+    environment:
+      - VITE_WS_URL=ws://localhost:8765
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      - cyrus
+    networks:
+      - cyrus_net
