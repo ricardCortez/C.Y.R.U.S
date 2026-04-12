@@ -190,3 +190,90 @@ def test_face_detector_mocked():
     finally:
         sys.modules.pop("deepface", None)
         sys.modules.pop("deepface.DeepFace", None)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Task 6 — VisionManager
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_vision_manager_invalid_source():
+    from backend.modules.vision.vision_manager import VisionManager
+    with pytest.raises(ValueError):
+        VisionManager(source="webcam")
+
+
+def test_vision_manager_get_context_initial():
+    from backend.modules.vision.vision_manager import VisionManager
+    vm = VisionManager(source="local")
+    ctx = vm.get_context()
+    assert ctx.source == "local"
+    assert ctx.objects == []
+    assert ctx.faces == []
+
+
+@pytest.mark.asyncio
+async def test_vision_manager_start_stop_local():
+    """VisionManager should start, read one frame, then stop cleanly."""
+    from backend.modules.vision.vision_manager import VisionManager
+    from backend.modules.vision.camera_local import LocalCamera
+    from backend.modules.vision.yolo_detector import YOLODetector
+    from backend.modules.vision.face_detector import FaceDetector
+
+    fake_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+
+    mock_cam = MagicMock(spec=LocalCamera)
+    mock_cam.is_open = True
+    mock_cam.read_frame_async = AsyncMock(return_value=fake_frame)
+
+    mock_yolo = MagicMock(spec=YOLODetector)
+    mock_yolo.is_loaded = True
+    mock_yolo.detect = MagicMock(return_value=[])
+
+    mock_face = MagicMock(spec=FaceDetector)
+    mock_face.recognise = MagicMock(return_value=[])
+
+    with patch("backend.modules.vision.vision_manager.LocalCamera", return_value=mock_cam):
+        vm = VisionManager(
+            source="local",
+            local_camera=mock_cam,
+            yolo=mock_yolo,
+            face=mock_face,
+            interval=0.05,
+        )
+        await vm.start()
+        await asyncio.sleep(0.15)   # let the loop tick at least once
+        await vm.stop()
+
+    ctx = vm.get_context()
+    assert ctx.source == "local"
+
+
+@pytest.mark.asyncio
+async def test_vision_manager_frigate_source():
+    """VisionManager with frigate source calls FrigateClient.get_snapshot_array."""
+    from backend.modules.vision.vision_manager import VisionManager
+    from backend.modules.vision.frigate_client import FrigateClient
+    from backend.modules.vision.yolo_detector import YOLODetector
+    from backend.modules.vision.face_detector import FaceDetector
+
+    mock_frigate = MagicMock(spec=FrigateClient)
+    mock_frigate.get_snapshot_array = AsyncMock(return_value=None)  # simulates no frame
+
+    mock_yolo = MagicMock(spec=YOLODetector)
+    mock_yolo.detect = MagicMock(return_value=[])
+
+    mock_face = MagicMock(spec=FaceDetector)
+    mock_face.recognise = MagicMock(return_value=[])
+
+    vm = VisionManager(
+        source="frigate",
+        frigate_client=mock_frigate,
+        yolo=mock_yolo,
+        face=mock_face,
+        interval=0.05,
+    )
+    await vm.start()
+    await asyncio.sleep(0.15)
+    await vm.stop()
+
+    assert vm.get_context().source == "frigate"
