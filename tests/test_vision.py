@@ -86,3 +86,23 @@ def test_local_camera_read_frame_ok():
         frame = cam.read_frame()
         assert frame is not None
         assert frame.shape == (480, 640, 3)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Task 3 — FrigateClient
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_frigate_unavailable():
+    from backend.modules.vision.frigate_client import FrigateClient
+    client = FrigateClient(host="http://127.0.0.1:19999")
+    available = await client.is_available()
+    assert available is False
+
+
+@pytest.mark.asyncio
+async def test_frigate_snapshot_none_on_fail():
+    from backend.modules.vision.frigate_client import FrigateClient
+    client = FrigateClient(host="http://127.0.0.1:19999")
+    result = await client.get_snapshot_bytes()
+    assert result is None
