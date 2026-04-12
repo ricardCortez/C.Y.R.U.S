@@ -143,3 +143,50 @@ def test_yolo_detect_mocked():
     assert len(objects) == 1
     assert objects[0].label == "person"
     assert objects[0].confidence == pytest.approx(0.92)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Task 5 — FaceDetector
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_face_detector_no_deepface():
+    """Should return empty list gracefully if deepface not installed."""
+    import sys
+    from backend.modules.vision.face_detector import FaceDetector
+
+    deepface_mod = sys.modules.pop("deepface", None)
+    try:
+        det = FaceDetector()
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        result = det.recognise(frame)
+        assert result == []
+    finally:
+        if deepface_mod:
+            sys.modules["deepface"] = deepface_mod
+
+
+def test_face_detector_mocked():
+    """Should parse DeepFace.analyze results into DetectedFace list."""
+    import sys
+    from backend.modules.vision.face_detector import FaceDetector
+
+    mock_deepface = MagicMock()
+    mock_deepface.DeepFace.analyze.return_value = [
+        {
+            "region": {"x": 10, "y": 20, "w": 80, "h": 90},
+            "dominant_emotion": "happy",
+        }
+    ]
+    sys.modules["deepface"] = mock_deepface
+    sys.modules["deepface.DeepFace"] = mock_deepface
+
+    try:
+        det = FaceDetector()
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        faces = det.recognise(frame)
+        assert len(faces) == 1
+        assert faces[0].emotion == "happy"
+        assert faces[0].identity == "unknown"
+    finally:
+        sys.modules.pop("deepface", None)
+        sys.modules.pop("deepface.DeepFace", None)
