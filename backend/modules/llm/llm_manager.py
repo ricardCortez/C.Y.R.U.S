@@ -13,6 +13,7 @@ from typing import List, Optional
 
 from backend.modules.llm.claude_client import ClaudeClient
 from backend.modules.llm.ollama_client import OllamaClient
+from backend.modules.vision.models import VisionContext
 from backend.utils.exceptions import LLMError, OllamaUnavailableError
 from backend.utils.helpers import retry_async
 from backend.utils.logger import get_logger
@@ -61,6 +62,7 @@ class LLMManager:
         history: List[dict] | None = None,
         language: str = "en",
         turn_count: int = 0,
+        vision_context: Optional[VisionContext] = None,
     ) -> str:
         """Generate a response to *user_input*.
 
@@ -69,6 +71,7 @@ class LLMManager:
             history: Prior conversation turns (OpenAI-style message list).
             language: Detected language code (for context injection).
             turn_count: Conversation turn number.
+            vision_context: Optional live camera scene description.
 
         Returns:
             C.Y.R.U.S response string.
@@ -76,7 +79,7 @@ class LLMManager:
         Raises:
             LLMError: If both local and API backends fail.
         """
-        system_prompt = self._build_system_prompt(language, turn_count)
+        system_prompt = self._build_system_prompt(language, turn_count, vision_context)
         messages = list(history or [])
         messages.append({"role": "user", "content": user_input})
 
@@ -133,12 +136,18 @@ class LLMManager:
     # Prompt construction
     # ------------------------------------------------------------------
 
-    def _build_system_prompt(self, language: str, turn_count: int) -> str:
-        """Combine soul.md with the context template.
+    def _build_system_prompt(
+        self,
+        language: str,
+        turn_count: int,
+        vision_context: Optional[VisionContext] = None,
+    ) -> str:
+        """Combine soul.md with the context template (and optional vision block).
 
         Args:
             language: Detected language code.
             turn_count: Current turn number.
+            vision_context: Optional live camera scene description.
 
         Returns:
             Full system prompt string.
@@ -155,4 +164,5 @@ class LLMManager:
             system_mode=self._mode,
         ) if context_tpl else ""
 
-        return f"{base}\n\n{context}".strip()
+        vision_block = f"\n\n{vision_context.to_prompt_text()}" if vision_context else ""
+        return f"{base}\n\n{context}{vision_block}".strip()

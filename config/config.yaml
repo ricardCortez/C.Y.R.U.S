@@ -98,6 +98,30 @@ websocket:
   ping_interval: 20
   ping_timeout: 10
 
+# ── Vision pipeline ──────────────────────────────────────────────────────────
+vision:
+  enabled: false                # set true to activate camera + ML pipeline
+  source: "local"               # "local" (webcam) or "frigate" (NVR)
+  interval: 1.0                 # seconds between frame captures
+  encode_frame: false           # include base64 JPEG in LLM context (costs tokens)
+  local:
+    device_index: 0
+    width: 640
+    height: 480
+    fps: 15
+  frigate:
+    host: "http://192.168.1.50:5000"
+    camera: "front_door"
+    timeout: 5
+  yolo:
+    model: "yolov8n.pt"
+    confidence: 0.45
+    device: "cuda"
+  face:
+    db_path: "data/faces"
+    model_name: "Facenet512"
+    detector_backend: "retinaface"
+
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging:
   level: "INFO"               # DEBUG | INFO | WARNING | ERROR

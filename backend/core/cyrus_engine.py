@@ -31,6 +31,11 @@ from backend.modules.llm.llm_manager import LLMManager
 from backend.modules.llm.ollama_client import OllamaClient
 from backend.modules.nlp.trigger_detector import TriggerDetector
 from backend.modules.tts.kokoro_tts import KokoroTTS
+from backend.modules.vision.camera_local import LocalCamera
+from backend.modules.vision.face_detector import FaceDetector
+from backend.modules.vision.frigate_client import FrigateClient
+from backend.modules.vision.vision_manager import VisionManager
+from backend.modules.vision.yolo_detector import YOLODetector
 from backend.modules.tts.tts_manager import TTSManager
 from backend.modules.tts.voiceforge_tts import VoiceforgeTTS
 from backend.utils.helpers import current_time_str
@@ -129,6 +134,41 @@ class CYRUSEngine:
             mode=self._cfg.system.mode,
         )
 
+        # ── Vision ─────────────────────────────────────────────────────
+        vis_cfg = getattr(self._cfg, "vision", None)
+        self._vision: VisionManager | None = None
+        if vis_cfg and getattr(vis_cfg, "enabled", False):
+            lc = vis_cfg.local
+            fr = vis_cfg.frigate
+            yo = vis_cfg.yolo
+            fa = vis_cfg.face
+            self._vision = VisionManager(
+                source=vis_cfg.source,
+                local_camera=LocalCamera(
+                    device_index=lc.device_index,
+                    width=lc.width,
+                    height=lc.height,
+                    fps=lc.fps,
+                ),
+                frigate_client=FrigateClient(
+                    host=fr.host,
+                    camera=fr.camera,
+                    timeout=fr.timeout,
+                ),
+                yolo=YOLODetector(
+                    model_name=yo.model,
+                    confidence=yo.confidence,
+                    device=yo.device,
+                ),
+                face=FaceDetector(
+                    db_path=fa.db_path,
+                    model_name=fa.model_name,
+                    detector_backend=fa.detector_backend,
+                ),
+                interval=vis_cfg.interval,
+                encode_frame=vis_cfg.encode_frame,
+            )
+
         # ── WebSocket ──────────────────────────────────────────────────────
         ws_cfg = self._cfg.websocket
         self._ws = WebSocketServer(
@@ -162,6 +202,10 @@ class CYRUSEngine:
         else:
             logger.info("[C.Y.R.U.S] Ollama is online")
 
+        if self._vision:
+            logger.info("[C.Y.R.U.S] Starting vision pipeline…")
+            await self._vision.start()
+
         logger.info("[C.Y.R.U.S] All models initialised")
 
     # ------------------------------------------------------------------
@@ -187,6 +231,8 @@ class CYRUSEngine:
         finally:
             self._audio_in.close()
             self._audio_out.close()
+            if self._vision:
+                await self._vision.stop()
 
     async def _process_one_turn(self) -> None:
         """Capture one utterance and drive it through the full pipeline."""
@@ -236,12 +282,14 @@ class CYRUSEngine:
         # 4. LLM inference ───────────────────────────────────────────────
         await self._bus.emit("status", {"state": "thinking"})
         await self._state.add_turn("user", clean_input, lang)
+        vision_ctx = self._vision.get_context() if self._vision else None
         try:
             response = await self._llm.generate(
                 clean_input,
                 history=self._state.get_history_for_llm()[:-1],  # exclude the turn we just added
                 language=lang,
                 turn_count=self._state.turn_count,
+                vision_context=vision_ctx,
             )
         except Exception as exc:
             logger.error(f"[C.Y.R.U.S] LLM failed: {exc}")
