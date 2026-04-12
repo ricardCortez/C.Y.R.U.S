@@ -106,3 +106,40 @@ async def test_frigate_snapshot_none_on_fail():
     client = FrigateClient(host="http://127.0.0.1:19999")
     result = await client.get_snapshot_bytes()
     assert result is None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Task 4 — YOLODetector
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_yolo_not_loaded_returns_empty():
+    from backend.modules.vision.yolo_detector import YOLODetector
+    det = YOLODetector()
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    assert det.detect(frame) == []
+    assert not det.is_loaded
+
+
+def test_yolo_detect_mocked():
+    from backend.modules.vision.yolo_detector import YOLODetector
+
+    det = YOLODetector()
+
+    # Build a mock that mimics ultralytics Results structure
+    mock_box = MagicMock()
+    mock_box.cls = [0]
+    mock_box.conf = [0.92]
+    # xyxy[0] needs to be iterable with 4 numbers
+    mock_box.xyxy = [[10, 20, 100, 200]]
+
+    mock_result = MagicMock()
+    mock_result.names = {0: "person"}
+    mock_result.boxes = [mock_box]
+
+    det._model = MagicMock(return_value=[mock_result])
+
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    objects = det.detect(frame)
+    assert len(objects) == 1
+    assert objects[0].label == "person"
+    assert objects[0].confidence == pytest.approx(0.92)
