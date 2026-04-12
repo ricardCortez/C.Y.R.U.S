@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>C.Y.R.U.S Test</title>
+    <style>
+        body { background: #040d1a; color: #00d4ff; font-family: Arial, sans-serif; padding: 20px; }
+        h1 { color: #00ff88; }
+    </style>
+</head>
+<body>
+    <h1>C.Y.R.U.S System Test</h1>
+    <p>If you can see this, the web server is working!</p>
+    <p>Backend WebSocket should be available at: ws://localhost:8765</p>
+    <div id="status">Checking connection...</div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        const ws = new WebSocket('ws://localhost:8765');
+
+        ws.onopen = () => {
+            statusDiv.innerHTML = '✅ WebSocket connected to backend!';
+            statusDiv.style.color = '#00ff88';
+        };
+
+        ws.onerror = () => {
+            statusDiv.innerHTML = '❌ WebSocket connection failed';
+            statusDiv.style.color = '#ff4444';
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.event === 'status') {
+                statusDiv.innerHTML += '<br>Backend status: ' + data.data.state;
+            }
+        };
+    </script>
+</body>
+</html>
