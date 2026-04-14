@@ -19,12 +19,18 @@ const STATE_COLOR: Record<string, string> = {
 export function AudioVisualizer({ analyser }: Props) {
   const systemState = useCYRUSStore((s) => s.systemState)
   const [heights, setHeights] = useState<number[]>(Array(BARS).fill(2))
+  const [audioAmp, setAudioAmp] = useState(0)
   const rafRef  = useRef<number>(0)
   const simT    = useRef(0)
-  const visible = systemState !== 'idle' && systemState !== 'offline' && systemState !== 'connected'
+  const active  = systemState !== 'idle' && systemState !== 'offline' && systemState !== 'connected'
+  const visible = active && audioAmp > 0.04
 
   useEffect(() => {
-    if (!visible) { setHeights(Array(BARS).fill(2)); return }
+    if (!active) {
+      setHeights(Array(BARS).fill(2))
+      setAudioAmp(0)
+      return
+    }
 
     const tick = () => {
       simT.current += 0.016
@@ -32,6 +38,7 @@ export function AudioVisualizer({ analyser }: Props) {
       const sim  = 0.12 + 0.88 * Math.abs(Math.sin(simT.current * 4.1) * Math.cos(simT.current * 2.3))
       const amp  = analyser ? bass : sim * (systemState === 'speaking' ? 1 : 0.35)
 
+      setAudioAmp(amp)
       setHeights(Array.from({ length: BARS }, (_, i) => {
         const raw = 2 + (4 + amp * 22) * Math.abs(Math.sin(simT.current * (2.6 + i * 0.33) + i * 0.6))
         return Math.min(32, raw)
@@ -40,7 +47,7 @@ export function AudioVisualizer({ analyser }: Props) {
     }
     rafRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [visible, analyser, systemState])
+  }, [active, analyser, systemState])
 
   const color = STATE_COLOR[systemState] ?? '#00f0ff'
 
