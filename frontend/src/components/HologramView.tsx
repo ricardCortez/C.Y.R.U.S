@@ -105,9 +105,9 @@ export function HologramView() {
   const isOffline   = state === 'offline'
 
   return (
-    <div className="relative flex flex-col items-center select-none">
-      {/* ── SVG hologram ── */}
-      <div className="relative" style={{ width: 320, height: 320 }}>
+    <div className="relative flex flex-col items-center select-none w-full">
+      {/* ── SVG hologram — fills parent container ── */}
+      <div className="relative w-full" style={{ aspectRatio: '1' }}>
         <svg
           viewBox="0 0 320 320"
           style={{ width: '100%', height: '100%', overflow: 'visible' }}

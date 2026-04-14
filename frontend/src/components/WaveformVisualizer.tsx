@@ -92,8 +92,8 @@ export function WaveformVisualizer() {
     function draw() {
       tRef.current += 0.016   // ~60fps time accumulator
 
-      const W = canvas.width
-      const H = canvas.height
+      const W = canvas!.width
+      const H = canvas!.height
       const s = stateRef.current
       const [colorBot, colorTop] = BAR_COLOR[s]
 

@@ -9,6 +9,7 @@ export type WSEvent =
   | { event: 'status';     data: { state: string; message?: string } }
   | { event: 'error';      data: { message: string } }
   | { event: 'metrics';    data: Record<string, unknown> }
+  | { event: 'vision';     data: { frame?: string } }
 
 export type WSEventHandler = (evt: WSEvent) => void
 
