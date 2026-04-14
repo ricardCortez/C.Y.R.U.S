@@ -38,6 +38,10 @@ from backend.modules.vision.vision_manager import VisionManager
 from backend.modules.vision.yolo_detector import YOLODetector
 from backend.modules.tts.tts_manager import TTSManager
 from backend.modules.tts.voiceforge_tts import VoiceforgeTTS
+from backend.modules.memory.embedder import Embedder
+from backend.modules.memory.qdrant_store import QdrantStore
+from backend.modules.memory.conversation_db import ConversationDB
+from backend.modules.memory.memory_manager import MemoryManager
 from backend.utils.helpers import current_time_str
 from backend.utils.logger import configure_file_logging, get_logger
 
@@ -169,6 +173,26 @@ class CYRUSEngine:
                 encode_frame=vis_cfg.encode_frame,
             )
 
+        # ── Memory (Phase 3) ───────────────────────────────────────────────
+        mem_cfg = getattr(self._cfg, "memory", None)
+        self._memory: MemoryManager | None = None
+        if mem_cfg and getattr(mem_cfg, "enabled", False):
+            qd = mem_cfg.qdrant
+            emb_cfg = mem_cfg.embedder
+            self._embedder = Embedder(model_name=emb_cfg.model)
+            self._qdrant_store = QdrantStore(
+                host=qd.host,
+                port=qd.port,
+                collection=qd.collection,
+            )
+            self._conv_db = ConversationDB(db_path=mem_cfg.db_path)
+            self._memory = MemoryManager(
+                embedder=self._embedder,
+                qdrant=self._qdrant_store,
+                db=self._conv_db,
+                top_k=mem_cfg.top_k,
+            )
+
         # ── WebSocket ──────────────────────────────────────────────────────
         ws_cfg = self._cfg.websocket
         self._ws = WebSocketServer(
@@ -205,6 +229,17 @@ class CYRUSEngine:
         if self._vision:
             logger.info("[C.Y.R.U.S] Starting vision pipeline…")
             await self._vision.start()
+
+        if self._memory:
+            logger.info("[C.Y.R.U.S] Loading embedder model…")
+            await loop.run_in_executor(None, self._embedder.load)
+            logger.info("[C.Y.R.U.S] Connecting to Qdrant…")
+            try:
+                self._qdrant_store.connect()
+            except Exception as exc:
+                logger.warning(f"[C.Y.R.U.S] Qdrant unavailable ({exc}); memory search disabled")
+            self._conv_db.init()
+            logger.info(f"[C.Y.R.U.S] Memory session: {self._memory.session_id}")
 
         logger.info("[C.Y.R.U.S] All models initialised")
 
@@ -283,6 +318,15 @@ class CYRUSEngine:
         await self._bus.emit("status", {"state": "thinking"})
         await self._state.add_turn("user", clean_input, lang)
         vision_ctx = self._vision.get_context() if self._vision else None
+
+        # 4a. Retrieve memory context
+        memory_ctx = ""
+        if self._memory:
+            try:
+                memory_ctx = await self._memory.retrieve_context(clean_input)
+            except Exception as exc:
+                logger.warning(f"[C.Y.R.U.S] Memory retrieval failed: {exc}")
+
         try:
             response = await self._llm.generate(
                 clean_input,
@@ -290,12 +334,21 @@ class CYRUSEngine:
                 language=lang,
                 turn_count=self._state.turn_count,
                 vision_context=vision_ctx,
+                memory_context=memory_ctx,
             )
         except Exception as exc:
             logger.error(f"[C.Y.R.U.S] LLM failed: {exc}")
             response = "I'm having trouble thinking right now. Please try again."
 
         await self._state.add_turn("assistant", response, lang)
+
+        # 4b. Persist both turns to memory
+        if self._memory:
+            try:
+                await self._memory.store_turn("user", clean_input, lang)
+                await self._memory.store_turn("assistant", response, lang)
+            except Exception as exc:
+                logger.warning(f"[C.Y.R.U.S] Memory storage failed: {exc}")
         logger.info(f"[C.Y.R.U.S] Response: '{response}'")
         await self._bus.emit("response", {"text": response, "language": lang})
 

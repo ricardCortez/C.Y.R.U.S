@@ -122,6 +122,18 @@ vision:
     model_name: "Facenet512"
     detector_backend: "retinaface"
 
+# ── Memory (Phase 3) ─────────────────────────────────────────────────────────
+memory:
+  enabled: false          # set true when Qdrant is running
+  qdrant:
+    host: "localhost"
+    port: 6333
+    collection: "cyrus_memory"
+  embedder:
+    model: "all-MiniLM-L6-v2"
+  db_path: "data/conversations.db"
+  top_k: 5
+
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging:
   level: "INFO"               # DEBUG | INFO | WARNING | ERROR

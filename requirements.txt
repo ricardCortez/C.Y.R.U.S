@@ -46,6 +46,10 @@ pathlib2==2.3.7            # extra compat shims (Python 3.11 has pathlib built-i
 structlog==24.1.0
 rich==13.7.1               # pretty console output
 
+# ── Memory (Phase 3) ──────────────────────────────────────────────────────────
+qdrant-client==1.9.1
+sentence-transformers==3.0.1
+
 # ── Vision (Phase 2) ──────────────────────────────────────────────────────────
 opencv-python==4.10.0.84
 ultralytics==8.2.24

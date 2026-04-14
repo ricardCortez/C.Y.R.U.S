@@ -63,6 +63,7 @@ class LLMManager:
         language: str = "en",
         turn_count: int = 0,
         vision_context: Optional[VisionContext] = None,
+        memory_context: str = "",
     ) -> str:
         """Generate a response to *user_input*.
 
@@ -72,6 +73,7 @@ class LLMManager:
             language: Detected language code (for context injection).
             turn_count: Conversation turn number.
             vision_context: Optional live camera scene description.
+            memory_context: Relevant past turns from semantic memory search.
 
         Returns:
             C.Y.R.U.S response string.
@@ -79,7 +81,7 @@ class LLMManager:
         Raises:
             LLMError: If both local and API backends fail.
         """
-        system_prompt = self._build_system_prompt(language, turn_count, vision_context)
+        system_prompt = self._build_system_prompt(language, turn_count, vision_context, memory_context)
         messages = list(history or [])
         messages.append({"role": "user", "content": user_input})
 
@@ -141,18 +143,9 @@ class LLMManager:
         language: str,
         turn_count: int,
         vision_context: Optional[VisionContext] = None,
+        memory_context: str = "",
     ) -> str:
-        """Combine soul.md with the context template (and optional vision block).
-
-        Args:
-            language: Detected language code.
-            turn_count: Current turn number.
-            vision_context: Optional live camera scene description.
-
-        Returns:
-            Full system prompt string.
-        """
-        style = self._prompts.get("response_style", {})
+        """Combine soul.md + context template + memory + vision into system prompt."""
         override = self._prompts.get("system_prompt_override")
         base = override if override else self._soul_text
 
@@ -164,5 +157,10 @@ class LLMManager:
             system_mode=self._mode,
         ) if context_tpl else ""
 
-        vision_block = f"\n\n{vision_context.to_prompt_text()}" if vision_context else ""
-        return f"{base}\n\n{context}{vision_block}".strip()
+        parts = [base, context]
+        if memory_context:
+            parts.append(memory_context)
+        if vision_context:
+            parts.append(vision_context.to_prompt_text())
+
+        return "\n\n".join(p for p in parts if p.strip())
