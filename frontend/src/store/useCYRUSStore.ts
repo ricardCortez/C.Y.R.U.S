@@ -1,84 +1,75 @@
-/**
- * C.Y.R.U.S — Zustand global state store.
- */
-
+// frontend/src/store/useCYRUSStore.ts
 import { create } from 'zustand'
 
 export type SystemState =
-  | 'offline'
-  | 'connected'
-  | 'idle'
-  | 'listening'
-  | 'transcribing'
-  | 'thinking'
-  | 'speaking'
-  | 'error'
+  | 'offline' | 'connected' | 'idle'
+  | 'listening' | 'transcribing' | 'thinking'
+  | 'speaking' | 'error'
 
-export interface TranscriptEntry {
-  id: string
-  role: 'user' | 'cyrus'
-  text: string
-  language: string
-  timestamp: Date
+export type LogLevel = 'info' | 'warn' | 'error'
+
+export interface LogEntry {
+  id:        number
+  timestamp: string
+  level:     LogLevel
+  message:   string
 }
 
 interface CYRUSStore {
-  // Connection
-  wsConnected: boolean
-  setWsConnected: (v: boolean) => void
+  // Existing
+  systemState:  SystemState
+  wsConnected:  boolean
+  transcript:   { role: 'user' | 'assistant'; text: string }[]
+  lastResponse: string
 
-  // System state
-  systemState: SystemState
-  setSystemState: (s: SystemState) => void
-  statusMessage: string
-  setStatusMessage: (m: string) => void
+  // New
+  logs:           LogEntry[]
+  particleCount:  number
+  bloomIntensity: number
+  orbSpeed:       number
 
-  // Conversation
-  transcript: TranscriptEntry[]
-  addEntry: (entry: Omit<TranscriptEntry, 'id' | 'timestamp'>) => void
-  clearTranscript: () => void
-
-  // Current processing
-  currentTranscript: string
-  setCurrentTranscript: (t: string) => void
-  currentResponse: string
-  setCurrentResponse: (r: string) => void
-
-  // Vision
-  cameraFrame: string | null
-  setCameraFrame: (frame: string | null) => void
+  // Actions
+  setSystemState:    (s: SystemState) => void
+  setWsConnected:    (v: boolean) => void
+  addTranscript:     (entry: { role: 'user' | 'assistant'; text: string }) => void
+  setLastResponse:   (t: string) => void
+  addLog:            (level: LogLevel, message: string) => void
+  clearLogs:         () => void
+  setParticleCount:  (n: number) => void
+  setBloomIntensity: (v: number) => void
+  setOrbSpeed:       (v: number) => void
 }
 
-let _entryCounter = 0
+let logSeq = 0
 
 export const useCYRUSStore = create<CYRUSStore>((set) => ({
-  wsConnected: false,
-  setWsConnected: (v) => set({ wsConnected: v }),
+  systemState:    'offline',
+  wsConnected:    false,
+  transcript:     [],
+  lastResponse:   '',
+  logs:           [],
+  particleCount:  200,
+  bloomIntensity: 1.4,
+  orbSpeed:       1.0,
 
-  systemState: 'offline',
-  setSystemState: (s) => set({ systemState: s }),
-  statusMessage: 'Connecting…',
-  setStatusMessage: (m) => set({ statusMessage: m }),
+  setSystemState:  (s) => set({ systemState: s }),
+  setWsConnected:  (v) => set({ wsConnected: v }),
+  addTranscript:   (e) => set((st) => ({ transcript: [...st.transcript, e] })),
+  setLastResponse: (t) => set({ lastResponse: t }),
 
-  transcript: [],
-  addEntry: (entry) =>
-    set((state) => ({
-      transcript: [
-        ...state.transcript,
-        {
-          ...entry,
-          id: `entry-${++_entryCounter}`,
-          timestamp: new Date(),
-        },
-      ].slice(-50), // keep last 50 entries
-    })),
-  clearTranscript: () => set({ transcript: [] }),
+  addLog: (level, message) => set((st) => {
+    const entry: LogEntry = {
+      id:        ++logSeq,
+      timestamp: new Date().toLocaleTimeString('en-GB', { hour12: false }),
+      level,
+      message,
+    }
+    const logs = [...st.logs, entry]
+    return { logs: logs.length > 200 ? logs.slice(-200) : logs }
+  }),
 
-  currentTranscript: '',
-  setCurrentTranscript: (t) => set({ currentTranscript: t }),
-  currentResponse: '',
-  setCurrentResponse: (r) => set({ currentResponse: r }),
-
-  cameraFrame: null,
-  setCameraFrame: (frame) => set({ cameraFrame: frame }),
+  clearLogs:         () => set({ logs: [] }),
+  setParticleCount:  (n) => set({ particleCount: Math.min(400, Math.max(100, n)) }),
+  setBloomIntensity: (v) => set({ bloomIntensity: Math.min(2.5, Math.max(0.5, v)) }),
+  setOrbSpeed:       (v) => set({ orbSpeed: Math.min(3, Math.max(0.1, v)) }),
 }))
