@@ -16,7 +16,7 @@ system:
 local:
   llm:
     provider: "ollama"
-    model: "mistral:latest"
+    model: "phi3:latest"
     host: "http://localhost:11434"
     timeout: 30               # seconds before fallback is triggered
     stream: true
