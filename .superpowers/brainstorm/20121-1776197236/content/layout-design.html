@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>C.Y.R.U.S — Layout Design</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #05070d;
+    color: #00f0ff;
+    font-family: 'Orbitron', sans-serif;
+    min-height: 100vh;
+    padding: 20px;
+  }
+
+  h2 { color: #00f0ff; font-size: 18px; letter-spacing: 0.3em; text-transform: uppercase; margin-bottom: 6px; }
+  .subtitle { color: #0077ff88; font-family: 'Share Tech Mono', monospace; font-size: 13px; margin-bottom: 24px; }
+
+  /* ─── MOCKUP ─────────────────────────────────────────── */
+  .mockup-wrap {
+    border: 1px solid #00f0ff22;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #05070d;
+    margin-bottom: 32px;
+    box-shadow: 0 0 60px #00f0ff08, 0 0 120px #0077ff05;
+  }
+
+  /* Header */
+  .hud-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 20px;
+    background: #030810;
+    border-bottom: 1px solid #00f0ff15;
+    height: 36px;
+  }
+  .brand {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.4em;
+    color: #00f0ff;
+    text-shadow: 0 0 16px #00f0ff66;
+  }
+  .ticker {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: #0077ff55;
+    letter-spacing: 0.15em;
+  }
+  .state-badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: #00ff88;
+    background: #00ff8808;
+    border: 1px solid #00ff8830;
+    padding: 3px 10px;
+    border-radius: 4px;
+    box-shadow: 0 0 10px #00ff8815;
+  }
+
+  /* Main grid */
+  .hud-main {
+    display: grid;
+    grid-template-columns: 240px 1fr 240px;
+    height: 460px;
+  }
+
+  /* Side panels */
+  .panel-left, .panel-right {
+    background: #030810;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow: hidden;
+  }
+  .panel-left { border-right: 1px solid #00f0ff10; }
+  .panel-right { border-left: 1px solid #00f0ff10; }
+
+  .panel-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.3em;
+    color: #00f0ff33;
+    border-bottom: 1px solid #00f0ff0a;
+    padding-bottom: 6px;
+    margin-bottom: 4px;
+  }
+
+  /* Log lines */
+  .log-line {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: #00f0ff55;
+    padding: 2px 0;
+    border-left: 2px solid transparent;
+    padding-left: 6px;
+    letter-spacing: 0.05em;
+  }
+  .log-line.active { color: #00f0ffcc; border-left-color: #00f0ff44; }
+  .log-line.warn { color: #ff8c0088; border-left-color: #ff8c0044; }
+  .log-line span { color: #00f0ff33; margin-right: 4px; }
+
+  /* Status items */
+  .stat-item {
+    background: #040c18;
+    border: 1px solid #00f0ff0d;
+    border-radius: 6px;
+    padding: 8px 10px;
+  }
+  .stat-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.2em;
+    color: #00f0ff33;
+    margin-bottom: 4px;
+  }
+  .stat-bar {
+    height: 2px;
+    background: #00f0ff11;
+    border-radius: 2px;
+    margin-top: 4px;
+    overflow: hidden;
+  }
+  .stat-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0077ff, #00f0ff);
+    border-radius: 2px;
+    box-shadow: 0 0 6px #00f0ff;
+  }
+  .stat-value {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    color: #00f0ffcc;
+  }
+  .stat-unit { font-size: 9px; color: #00f0ff44; margin-left: 2px; }
+
+  /* Center */
+  .center-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px 12px;
+    background: radial-gradient(ellipse 80% 70% at 50% 40%, #061828 0%, #05070d 100%);
+  }
+
+  /* Orb placeholder */
+  .orb-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    position: relative;
+  }
+  .orb-outer {
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .orb-ring-1 {
+    position: absolute;
+    inset: -20px;
+    border-radius: 50%;
+    border: 1px solid #00f0ff22;
+    animation: spin1 8s linear infinite;
+  }
+  .orb-ring-2 {
+    position: absolute;
+    inset: -35px;
+    border-radius: 50%;
+    border: 1px dashed #0077ff15;
+    animation: spin2 14s linear infinite reverse;
+  }
+  /* Icosphere wireframe sim */
+  .orb-core {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 38% 35%, #00f0ff22, #0077ff11 50%, transparent 80%);
+    border: 1px solid #00f0ff44;
+    box-shadow:
+      0 0 30px #00f0ff33,
+      0 0 60px #0077ff22,
+      0 0 100px #00f0ff11,
+      inset 0 0 40px #00f0ff08;
+    position: relative;
+    animation: orbPulse 3s ease-in-out infinite;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .orb-wire-h {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1px solid #00f0ff18;
+    transform: rotateX(60deg);
+  }
+  .orb-wire-v {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1px solid #00f0ff18;
+    transform: rotateY(60deg);
+  }
+  .orb-wire-d {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1px solid #0077ff15;
+    transform: rotateZ(45deg);
+  }
+  /* Particles */
+  .particle {
+    position: absolute;
+    border-radius: 50%;
+    background: #00f0ff;
+    box-shadow: 0 0 6px #00f0ff;
+    animation: floatP 3s ease-in-out infinite;
+  }
+
+  /* Response text */
+  .response-area {
+    width: 100%;
+    text-align: center;
+    padding: 10px 16px;
+    background: #030810;
+    border: 1px solid #00f0ff0d;
+    border-radius: 8px;
+    margin-top: 10px;
+  }
+  .response-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 7px;
+    letter-spacing: 0.3em;
+    color: #00f0ff22;
+    margin-bottom: 4px;
+  }
+  .response-text {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: #00f0ff88;
+    letter-spacing: 0.05em;
+    line-height: 1.5;
+  }
+
+  /* Voice input bar */
+  .voice-bar {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .mic-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #00f0ff0a;
+    border: 1px solid #00f0ff44;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 16px #00f0ff22;
+    flex-shrink: 0;
+  }
+  .mic-icon {
+    width: 14px;
+    height: 20px;
+    background: #00f0ff;
+    border-radius: 7px 7px 7px 7px;
+    box-shadow: 0 0 10px #00f0ff;
+  }
+  .audio-viz {
+    flex: 1;
+    height: 36px;
+    background: #020810;
+    border: 1px solid #00f0ff0a;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    overflow: hidden;
+    padding: 0 10px;
+  }
+  .viz-bar {
+    width: 3px;
+    background: linear-gradient(180deg, #00f0ff, #0077ff);
+    border-radius: 2px;
+    box-shadow: 0 0 4px #00f0ff44;
+    animation: vizAnim var(--d, 0.8s) ease-in-out infinite alternate;
+  }
+
+  /* Footer */
+  .hud-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 20px;
+    background: #030810;
+    border-top: 1px solid #00f0ff08;
+    height: 24px;
+  }
+  .footer-text {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 7px;
+    color: #00f0ff15;
+    letter-spacing: 0.15em;
+  }
+
+  @keyframes spin1 { to { transform: rotate(360deg); } }
+  @keyframes spin2 { to { transform: rotate(360deg); } }
+  @keyframes orbPulse {
+    0%, 100% { box-shadow: 0 0 30px #00f0ff33, 0 0 60px #0077ff22, 0 0 100px #00f0ff11; }
+    50% { box-shadow: 0 0 50px #00f0ff66, 0 0 90px #0077ff44, 0 0 140px #00f0ff22; }
+  }
+  @keyframes floatP {
+    0%, 100% { transform: translateY(0) scale(1); opacity: 0.8; }
+    50% { transform: translateY(-8px) scale(1.2); opacity: 1; }
+  }
+  @keyframes vizAnim {
+    from { height: 4px; }
+    to { height: var(--h, 28px); }
+  }
+  @keyframes spin1r { to { transform: rotate(-360deg) rotateX(30deg); } }
+</style>
+</head>
+<body>
+
+<h2>C.Y.R.U.S — Layout & Visual Design</h2>
+<p class="subtitle">Mockup del diseño completo. Las animaciones son aproximaciones CSS — el orb real será Three.js + shaders GLSL + Bloom.</p>
+
+<div class="mockup-wrap">
+
+  <!-- HEADER -->
+  <div class="hud-header">
+    <div class="brand">C.Y.R.U.S</div>
+    <div class="ticker">▸ COGNITIVE SYSTEM v2.0 · AUDIO PIPELINE · WHISPER ASR · OLLAMA LLM · QDRANT VECTOR DB ▸</div>
+    <div class="state-badge">● LISTENING</div>
+  </div>
+
+  <!-- MAIN GRID -->
+  <div class="hud-main">
+
+    <!-- LEFT — System Logs -->
+    <div class="panel-left">
+      <div class="panel-label">⬡ SYSTEM LOG</div>
+      <div class="log-line active"><span>00:14:32</span> Audio pipeline init OK</div>
+      <div class="log-line active"><span>00:14:33</span> Whisper ASR · model loaded</div>
+      <div class="log-line"><span>00:14:34</span> Qdrant · 1,247 vectors</div>
+      <div class="log-line active"><span>00:14:35</span> Wake word detected: "Hey CYRUS"</div>
+      <div class="log-line warn"><span>00:14:36</span> ⚠ VAD threshold adjusted</div>
+      <div class="log-line active"><span>00:14:37</span> Transcribing audio input...</div>
+      <div class="log-line"><span>00:14:38</span> LLM · phi3:medium active</div>
+      <div class="log-line active"><span>00:14:39</span> Memory query · 3 results</div>
+      <div class="log-line"><span>00:14:40</span> TTS synthesis queued</div>
+      <div class="log-line active"><span>00:14:41</span> Response · 142 tokens</div>
+      <div class="log-line"><span>00:14:42</span> Edge-TTS output ready</div>
+    </div>
+
+    <!-- CENTER — Orb -->
+    <div class="center-col">
+      <div class="orb-container">
+        <div class="orb-outer">
+          <div class="orb-ring-2"></div>
+          <div class="orb-ring-1"></div>
+          <div class="orb-core">
+            <div class="orb-wire-h"></div>
+            <div class="orb-wire-v"></div>
+            <div class="orb-wire-d"></div>
+            <!-- Particles -->
+            <div class="particle" style="width:4px;height:4px;top:20px;left:60px;animation-delay:0s;animation-duration:2.5s;"></div>
+            <div class="particle" style="width:3px;height:3px;top:70px;left:10px;animation-delay:0.4s;animation-duration:3s;"></div>
+            <div class="particle" style="width:5px;height:5px;top:110px;left:40px;animation-delay:0.8s;animation-duration:2.2s;"></div>
+            <div class="particle" style="width:3px;height:3px;top:30px;left:120px;animation-delay:1.2s;animation-duration:2.8s;"></div>
+            <div class="particle" style="width:4px;height:4px;top:100px;left:130px;animation-delay:0.2s;animation-duration:3.2s;"></div>
+            <div class="particle" style="width:2px;height:2px;top:50px;left:80px;animation-delay:1.5s;animation-duration:2s;background:#80ffff;box-shadow:0 0 4px #80ffff;"></div>
+            <div class="particle" style="width:3px;height:3px;top:130px;left:90px;animation-delay:0.6s;animation-duration:2.7s;background:#0077ff;box-shadow:0 0 6px #0077ff;"></div>
+            <!-- inner glow dot -->
+            <div style="width:20px;height:20px;border-radius:50%;background:radial-gradient(circle,#00f0ff,#0077ff);box-shadow:0 0 20px #00f0ff,0 0 40px #0077ff;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Response text -->
+      <div class="response-area">
+        <div class="response-label">AI RESPONSE</div>
+        <div class="response-text">Analizando tu solicitud. Encontré 3 coincidencias en memoria. Procesando con contexto de las últimas 4 horas...</div>
+      </div>
+
+      <!-- Voice input bar -->
+      <div class="voice-bar">
+        <div class="mic-btn">
+          <div class="mic-icon"></div>
+        </div>
+        <div class="audio-viz">
+          <!-- Waveform bars -->
+          <div class="viz-bar" style="height:6px;--h:28px;--d:0.5s"></div>
+          <div class="viz-bar" style="height:18px;--h:8px;--d:0.7s"></div>
+          <div class="viz-bar" style="height:24px;--h:14px;--d:0.4s"></div>
+          <div class="viz-bar" style="height:10px;--h:30px;--d:0.9s"></div>
+          <div class="viz-bar" style="height:28px;--h:6px;--d:0.6s"></div>
+          <div class="viz-bar" style="height:14px;--h:22px;--d:0.8s"></div>
+          <div class="viz-bar" style="height:8px;--h:18px;--d:0.5s"></div>
+          <div class="viz-bar" style="height:20px;--h:10px;--d:0.7s"></div>
+          <div class="viz-bar" style="height:6px;--h:26px;--d:0.45s"></div>
+          <div class="viz-bar" style="height:16px;--h:4px;--d:0.65s"></div>
+          <div class="viz-bar" style="height:22px;--h:20px;--d:0.55s"></div>
+          <div class="viz-bar" style="height:12px;--h:32px;--d:0.75s"></div>
+          <div class="viz-bar" style="height:28px;--h:8px;--d:0.5s"></div>
+          <div class="viz-bar" style="height:6px;--h:24px;--d:0.85s"></div>
+          <div class="viz-bar" style="height:18px;--h:12px;--d:0.6s"></div>
+          <div class="viz-bar" style="height:10px;--h:28px;--d:0.7s"></div>
+          <div class="viz-bar" style="height:24px;--h:6px;--d:0.5s"></div>
+          <div class="viz-bar" style="height:14px;--h:20px;--d:0.8s"></div>
+          <div class="viz-bar" style="height:20px;--h:14px;--d:0.55s"></div>
+          <div class="viz-bar" style="height:8px;--h:28px;--d:0.65s"></div>
+          <div class="viz-bar" style="height:16px;--h:10px;--d:0.75s"></div>
+          <div class="viz-bar" style="height:26px;--h:18px;--d:0.45s"></div>
+          <div class="viz-bar" style="height:6px;--h:30px;--d:0.9s"></div>
+          <div class="viz-bar" style="height:22px;--h:8px;--d:0.6s"></div>
+          <div class="viz-bar" style="height:12px;--h:22px;--d:0.7s"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT — Status HUD -->
+    <div class="panel-right">
+      <div class="panel-label">⬡ SYSTEM STATUS</div>
+
+      <div class="stat-item">
+        <div class="stat-label">CPU USAGE</div>
+        <div class="stat-value">34<span class="stat-unit">%</span></div>
+        <div class="stat-bar"><div class="stat-bar-fill" style="width:34%"></div></div>
+      </div>
+
+      <div class="stat-item">
+        <div class="stat-label">GPU · RTX 2070S</div>
+        <div class="stat-value">12<span class="stat-unit">%</span></div>
+        <div class="stat-bar"><div class="stat-bar-fill" style="width:12%;background:linear-gradient(90deg,#0077ff,#00f0ff)"></div></div>
+      </div>
+
+      <div class="stat-item">
+        <div class="stat-label">RAM</div>
+        <div class="stat-value">11.2<span class="stat-unit">GB</span></div>
+        <div class="stat-bar"><div class="stat-bar-fill" style="width:55%"></div></div>
+      </div>
+
+      <div class="stat-item">
+        <div class="stat-label">WEATHER · LIMA PE</div>
+        <div class="stat-value">19<span class="stat-unit">°C</span></div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:#00f0ff33;margin-top:2px;">Mostly Cloudy · 72% humidity</div>
+      </div>
+
+      <div class="stat-item">
+        <div class="stat-label">AI STATE</div>
+        <div class="stat-value" style="font-size:10px;color:#00ff88;text-shadow:0 0 10px #00ff8866;">● LISTENING</div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:8px;color:#00f0ff22;margin-top:3px;">Qdrant · 1,247 vectors · Phi3</div>
+      </div>
+
+      <div class="stat-item">
+        <div class="stat-label">UPTIME</div>
+        <div class="stat-value" style="font-size:13px;">04<span class="stat-unit">h</span> 22<span class="stat-unit">m</span></div>
+      </div>
+    </div>
+
+  </div><!-- /hud-main -->
+
+  <!-- FOOTER -->
+  <div class="hud-footer">
+    <div class="footer-text">© 2025 RICARDO · LIMA, PE</div>
+    <div class="footer-text">COGNITIVE SYSTEM FOR REAL-TIME UTILITY &amp; SERVICES</div>
+  </div>
+
+</div><!-- /mockup-wrap -->
+
+<div style="background:#030810;border:1px solid #00f0ff15;border-radius:10px;padding:20px;font-family:'Share Tech Mono',monospace;font-size:12px;color:#00f0ff55;line-height:1.8;">
+  <div style="color:#00f0ffaa;letter-spacing:0.2em;font-size:10px;margin-bottom:12px;">COMPONENTES QUE SE CONSTRUIRÁN</div>
+  <div><span style="color:#00f0ff66;">Orb.tsx</span> — Three.js R3F · IcosahedronGeometry wireframe + 800 instanced particles + GLSL shader + Bloom</div>
+  <div><span style="color:#00f0ff66;">HUDPanel.tsx</span> — Panel glassmorphism genérico · acepta header + children · glow on hover (Framer Motion)</div>
+  <div><span style="color:#00f0ff66;">VoiceInput.tsx</span> — Botón mic animado · estados idle/listening/speaking · Framer Motion scale+pulse</div>
+  <div><span style="color:#00f0ff66;">AudioVisualizer.tsx</span> — Web Audio API AnalyserNode · FFT → barras/ondas · reactivo a TTS output</div>
+  <div><span style="color:#00f0ff66;">SystemLog.tsx</span> — Stream de logs console-style · auto-scroll · color-coded por tipo</div>
+  <div><span style="color:#00f0ff66;">StatusPanel.tsx</span> — CPU/GPU/RAM fake + clima fake + estado IA real (WebSocket)</div>
+  <div><span style="color:#00f0ff66;">App.tsx</span> — Layout grid 3 columnas · WebSocket hook · Zustand store (preservado)</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>C.Y.R.U.S — Mini Interface Options</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #05070d; color: #00f0ff; font-family: 'Orbitron', sans-serif; padding: 24px; }
+h2 { font-size: 16px; letter-spacing: 0.3em; color: #00f0ff; margin-bottom: 6px; }
+.subtitle { font-family: 'Share Tech Mono', monospace; font-size: 12px; color: #0077ff66; margin-bottom: 28px; }
+
+.label { font-family: 'Share Tech Mono', monospace; font-size: 8px; letter-spacing: 0.3em; color: #00f0ff33; margin-bottom: 10px; }
+
+/* Option cards */
+.options { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 32px; }
+.option {
+  border: 1px solid #00f0ff18;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background: #030810;
+}
+.option:hover { border-color: #00f0ff44; box-shadow: 0 0 20px #00f0ff11; }
+.option.selected { border-color: #00f0ff88; box-shadow: 0 0 30px #00f0ff22; }
+.option-letter {
+  background: #00f0ff08;
+  border-bottom: 1px solid #00f0ff15;
+  padding: 6px 12px;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: #00f0ff55;
+}
+.option.selected .option-letter { color: #00f0ff; background: #00f0ff15; }
+.preview { height: 200px; position: relative; background: #040b16; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.option-body { padding: 12px; }
+.option-body h3 { font-size: 10px; letter-spacing: 0.2em; color: #00f0ffcc; margin-bottom: 6px; }
+.option-body p { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: #00f0ff44; line-height: 1.6; }
+
+/* ORB simulation (shared) */
+.orb-sim {
+  width: 80px; height: 80px; border-radius: 50%;
+  background: radial-gradient(circle at 38% 35%, #00f0ff22, #0077ff11 50%, transparent 80%);
+  border: 1px solid #00f0ff55;
+  box-shadow: 0 0 20px #00f0ff44, 0 0 40px #0077ff22;
+  animation: orbP 3s ease-in-out infinite;
+  position: absolute;
+}
+@keyframes orbP { 0%,100%{box-shadow:0 0 20px #00f0ff44,0 0 40px #0077ff22} 50%{box-shadow:0 0 35px #00f0ff77,0 0 70px #0077ff44} }
+@keyframes spin { to{transform:rotate(360deg)} }
+@keyframes slideIn { from{transform:translateX(100%)} to{transform:translateX(0)} }
+@keyframes fadeIn { from{opacity:0;transform:scale(0.9)} to{opacity:1;transform:scale(1)} }
+
+/* ── OPTION A: Floating corner widget ── */
+.corner-widget {
+  position: absolute;
+  bottom: 10px; right: 10px;
+  width: 120px;
+  background: rgba(3,8,16,0.92);
+  border: 1px solid #00f0ff22;
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  padding: 8px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  color: #00f0ff44;
+  animation: fadeIn 0.4s ease;
+}
+.corner-tab {
+  position: absolute;
+  bottom: 10px; right: 10px;
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  background: #00f0ff0a;
+  border: 1px solid #00f0ff33;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+  color: #00f0ff88;
+  cursor: pointer;
+}
+.cw-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #00f0ff08; }
+.cw-row:last-child { border-bottom: none; }
+.cw-label { color: #00f0ff33; }
+.cw-val { color: #00f0ffaa; }
+.cw-header { font-size: 7px; letter-spacing: 0.2em; color: #00f0ff55; margin-bottom: 6px; border-bottom: 1px solid #00f0ff15; padding-bottom: 4px; }
+
+/* ── OPTION B: Slide-out drawer ── */
+.drawer {
+  position: absolute;
+  top: 0; right: 0;
+  width: 130px; height: 100%;
+  background: rgba(3,8,16,0.95);
+  border-left: 1px solid #00f0ff22;
+  backdrop-filter: blur(12px);
+  padding: 10px 8px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  color: #00f0ff44;
+  animation: slideIn 0.3s ease;
+  overflow: hidden;
+}
+.drawer-toggle {
+  position: absolute;
+  top: 50%; right: 0;
+  transform: translateY(-50%);
+  width: 14px; height: 40px;
+  background: #00f0ff0a;
+  border: 1px solid #00f0ff22;
+  border-right: none;
+  border-radius: 4px 0 0 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 7px; color: #00f0ff55;
+}
+.d-section { margin-bottom: 10px; }
+.d-label { font-size: 6px; letter-spacing: 0.25em; color: #00f0ff33; margin-bottom: 5px; }
+.d-row { display: flex; justify-content: space-between; padding: 2px 0; }
+.d-val { color: #00f0ffaa; }
+.d-bar { height: 2px; background: #00f0ff11; border-radius: 1px; margin: 2px 0 5px; }
+.d-fill { height: 100%; border-radius: 1px; background: linear-gradient(90deg,#0077ff,#00f0ff); }
+
+/* ── OPTION C: Command palette / bottom sheet ── */
+.cmd-palette {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: rgba(3,8,16,0.96);
+  border-top: 1px solid #00f0ff22;
+  backdrop-filter: blur(12px);
+  padding: 10px 14px 8px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  animation: slideUp 0.3s ease;
+}
+@keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+.cmd-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+.cmd-tab { padding: 3px 8px; border-radius: 4px; font-size: 6px; letter-spacing: 0.15em; color: #00f0ff33; border: 1px solid #00f0ff15; cursor: pointer; }
+.cmd-tab.active { background: #00f0ff15; color: #00f0ffaa; border-color: #00f0ff33; }
+.cmd-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
+.cmd-item { background: #040c18; border: 1px solid #00f0ff0d; border-radius: 4px; padding: 5px 6px; }
+.cmd-item-label { font-size: 6px; letter-spacing: 0.15em; color: #00f0ff22; margin-bottom: 2px; }
+.cmd-item-val { font-size: 9px; color: #00f0ffaa; }
+.cmd-handle { width: 30px; height: 2px; background: #00f0ff22; border-radius: 1px; margin: 0 auto 10px; }
+</style>
+</head>
+<body>
+
+<h2>MAIN SCREEN + MINI INTERFACE</h2>
+<p class="subtitle">Pantalla limpia centrada en el orb. ¿Cómo accedes a logs, stats y settings?</p>
+
+<div class="options">
+
+  <!-- OPTION A -->
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="option-letter">A — FLOATING WIDGET</div>
+    <div class="preview">
+      <div class="orb-sim"></div>
+      <!-- collapsed state shown + expanded widget -->
+      <div class="corner-widget">
+        <div class="cw-header">⬡ C.Y.R.U.S HUD</div>
+        <div class="cw-row"><span class="cw-label">CPU</span><span class="cw-val">34%</span></div>
+        <div class="cw-row"><span class="cw-label">GPU</span><span class="cw-val">12%</span></div>
+        <div class="cw-row"><span class="cw-label">RAM</span><span class="cw-val">11.2GB</span></div>
+        <div class="cw-row"><span class="cw-label">LIMA</span><span class="cw-val">19°C ☁</span></div>
+        <div class="cw-row"><span class="cw-label">STATE</span><span class="cw-val" style="color:#00ff88">LISTEN</span></div>
+        <div style="margin-top:6px;border-top:1px solid #00f0ff0a;padding-top:6px;display:flex;gap:4px;">
+          <div style="flex:1;text-align:center;padding:3px;border:1px solid #00f0ff15;border-radius:3px;color:#00f0ff33;cursor:pointer;">LOGS</div>
+          <div style="flex:1;text-align:center;padding:3px;border:1px solid #00f0ff15;border-radius:3px;color:#00f0ff33;cursor:pointer;">CFG</div>
+        </div>
+      </div>
+    </div>
+    <div class="option-body">
+      <h3>WIDGET FLOTANTE</h3>
+      <p>Ícono ⚙ en esquina inferior derecha. Click → abre mini widget glassmorphism con tabs: Stats · Logs · Config. Siempre visible, no interrumpe el orb.</p>
+    </div>
+  </div>
+
+  <!-- OPTION B -->
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="option-letter">B — SLIDE DRAWER</div>
+    <div class="preview">
+      <div class="orb-sim"></div>
+      <div class="drawer">
+        <div class="d-section">
+          <div class="d-label">SYSTEM</div>
+          <div class="d-row"><span>CPU</span><span class="d-val">34%</span></div>
+          <div class="d-bar"><div class="d-fill" style="width:34%"></div></div>
+          <div class="d-row"><span>GPU</span><span class="d-val">12%</span></div>
+          <div class="d-bar"><div class="d-fill" style="width:12%"></div></div>
+          <div class="d-row"><span>RAM</span><span class="d-val">11.2G</span></div>
+          <div class="d-bar"><div class="d-fill" style="width:55%"></div></div>
+        </div>
+        <div class="d-section">
+          <div class="d-label">WEATHER</div>
+          <div class="d-row"><span>LIMA</span><span class="d-val">19°C</span></div>
+        </div>
+        <div class="d-section">
+          <div class="d-label">LOGS</div>
+          <div style="color:#00f0ff33;line-height:1.8;font-size:6px;">
+            <div>▸ ASR loaded</div>
+            <div>▸ Wake detected</div>
+            <div style="color:#00f0ff66;">▸ Listening...</div>
+          </div>
+        </div>
+        <div class="d-section">
+          <div class="d-label">CONFIG</div>
+          <div style="color:#00f0ff33;line-height:1.8;font-size:6px;">
+            <div>▸ Model: phi3</div>
+            <div>▸ TTS: edge</div>
+            <div>▸ VAD: on</div>
+          </div>
+        </div>
+      </div>
+      <div class="drawer-toggle">‹</div>
+    </div>
+    <div class="option-body">
+      <h3>DRAWER LATERAL</h3>
+      <p>Panel que desliza desde la derecha. Flecha ‹ › en el borde para abrir/cerrar. Muestra todo: stats con barras, logs en vivo, config editable.</p>
+    </div>
+  </div>
+
+  <!-- OPTION C -->
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="option-letter">C — BOTTOM SHEET</div>
+    <div class="preview" style="flex-direction:column;justify-content:flex-end;">
+      <div class="orb-sim" style="top:30px;position:absolute;"></div>
+      <div class="cmd-palette">
+        <div class="cmd-handle"></div>
+        <div class="cmd-tabs">
+          <div class="cmd-tab active">STATS</div>
+          <div class="cmd-tab">LOGS</div>
+          <div class="cmd-tab">CONFIG</div>
+        </div>
+        <div class="cmd-grid">
+          <div class="cmd-item"><div class="cmd-item-label">CPU</div><div class="cmd-item-val">34%</div></div>
+          <div class="cmd-item"><div class="cmd-item-label">GPU RTX2070S</div><div class="cmd-item-val">12%</div></div>
+          <div class="cmd-item"><div class="cmd-item-label">RAM</div><div class="cmd-item-val">11.2 GB</div></div>
+          <div class="cmd-item"><div class="cmd-item-label">LIMA · WEATHER</div><div class="cmd-item-val">19°C ☁</div></div>
+          <div class="cmd-item"><div class="cmd-item-label">AI STATE</div><div class="cmd-item-val" style="color:#00ff88;font-size:8px;">● LISTEN</div></div>
+          <div class="cmd-item"><div class="cmd-item-label">UPTIME</div><div class="cmd-item-val">4h 22m</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="option-body">
+      <h3>BOTTOM SHEET</h3>
+      <p>Panel inferior que sube con swipe o click. Drag handle arriba. Tabs: Stats · Logs · Config. Se colapsa a una barra de 4px cuando no se usa.</p>
+    </div>
+  </div>
+
+</div>
+
+<div style="background:#030810;border:1px solid #00f0ff10;border-radius:8px;padding:16px;font-family:'Share Tech Mono',monospace;font-size:11px;color:#00f0ff44;line-height:1.8;">
+  <div style="color:#00f0ff66;letter-spacing:0.2em;font-size:9px;margin-bottom:10px;">CONTENIDO DEL MINI PANEL (cualquier opción)</div>
+  <div>📊 <span style="color:#00f0ffaa;">Stats:</span> CPU · GPU · RAM · uptime · clima Lima</div>
+  <div>📋 <span style="color:#00f0ffaa;">Logs:</span> stream de sistema en tiempo real con WebSocket</div>
+  <div>⚙️ <span style="color:#00f0ffaa;">Config:</span> modelo LLM · voz TTS · VAD threshold · wake words · bloom intensity · particle count</div>
+  <div>🎛️ <span style="color:#00f0ffaa;">Acceso:</span> tecla <kbd style="background:#00f0ff15;border:1px solid #00f0ff33;padding:1px 5px;border-radius:3px;color:#00f0ffcc;">Tab</kbd> o botón ⚙ flotante</div>
+</div>
+
+<script>
+function toggleSelect(el) {
+  document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  if (window.__recordChoice) window.__recordChoice(el.dataset.choice, el.querySelector('h3').textContent);
+}
+</script>
+</body>
+</html>

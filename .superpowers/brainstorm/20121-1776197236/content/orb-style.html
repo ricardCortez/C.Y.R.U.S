@@ -1,0 +1,70 @@
+<h2>Estilo del Orb Principal (Three.js)</h2>
+<p class="subtitle">El orb es el corazón visual de la interfaz. ¿Cuál de estos estilos representa mejor a C.Y.R.U.S?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="plasma" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#05070d;display:flex;align-items:center;justify-content:center;height:160px;border-radius:8px 8px 0 0;overflow:hidden;position:relative;">
+      <!-- Plasma orb simulation -->
+      <div style="width:100px;height:100px;border-radius:50%;background:radial-gradient(circle at 35% 35%, #80ffff, #00f0ff 30%, #0077ff 60%, #001a33 100%);box-shadow:0 0 40px #00f0ff,0 0 80px #0077ff55,0 0 120px #00f0ff22;animation:pulse 2s ease-in-out infinite;position:relative;">
+        <div style="position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 60% 30%, rgba(255,255,255,0.3), transparent 60%);"></div>
+      </div>
+      <div style="position:absolute;width:130px;height:130px;border-radius:50%;border:1px solid #00f0ff33;animation:spinA 4s linear infinite;"></div>
+      <div style="position:absolute;width:155px;height:155px;border-radius:50%;border:1px dashed #0077ff22;animation:spinB 7s linear infinite reverse;"></div>
+      <style>
+        @keyframes pulse{0%,100%{transform:scale(1);box-shadow:0 0 40px #00f0ff,0 0 80px #0077ff55}50%{transform:scale(1.07);box-shadow:0 0 60px #00f0ff,0 0 120px #0077ff88}}
+        @keyframes spinA{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+        @keyframes spinB{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+      </style>
+    </div>
+    <div class="card-body">
+      <h3>A — Plasma Sphere</h3>
+      <p>Esfera sólida con superficie energética y glow multicapa. Similar a Arc Reactor. Shader de plasma con distorsión en superficie.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="wireframe" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#05070d;display:flex;align-items:center;justify-content:center;height:160px;border-radius:8px 8px 0 0;overflow:hidden;position:relative;">
+      <!-- Wireframe/icosphere -->
+      <div style="width:110px;height:110px;border-radius:50%;background:transparent;border:1px solid #00f0ff44;box-shadow:0 0 30px #00f0ff33;animation:spinA 6s linear infinite;position:relative;">
+        <!-- Simulated wireframe lines -->
+        <div style="position:absolute;inset:0;border-radius:50%;border:1px solid #00f0ff22;transform:rotateX(60deg);"></div>
+        <div style="position:absolute;inset:0;border-radius:50%;border:1px solid #00f0ff22;transform:rotateY(60deg);"></div>
+        <div style="position:absolute;inset:0;border-radius:50%;border:1px solid #00f0ff22;transform:rotateZ(60deg);"></div>
+        <div style="position:absolute;inset:20px;border-radius:50%;border:1px solid #00f0ff33;"></div>
+      </div>
+      <div style="position:absolute;width:10px;height:10px;border-radius:50%;background:#00f0ff;box-shadow:0 0 20px #00f0ff,0 0 40px #0077ff;"></div>
+      <div style="position:absolute;width:80px;height:80px;border:1px dashed #0077ff44;border-radius:50%;animation:spinB 3s linear infinite;"></div>
+    </div>
+    <div class="card-body">
+      <h3>B — Icosphere Holográfico</h3>
+      <p>Malla wireframe geométrica girando en 3D. Estilo holográfico puro. Core brillante en el centro. Inspirado en interfaces de sci-fi.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="nebula" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#05070d;display:flex;align-items:center;justify-content:center;height:160px;border-radius:8px 8px 0 0;overflow:hidden;position:relative;">
+      <!-- Nebula/particle cloud -->
+      <div style="position:relative;width:120px;height:120px;">
+        <div style="position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle, #00f0ff22 0%, transparent 70%);filter:blur(4px);animation:pulse 3s ease-in-out infinite;"></div>
+        <div style="position:absolute;inset:10px;border-radius:50%;background:radial-gradient(circle, #0077ff44 0%, transparent 80%);filter:blur(6px);animation:pulse 2s ease-in-out infinite reverse;"></div>
+        <div style="position:absolute;inset:25px;border-radius:50%;background:radial-gradient(circle, #00f0ff 0%, #0077ff 40%, transparent 70%);box-shadow:0 0 30px #00f0ff88;"></div>
+        <!-- particles -->
+        <div style="position:absolute;width:3px;height:3px;border-radius:50%;background:#00f0ff;top:15px;left:50px;box-shadow:0 0 6px #00f0ff;"></div>
+        <div style="position:absolute;width:2px;height:2px;border-radius:50%;background:#80ffff;top:80px;left:20px;box-shadow:0 0 4px #80ffff;"></div>
+        <div style="position:absolute;width:2px;height:2px;border-radius:50%;background:#0077ff;top:30px;left:90px;box-shadow:0 0 4px #0077ff;"></div>
+        <div style="position:absolute;width:2px;height:2px;border-radius:50%;background:#00f0ff;top:90px;left:70px;box-shadow:0 0 4px #00f0ff;"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Nebula Core</h3>
+      <p>Nube de partículas 3D densa que forma una esfera de energía. Más orgánico, vivo. Shader volumétrico con partículas orbitando.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="section" style="margin-top:24px;padding:16px;background:rgba(0,240,255,0.03);border:1px solid rgba(0,240,255,0.1);border-radius:8px;">
+  <p class="label">Nota</p>
+  <p>Los tres usan Three.js + shaders GLSL. El orb reacciona al estado del sistema (idle/listening/speaking/thinking) con cambios de color, velocidad y distorsión. ¿Cuál estilo visual prefieres para el núcleo?</p>
+</div>

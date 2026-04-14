@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>C.Y.R.U.S — Neural Orb v2</title>
+<style>* { box-sizing:border-box; margin:0; padding:0; } body { background:#05070d; overflow:hidden; }</style>
+</head>
+<body>
+<canvas id="c" style="display:block;width:100vw;height:100vh;"></canvas>
+
+<!-- State switcher — minimal, no brand name -->
+<div style="position:fixed;bottom:28px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:10;">
+  <button onclick="setState('idle')"      id="btn-idle"      class="sbtn">IDLE</button>
+  <button onclick="setState('listening')" id="btn-listening" class="sbtn">LISTENING</button>
+  <button onclick="setState('thinking')"  id="btn-thinking"  class="sbtn">THINKING</button>
+  <button onclick="setState('speaking')"  id="btn-speaking"  class="sbtn">SPEAKING</button>
+</div>
+
+<style>
+.sbtn {
+  font-family: 'Share Tech Mono', monospace, monospace;
+  font-size: 9px; letter-spacing: 0.2em;
+  padding: 5px 13px;
+  background: rgba(0,240,255,0.04);
+  border: 1px solid rgba(0,240,255,0.2);
+  color: rgba(0,240,255,0.4);
+  border-radius: 4px; cursor: pointer;
+  transition: all 0.2s;
+}
+.sbtn.active {
+  background: rgba(0,240,255,0.12);
+  border-color: rgba(0,240,255,0.6);
+  color: rgba(0,240,255,0.9);
+  box-shadow: 0 0 12px rgba(0,240,255,0.2);
+}
+</style>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+let W, H, CX, CY;
+function resize() {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  CX = W/2; CY = H/2;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── States ─────────────────────────────────────────────────────────────────
+// "bigger when interacting" — idle stays base, others scale up
+const STATES = {
+  idle:      { radius:110, speed:0.16, connDist:52,  connFrac:0.10, bright:0.40, electrons:false, fire:0.0004, color:[0,200,255] },
+  listening: { radius:155, speed:0.30, connDist:75,  connFrac:0.42, bright:0.68, electrons:false, fire:0.0018, color:[0,220,255] },
+  thinking:  { radius:175, speed:0.50, connDist:95,  connFrac:1.00, bright:0.90, electrons:true,  fire:0.0055, color:[60,170,255] },
+  speaking:  { radius:165, speed:0.40, connDist:85,  connFrac:0.82, bright:0.80, electrons:true,  fire:0.0035, color:[0,240,255] },
+};
+
+let cur = 'idle';
+function setState(s) {
+  cur = s;
+  document.querySelectorAll('.sbtn').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-'+s).classList.add('active');
+}
+setState('idle');
+
+// ── Particles ──────────────────────────────────────────────────────────────
+const N = 220;
+const px = new Float32Array(N), py = new Float32Array(N), pz = new Float32Array(N);
+const pvx= new Float32Array(N), pvy= new Float32Array(N), pvz= new Float32Array(N);
+const phase = new Float32Array(N);
+// Neuron activation state per particle
+const fireAmt  = new Float32Array(N);   // 0→1, current activation brightness
+const fireCool = new Float32Array(N);   // cooldown timer
+
+for (let i=0;i<N;i++) {
+  const th = Math.random()*Math.PI*2;
+  const ph = Math.acos(2*Math.random()-1);
+  const r  = 80 + Math.random()*45;
+  px[i] = r*Math.sin(ph)*Math.cos(th);
+  py[i] = r*Math.sin(ph)*Math.sin(th);
+  pz[i] = r*Math.cos(ph);
+  pvx[i]=(Math.random()-.5)*.25; pvy[i]=(Math.random()-.5)*.25; pvz[i]=(Math.random()-.5)*.25;
+  phase[i]=Math.random()*Math.PI*2;
+}
+
+// ── Electrons ──────────────────────────────────────────────────────────────
+const electrons = [];
+function spawnElectron(ax,ay,bx,by) {
+  if (electrons.length>=40) return;
+  electrons.push({ax,ay,bx,by,t:0,spd:0.007+Math.random()*0.013});
+}
+
+// ── Stars ──────────────────────────────────────────────────────────────────
+const NS=130;
+const stx=new Float32Array(NS),sty=new Float32Array(NS),stph=new Float32Array(NS),stspd=new Float32Array(NS);
+for(let i=0;i<NS;i++){stx[i]=Math.random();sty[i]=Math.random();stph[i]=Math.random()*6.28;stspd[i]=1.2+Math.random()*2.5;}
+
+// ── Lerped values ──────────────────────────────────────────────────────────
+let lRadius=110,lSpeed=0.16,lConnDist=52,lBright=0.40,lFire=0.0004;
+let lColor=[0,200,255];
+let audioAmp=0, t=0;
+
+function lerp(a,b,f){return a+(b-a)*f;}
+function lArr(a,b,f){return a.map((v,i)=>v+(b[i]-v)*f);}
+
+// ── Neuron fire cascade ─────────────────────────────────────────────────────
+function fireNeuron(i, strength) {
+  if (fireCool[i] > 0) return;
+  fireAmt[i] = Math.min(1, strength);
+  fireCool[i] = 40 + Math.random()*60; // frames cooldown
+}
+
+// ── Main loop ──────────────────────────────────────────────────────────────
+function draw() {
+  requestAnimationFrame(draw);
+  t += 0.016;
+
+  const tgt = STATES[cur];
+  lRadius  = lerp(lRadius,  tgt.radius,   0.025);
+  lSpeed   = lerp(lSpeed,   tgt.speed,    0.025);
+  lConnDist= lerp(lConnDist,tgt.connDist, 0.025);
+  lBright  = lerp(lBright,  tgt.bright,   0.025);
+  lFire    = lerp(lFire,    tgt.fire,     0.04);
+  lColor   = lArr(lColor,   tgt.color,    0.035);
+
+  // Simulated audio
+  if (cur==='speaking') {
+    audioAmp = 0.35 + 0.65*Math.abs(Math.sin(t*4.1)*Math.cos(t*2.7+0.5)*Math.sin(t*1.3));
+  } else if (cur==='listening') {
+    audioAmp = 0.05 + 0.12*Math.abs(Math.sin(t*5.8));
+  } else {
+    audioAmp = lerp(audioAmp, 0, 0.04);
+  }
+
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#05070d'; ctx.fillRect(0,0,W,H);
+
+  const [r,g,b] = lColor;
+
+  // Stars
+  for(let i=0;i<NS;i++){
+    const a=0.08+0.22*(0.5+0.5*Math.sin(t*stspd[i]*0.3+stph[i]));
+    ctx.beginPath(); ctx.arc(stx[i]*W,sty[i]*H,0.7,0,Math.PI*2);
+    ctx.fillStyle=`rgba(${r},${g},${b},${a*0.5})`; ctx.fill();
+  }
+
+  // Ambient glow
+  const ambR = lRadius*2.4 + audioAmp*35;
+  const grd = ctx.createRadialGradient(CX,CY,0,CX,CY,ambR);
+  grd.addColorStop(0,`rgba(${r},${g},${b},${0.07*lBright+audioAmp*0.05})`);
+  grd.addColorStop(0.45,`rgba(${r},${g},${b},${0.02*lBright})`);
+  grd.addColorStop(1,'transparent');
+  ctx.fillStyle=grd; ctx.beginPath(); ctx.arc(CX,CY,ambR,0,Math.PI*2); ctx.fill();
+
+  // Update particles
+  for(let i=0;i<N;i++){
+    const nx=Math.sin(t*lSpeed+phase[i])*0.45;
+    const ny=Math.cos(t*lSpeed*0.72+phase[i]*1.28)*0.45;
+    const nz=Math.sin(t*lSpeed*0.51+phase[i]*0.83)*0.45;
+    pvx[i]=pvx[i]*0.94+nx*0.06;
+    pvy[i]=pvy[i]*0.94+ny*0.06;
+    pvz[i]=pvz[i]*0.94+nz*0.06;
+    px[i]+=pvx[i]; py[i]+=pvy[i]; pz[i]+=pvz[i];
+
+    // Audio bass push
+    if(audioAmp>0.25){
+      const d=Math.sqrt(px[i]*px[i]+py[i]*py[i]+pz[i]*pz[i]);
+      if(d>0){const push=audioAmp*1.1; px[i]+=(px[i]/d)*push; py[i]+=(py[i]/d)*push; pz[i]+=(pz[i]/d)*push;}
+    }
+    // Spherical constraint
+    const d=Math.sqrt(px[i]*px[i]+py[i]*py[i]+pz[i]*pz[i]);
+    const tR=lRadius+audioAmp*22;
+    if(d>0){const f=(tR/d-1)*0.013; px[i]+=px[i]*f; py[i]+=py[i]*f; pz[i]+=pz[i]*f;}
+
+    // Decay fire
+    if(fireAmt[i]>0) fireAmt[i]=Math.max(0,fireAmt[i]-0.022);
+    if(fireCool[i]>0) fireCool[i]--;
+
+    // Random fire ignition
+    if(Math.random()<lFire && fireCool[i]===0) fireNeuron(i,0.7+Math.random()*0.3);
+  }
+
+  // Project
+  const fov=420;
+  const proj=[];
+  for(let i=0;i<N;i++){
+    const z=pz[i]+fov;
+    const sc=fov/Math.max(z,1);
+    proj.push({x:CX+px[i]*sc, y:CY+py[i]*sc, z:pz[i], sc});
+  }
+
+  // Draw connections + cascade fire
+  const cdSq=lConnDist*lConnDist;
+  const frac=tgt.connFrac;
+
+  for(let i=0;i<N;i++){
+    if(Math.random()>frac+0.04) continue;
+    for(let j=i+1;j<N;j++){
+      const dx=px[i]-px[j], dy=py[i]-py[j], dz=pz[i]-pz[j];
+      const dSq=dx*dx+dy*dy+dz*dz;
+      if(dSq<cdSq){
+        const str=1-Math.sqrt(dSq)/lConnDist;
+
+        // Neuron cascade: if one end is firing, propagate to other
+        const avgFire=(fireAmt[i]+fireAmt[j])*0.5;
+        if(fireAmt[i]>0.3 && fireCool[j]===0 && Math.random()<0.12) fireNeuron(j,fireAmt[i]*0.6);
+        if(fireAmt[j]>0.3 && fireCool[i]===0 && Math.random()<0.12) fireNeuron(i,fireAmt[j]*0.6);
+
+        // Line color: boost when neuron fires
+        const fireBoost = avgFire * 0.8;
+        const alpha=(str*lBright*0.45)+fireBoost*0.5;
+        const lr=Math.min(255,r+avgFire*120);
+        const lg=Math.min(255,g+avgFire*80);
+        const lb=Math.min(255,b+avgFire*40);
+
+        ctx.lineWidth = 0.5 + fireBoost * 1.2;
+        ctx.strokeStyle=`rgba(${lr},${lg},${lb},${alpha})`;
+        ctx.beginPath();
+        ctx.moveTo(proj[i].x,proj[i].y);
+        ctx.lineTo(proj[j].x,proj[j].y);
+        ctx.stroke();
+
+        // Spawn electrons on hot connections
+        if(tgt.electrons && Math.random()<0.0009) spawnElectron(proj[i].x,proj[i].y,proj[j].x,proj[j].y);
+      }
+    }
+  }
+
+  // Draw particles
+  for(let i=0;i<N;i++){
+    const p=proj[i];
+    const sz=Math.max(0.6,p.sc*0.65);
+    const depth=0.38+0.62*((pz[i]+lRadius)/(lRadius*2));
+    const fire=fireAmt[i];
+    const alpha=depth*lBright*(1+fire*1.8);
+
+    // Neuron fire halo — the "activation" flash
+    if(fire>0.05){
+      const haloR=sz*(6+fire*16);
+      const halo=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,haloR);
+      const fr=Math.min(255,r+fire*140);
+      const fg=Math.min(255,g+fire*100);
+      const fb=Math.min(255,b+fire*60);
+      halo.addColorStop(0,`rgba(${fr},${fg},${fb},${fire*0.75})`);
+      halo.addColorStop(0.35,`rgba(${fr},${fg},${fb},${fire*0.25})`);
+      halo.addColorStop(1,'transparent');
+      ctx.fillStyle=halo;
+      ctx.beginPath(); ctx.arc(p.x,p.y,haloR,0,Math.PI*2); ctx.fill();
+
+      // Ring pulse around firing neuron
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,sz*(3+fire*8),0,Math.PI*2);
+      ctx.strokeStyle=`rgba(${fr},${fg},${fb},${fire*0.4})`;
+      ctx.lineWidth=0.8;
+      ctx.stroke();
+    }
+
+    // Base glow
+    const glowR=sz*4.5;
+    const glw=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,glowR);
+    glw.addColorStop(0,`rgba(${r},${g},${b},${alpha*0.55})`);
+    glw.addColorStop(1,'transparent');
+    ctx.fillStyle=glw; ctx.beginPath(); ctx.arc(p.x,p.y,glowR,0,Math.PI*2); ctx.fill();
+
+    // Core
+    const cr=fire>0?Math.min(255,r+120):r+40;
+    const cg=fire>0?Math.min(255,g+80):g+30;
+    const cb=fire>0?Math.min(255,b+40):b+40;
+    ctx.fillStyle=`rgba(${cr},${cg},${cb},${Math.min(1,alpha+fire*0.5)})`;
+    ctx.beginPath(); ctx.arc(p.x,p.y,sz*(1+fire*1.5),0,Math.PI*2); ctx.fill();
+  }
+
+  // Electrons
+  for(let e=electrons.length-1;e>=0;e--){
+    const el=electrons[e];
+    el.t+=el.spd;
+    if(el.t>=1){electrons.splice(e,1);continue;}
+    const ex=el.ax+(el.bx-el.ax)*el.t;
+    const ey=el.ay+(el.by-el.ay)*el.t;
+    const eGlw=ctx.createRadialGradient(ex,ey,0,ex,ey,10);
+    eGlw.addColorStop(0,'rgba(255,255,255,0.95)');
+    eGlw.addColorStop(0.3,`rgba(${r},${g},${b},0.7)`);
+    eGlw.addColorStop(1,'transparent');
+    ctx.fillStyle=eGlw; ctx.beginPath(); ctx.arc(ex,ey,10,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,1)'; ctx.beginPath(); ctx.arc(ex,ey,2.2,0,Math.PI*2); ctx.fill();
+  }
+
+  // Audio visualizer (bottom center) — only when active
+  if(cur!=='idle'){
+    const bars=32, bw=2.5, gap=2.5;
+    const totalW=bars*(bw+gap);
+    const startX=CX-totalW/2;
+    const baseY=H-35;
+    for(let i=0;i<bars;i++){
+      const bh=2+(6+audioAmp*20)*Math.abs(Math.sin(t*(3+i*0.38)+i*0.7));
+      ctx.fillStyle=`rgba(${r},${g},${b},${0.28+audioAmp*0.35})`;
+      ctx.beginPath();
+      if(ctx.roundRect) ctx.roundRect(startX+i*(bw+gap),baseY-bh,bw,bh,1);
+      else ctx.rect(startX+i*(bw+gap),baseY-bh,bw,bh);
+      ctx.fill();
+    }
+  }
+}
+draw();
+</script>
+</body>
+</html>

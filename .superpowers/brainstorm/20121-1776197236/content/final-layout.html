@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>C.Y.R.U.S — Final Layout</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #05070d; color: #00f0ff; font-family: 'Orbitron', sans-serif; padding: 20px; }
+h2 { font-size: 15px; letter-spacing: 0.3em; color: #00f0ff; margin-bottom: 4px; }
+.subtitle { font-family: 'Share Tech Mono', monospace; font-size: 12px; color: #0077ff55; margin-bottom: 20px; }
+
+/* ─── SCREEN WRAPPER ─── */
+.screen {
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  height: 520px;
+  border: 1px solid #00f0ff20;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #05070d;
+  position: relative;
+  box-shadow: 0 0 80px #00f0ff06, 0 0 160px #0077ff04;
+}
+
+/* Stars background */
+.stars {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    radial-gradient(1px 1px at 10% 20%, #00f0ff33, transparent),
+    radial-gradient(1px 1px at 25% 60%, #0077ff22, transparent),
+    radial-gradient(1px 1px at 45% 15%, #00f0ff22, transparent),
+    radial-gradient(1px 1px at 60% 75%, #00f0ff33, transparent),
+    radial-gradient(1px 1px at 75% 35%, #0077ff22, transparent),
+    radial-gradient(1px 1px at 85% 55%, #00f0ff22, transparent),
+    radial-gradient(1px 1px at 92% 10%, #00f0ff33, transparent),
+    radial-gradient(1px 1px at 15% 85%, #0077ff22, transparent),
+    radial-gradient(1px 1px at 35% 90%, #00f0ff22, transparent),
+    radial-gradient(1px 1px at 55% 45%, #00f0ff33, transparent),
+    radial-gradient(1px 1px at 70% 95%, #0077ff22, transparent),
+    radial-gradient(1px 1px at 88% 80%, #00f0ff22, transparent);
+}
+
+/* ── HEADER (minimal) ── */
+.hud-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px;
+  height: 32px;
+  background: rgba(3,8,16,0.6);
+  border-bottom: 1px solid #00f0ff0a;
+  backdrop-filter: blur(8px);
+  position: relative; z-index: 10;
+}
+.brand { font-size: 10px; font-weight: 900; letter-spacing: 0.45em; color: #00f0ff; text-shadow: 0 0 14px #00f0ff55; }
+.state-badge {
+  font-family: 'Share Tech Mono', monospace; font-size: 9px;
+  letter-spacing: 0.2em; color: #00ff88;
+  background: #00ff8808; border: 1px solid #00ff8825;
+  padding: 2px 8px; border-radius: 4px;
+  box-shadow: 0 0 8px #00ff8812;
+}
+.drawer-btn {
+  width: 28px; height: 28px; border-radius: 6px;
+  background: #00f0ff08; border: 1px solid #00f0ff22;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 13px; color: #00f0ff66;
+  transition: all 0.2s;
+}
+.drawer-btn:hover { background: #00f0ff15; border-color: #00f0ff44; color: #00f0ff; }
+
+/* ── CENTER (orb area) ── */
+.main-area {
+  position: absolute;
+  top: 32px; left: 0; right: 0; bottom: 110px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ORB */
+.orb-wrap { position: relative; width: 220px; height: 220px; display: flex; align-items: center; justify-content: center; }
+.orb-ring-outer {
+  position: absolute; inset: -28px; border-radius: 50%;
+  border: 1px solid #00f0ff15;
+  animation: spin 12s linear infinite;
+}
+.orb-ring-outer2 {
+  position: absolute; inset: -14px; border-radius: 50%;
+  border: 1px dashed #0077ff12;
+  animation: spin 7s linear infinite reverse;
+}
+/* Icosphere wireframe */
+.orb-sphere {
+  width: 180px; height: 180px; border-radius: 50%;
+  background: radial-gradient(circle at 38% 35%, #00f0ff15, #0077ff08 55%, transparent 80%);
+  border: 1px solid #00f0ff50;
+  box-shadow: 0 0 40px #00f0ff44, 0 0 80px #0077ff22, 0 0 120px #00f0ff11, inset 0 0 50px #00f0ff08;
+  position: relative; animation: orbPulse 3s ease-in-out infinite;
+  display: flex; align-items: center; justify-content: center;
+}
+.wire { position: absolute; inset: 0; border-radius: 50%; border: 1px solid #00f0ff15; }
+.wire-h { transform: rotateX(55deg); }
+.wire-v { transform: rotateY(55deg); }
+.wire-d1 { transform: rotate(35deg) rotateX(55deg); border-color: #0077ff10; }
+.wire-d2 { transform: rotate(-35deg) rotateX(55deg); border-color: #0077ff10; }
+/* Core dot */
+.orb-core-dot {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: radial-gradient(circle, #80ffff, #00f0ff, #0077ff);
+  box-shadow: 0 0 20px #00f0ff, 0 0 40px #0077ff88, 0 0 60px #00f0ff44;
+  animation: corePulse 2s ease-in-out infinite;
+}
+/* Floating particles */
+.p { position: absolute; border-radius: 50%; animation: floatP var(--d,2.5s) ease-in-out infinite var(--delay,0s); }
+@keyframes floatP {
+  0%,100% { transform: translate(0,0) scale(1); opacity: 0.6; }
+  50% { transform: translate(var(--tx,4px), var(--ty,-8px)) scale(1.3); opacity: 1; }
+}
+
+/* ── BOTTOM BAR ── */
+.bottom-bar {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 110px;
+  background: rgba(3,8,16,0.7);
+  border-top: 1px solid #00f0ff0a;
+  backdrop-filter: blur(12px);
+  display: flex; flex-direction: column; align-items: center;
+  padding: 10px 20px 12px; gap: 8px;
+  z-index: 10;
+}
+/* Response text */
+.response {
+  font-family: 'Share Tech Mono', monospace; font-size: 11px;
+  color: #00f0ff77; letter-spacing: 0.06em; text-align: center;
+  line-height: 1.5; max-width: 560px;
+}
+.response-label { font-size: 7px; letter-spacing: 0.3em; color: #00f0ff22; margin-bottom: 3px; }
+/* Audio + mic row */
+.input-row { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 520px; }
+.mic-btn {
+  width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+  background: #00f0ff0a; border: 1px solid #00f0ff50;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 16px #00f0ff22, 0 0 30px #00f0ff0a;
+  animation: micPulse 2s ease-in-out infinite;
+}
+.mic-icon-inner { width: 12px; height: 17px; background: #00f0ff; border-radius: 6px; box-shadow: 0 0 8px #00f0ff; }
+.audio-viz {
+  flex: 1; height: 36px; background: #020810;
+  border: 1px solid #00f0ff0a; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center; gap: 2.5px;
+  overflow: hidden; padding: 0 12px;
+}
+.vb {
+  width: 2.5px; background: linear-gradient(180deg,#00f0ff,#0077ff);
+  border-radius: 2px; box-shadow: 0 0 3px #00f0ff44;
+  animation: vbAnim var(--d,0.7s) ease-in-out infinite alternate;
+}
+@keyframes vbAnim { from{height:3px} to{height:var(--h,22px)} }
+
+/* ── DRAWER ── */
+.drawer-wrap { position: absolute; top: 32px; right: 0; bottom: 0; z-index: 20; display: flex; }
+.drawer-tab {
+  align-self: center;
+  width: 16px; height: 50px;
+  background: rgba(3,8,16,0.9);
+  border: 1px solid #00f0ff22; border-right: none;
+  border-radius: 6px 0 0 6px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: #00f0ff55; font-size: 9px;
+  box-shadow: -4px 0 20px #00f0ff08;
+  writing-mode: vertical-lr;
+  font-family: 'Share Tech Mono', monospace;
+  letter-spacing: 0.15em;
+}
+.drawer-panel {
+  width: 220px;
+  background: rgba(3,8,16,0.95);
+  border-left: 1px solid #00f0ff18;
+  backdrop-filter: blur(16px);
+  padding: 14px 12px;
+  display: flex; flex-direction: column; gap: 12px;
+  overflow-y: auto;
+}
+.d-section-title {
+  font-family: 'Share Tech Mono', monospace; font-size: 7px;
+  letter-spacing: 0.3em; color: #00f0ff33;
+  border-bottom: 1px solid #00f0ff0a; padding-bottom: 5px; margin-bottom: 4px;
+}
+.d-stat { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; }
+.d-stat-label { font-family: 'Share Tech Mono', monospace; font-size: 8px; color: #00f0ff33; }
+.d-stat-val { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: #00f0ffaa; }
+.d-bar { height: 2px; background: #00f0ff0a; border-radius: 1px; margin: 2px 0 5px; }
+.d-fill { height: 100%; border-radius: 1px; background: linear-gradient(90deg,#0077ff,#00f0ff); box-shadow: 0 0 4px #00f0ff44; }
+.d-log { font-family: 'Share Tech Mono', monospace; font-size: 7.5px; color: #00f0ff44; padding: 2px 0 2px 6px; border-left: 2px solid transparent; line-height: 1.6; }
+.d-log.hi { color: #00f0ffaa; border-left-color: #00f0ff33; }
+.d-log.warn { color: #ff8c0077; border-left-color: #ff8c0033; }
+.cfg-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #00f0ff06; }
+.cfg-label { font-family: 'Share Tech Mono', monospace; font-size: 8px; color: #00f0ff33; }
+.cfg-val { font-family: 'Share Tech Mono', monospace; font-size: 8px; color: #00f0ff88; background: #00f0ff0a; border: 1px solid #00f0ff15; border-radius: 3px; padding: 1px 6px; }
+
+@keyframes spin { to{transform:rotate(360deg)} }
+@keyframes orbPulse { 0%,100%{box-shadow:0 0 40px #00f0ff44,0 0 80px #0077ff22,0 0 120px #00f0ff11} 50%{box-shadow:0 0 60px #00f0ff77,0 0 110px #0077ff44,0 0 160px #00f0ff22} }
+@keyframes corePulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.15)} }
+@keyframes micPulse { 0%,100%{box-shadow:0 0 16px #00f0ff22,0 0 30px #00f0ff0a} 50%{box-shadow:0 0 26px #00f0ff55,0 0 50px #00f0ff22} }
+</style>
+</head>
+<body>
+
+<h2>C.Y.R.U.S — LAYOUT FINAL</h2>
+<p class="subtitle">Pantalla limpia. Solo el orb + audio. Toda la info en drawer lateral.</p>
+
+<div class="screen">
+  <div class="stars"></div>
+
+  <!-- HEADER -->
+  <div class="hud-header">
+    <div class="brand">C.Y.R.U.S</div>
+    <div class="state-badge">● LISTENING</div>
+    <div class="drawer-btn" title="Open panel">⚙</div>
+  </div>
+
+  <!-- ORB CENTER -->
+  <div class="main-area">
+    <div class="orb-wrap">
+      <div class="orb-ring-outer"></div>
+      <div class="orb-ring-outer2"></div>
+      <div class="orb-sphere">
+        <div class="wire wire-h"></div>
+        <div class="wire wire-v"></div>
+        <div class="wire wire-d1"></div>
+        <div class="wire wire-d2"></div>
+        <!-- Floating particles -->
+        <div class="p" style="width:4px;height:4px;background:#00f0ff;box-shadow:0 0 8px #00f0ff;top:18px;left:55px;--d:2.4s;--delay:0s;--tx:5px;--ty:-10px;"></div>
+        <div class="p" style="width:3px;height:3px;background:#80ffff;box-shadow:0 0 6px #80ffff;top:60px;left:8px;--d:3.1s;--delay:0.4s;--tx:-4px;--ty:-6px;"></div>
+        <div class="p" style="width:5px;height:5px;background:#00f0ff;box-shadow:0 0 10px #00f0ff;top:130px;left:35px;--d:2.2s;--delay:0.8s;--tx:6px;--ty:-12px;"></div>
+        <div class="p" style="width:3px;height:3px;background:#0077ff;box-shadow:0 0 8px #0077ff;top:25px;left:130px;--d:2.9s;--delay:1.2s;--tx:-5px;--ty:-8px;"></div>
+        <div class="p" style="width:4px;height:4px;background:#00f0ff;box-shadow:0 0 8px #00f0ff;top:120px;left:145px;--d:2.6s;--delay:0.3s;--tx:4px;--ty:-10px;"></div>
+        <div class="p" style="width:2px;height:2px;background:#80ffff;box-shadow:0 0 5px #80ffff;top:80px;left:165px;--d:3.3s;--delay:1.6s;--tx:-3px;--ty:-7px;"></div>
+        <div class="p" style="width:3px;height:3px;background:#00f0ff;box-shadow:0 0 7px #00f0ff;top:155px;left:90px;--d:2.0s;--delay:0.9s;--tx:7px;--ty:-5px;"></div>
+        <div class="p" style="width:2px;height:2px;background:#0077ff;box-shadow:0 0 6px #0077ff;top:40px;left:90px;--d:3.5s;--delay:0.2s;--tx:-4px;--ty:-9px;"></div>
+        <div class="orb-core-dot"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM BAR -->
+  <div class="bottom-bar">
+    <div>
+      <div class="response-label">AI RESPONSE</div>
+      <div class="response">Analizando solicitud — encontré 3 coincidencias en memoria semántica. Procesando con contexto de las últimas 4 horas.</div>
+    </div>
+    <div class="input-row">
+      <div class="mic-btn"><div class="mic-icon-inner"></div></div>
+      <div class="audio-viz">
+        <div class="vb" style="--h:6px;--d:0.5s"></div><div class="vb" style="--h:22px;--d:0.7s"></div>
+        <div class="vb" style="--h:30px;--d:0.4s"></div><div class="vb" style="--h:14px;--d:0.9s"></div>
+        <div class="vb" style="--h:26px;--d:0.6s"></div><div class="vb" style="--h:8px;--d:0.8s"></div>
+        <div class="vb" style="--h:20px;--d:0.5s"></div><div class="vb" style="--h:32px;--d:0.7s"></div>
+        <div class="vb" style="--h:10px;--d:0.45s"></div><div class="vb" style="--h:24px;--d:0.65s"></div>
+        <div class="vb" style="--h:18px;--d:0.55s"></div><div class="vb" style="--h:4px;--d:0.75s"></div>
+        <div class="vb" style="--h:28px;--d:0.5s"></div><div class="vb" style="--h:12px;--d:0.85s"></div>
+        <div class="vb" style="--h:22px;--d:0.6s"></div><div class="vb" style="--h:30px;--d:0.7s"></div>
+        <div class="vb" style="--h:6px;--d:0.5s"></div><div class="vb" style="--h:18px;--d:0.8s"></div>
+        <div class="vb" style="--h:26px;--d:0.55s"></div><div class="vb" style="--h:10px;--d:0.65s"></div>
+        <div class="vb" style="--h:20px;--d:0.75s"></div><div class="vb" style="--h:28px;--d:0.45s"></div>
+        <div class="vb" style="--h:8px;--d:0.9s"></div><div class="vb" style="--h:16px;--d:0.6s"></div>
+        <div class="vb" style="--h:24px;--d:0.7s"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DRAWER -->
+  <div class="drawer-wrap">
+    <div class="drawer-tab">‹ HUD</div>
+    <div class="drawer-panel">
+
+      <!-- STATS -->
+      <div>
+        <div class="d-section-title">⬡ SYSTEM STATS</div>
+        <div class="d-stat"><span class="d-stat-label">CPU</span><span class="d-stat-val">34%</span></div>
+        <div class="d-bar"><div class="d-fill" style="width:34%"></div></div>
+        <div class="d-stat"><span class="d-stat-label">GPU · RTX 2070S</span><span class="d-stat-val">12%</span></div>
+        <div class="d-bar"><div class="d-fill" style="width:12%"></div></div>
+        <div class="d-stat"><span class="d-stat-label">RAM</span><span class="d-stat-val">11.2 GB</span></div>
+        <div class="d-bar"><div class="d-fill" style="width:55%"></div></div>
+        <div class="d-stat"><span class="d-stat-label">UPTIME</span><span class="d-stat-val">4h 22m</span></div>
+        <div class="d-stat"><span class="d-stat-label">LIMA · WEATHER</span><span class="d-stat-val">19°C ☁</span></div>
+        <div class="d-stat"><span class="d-stat-label">AI STATE</span><span class="d-stat-val" style="color:#00ff88">● LISTENING</span></div>
+      </div>
+
+      <!-- LOGS -->
+      <div>
+        <div class="d-section-title">⬡ SYSTEM LOG</div>
+        <div class="d-log"><span style="color:#00f0ff22">00:14:32</span> Audio pipeline OK</div>
+        <div class="d-log hi"><span style="color:#00f0ff44">00:14:35</span> Wake word detected</div>
+        <div class="d-log warn"><span style="color:#ff8c0044">00:14:36</span> ⚠ VAD adjusted</div>
+        <div class="d-log hi"><span style="color:#00f0ff44">00:14:37</span> Transcribing...</div>
+        <div class="d-log hi"><span style="color:#00f0ff44">00:14:39</span> Memory · 3 results</div>
+        <div class="d-log"><span style="color:#00f0ff22">00:14:41</span> TTS queued</div>
+      </div>
+
+      <!-- CONFIG -->
+      <div>
+        <div class="d-section-title">⬡ CONFIG</div>
+        <div class="cfg-row"><span class="cfg-label">LLM MODEL</span><span class="cfg-val">phi3</span></div>
+        <div class="cfg-row"><span class="cfg-label">TTS ENGINE</span><span class="cfg-val">edge-tts</span></div>
+        <div class="cfg-row"><span class="cfg-label">VAD</span><span class="cfg-val" style="color:#00ff8888">ON</span></div>
+        <div class="cfg-row"><span class="cfg-label">WAKE WORD</span><span class="cfg-val">hey cyrus</span></div>
+        <div class="cfg-row"><span class="cfg-label">BLOOM</span><span class="cfg-val">1.4</span></div>
+        <div class="cfg-row"><span class="cfg-label">PARTICLES</span><span class="cfg-val">800</span></div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:20px;background:#030810;border:1px solid #00f0ff10;border-radius:8px;padding:16px;font-family:'Share Tech Mono',monospace;font-size:11px;color:#00f0ff44;line-height:1.9;">
+  <div style="color:#00f0ff66;letter-spacing:0.2em;font-size:9px;margin-bottom:10px;">RESUMEN DEL DISEÑO FINAL</div>
+  <div>🔵 <b style="color:#00f0ffaa">Pantalla principal:</b> fondo negro/estrellas · orb Three.js centrado · barra inferior (mic + visualizer + respuesta)</div>
+  <div>🔵 <b style="color:#00f0ffaa">Header:</b> minimal — brand + estado IA + botón ⚙ drawer</div>
+  <div>🔵 <b style="color:#00f0ffaa">Drawer (‹ HUD):</b> desliza desde derecha · 3 secciones: Stats · Logs · Config</div>
+  <div>🔵 <b style="color:#00f0ffaa">Orb:</b> IcosahedronGeometry wireframe + 800 particles instanciadas · reacciona a TTS via Web Audio API FFT</div>
+  <div>🔵 <b style="color:#00f0ffaa">Bloom real:</b> @react-three/postprocessing · intensidad configurable desde drawer</div>
+</div>
+</body>
+</html>

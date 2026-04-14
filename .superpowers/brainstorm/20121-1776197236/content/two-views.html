@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>C.Y.R.U.S — Two Views</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #05070d; color: #00f0ff; font-family: 'Orbitron', sans-serif; padding: 20px; }
+h2 { font-size: 15px; letter-spacing: 0.3em; color: #00f0ff; margin-bottom: 4px; }
+.subtitle { font-family: 'Share Tech Mono', monospace; font-size: 12px; color: #0077ff55; margin-bottom: 24px; }
+
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+
+.view-wrap { border: 1px solid #00f0ff20; border-radius: 10px; overflow: hidden; }
+.view-label {
+  padding: 8px 14px;
+  background: #030810;
+  border-bottom: 1px solid #00f0ff10;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px; letter-spacing: 0.3em; color: #00f0ff44;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.view-label span { color: #00f0ff22; }
+
+/* ──────────────────────────────────────── */
+/* VIEW 1 — AGENT (full immersive)          */
+/* ──────────────────────────────────────── */
+.view-agent {
+  height: 340px;
+  background: #05070d;
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+/* Star field */
+.stars { position: absolute; inset: 0; pointer-events: none; }
+.star { position: absolute; border-radius: 50%; background: #00f0ff; animation: twinkle var(--d,3s) ease-in-out infinite var(--delay,0s); }
+@keyframes twinkle { 0%,100%{opacity:0.15} 50%{opacity:0.6} }
+
+/* Ambient radial glow behind orb */
+.ambient {
+  position: absolute;
+  width: 300px; height: 300px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #00f0ff08 0%, #0077ff05 40%, transparent 70%);
+  animation: ambientPulse 4s ease-in-out infinite;
+}
+@keyframes ambientPulse { 0%,100%{transform:scale(1);opacity:0.5} 50%{transform:scale(1.2);opacity:1} }
+
+/* ORB */
+.orb-wrap { position: relative; width: 200px; height: 200px; display: flex; align-items: center; justify-content: center; z-index: 2; }
+.orb-ring { position: absolute; border-radius: 50%; border: 1px solid #00f0ff18; animation: spinR var(--rs,10s) linear infinite var(--rdir,normal); }
+.orb-sphere {
+  width: 160px; height: 160px; border-radius: 50%;
+  background: radial-gradient(circle at 38% 35%, #00f0ff18, #0077ff08 55%, transparent 80%);
+  border: 1px solid #00f0ff55;
+  box-shadow: 0 0 40px #00f0ff55, 0 0 80px #0077ff33, 0 0 130px #00f0ff18, inset 0 0 50px #00f0ff0a;
+  position: relative; animation: orbPulse 3s ease-in-out infinite;
+  display: flex; align-items: center; justify-content: center;
+}
+.wire { position: absolute; inset: 0; border-radius: 50%; border: 1px solid #00f0ff18; }
+.core-dot {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: radial-gradient(circle, #c0ffff, #00f0ff, #0077ff);
+  box-shadow: 0 0 20px #00f0ff, 0 0 40px #0077ff88, 0 0 70px #00f0ff44;
+  animation: corePulse 2s ease-in-out infinite;
+  z-index: 3;
+}
+.p { position: absolute; border-radius: 50%; animation: floatP var(--pd,2.5s) ease-in-out infinite var(--pdelay,0s); }
+@keyframes floatP { 0%,100%{transform:translate(0,0) scale(1);opacity:0.5} 50%{transform:translate(var(--tx,4px),var(--ty,-10px)) scale(1.4);opacity:1} }
+
+/* Tiny nav hint */
+.nav-hint {
+  position: absolute; bottom: 14px; right: 14px;
+  font-family: 'Share Tech Mono', monospace; font-size: 8px;
+  color: #00f0ff22; letter-spacing: 0.15em;
+  border: 1px solid #00f0ff0a; border-radius: 4px; padding: 4px 8px;
+  background: rgba(3,8,16,0.5); backdrop-filter: blur(4px);
+}
+/* Audio visualizer — bottom center, very subtle */
+.micro-viz {
+  position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 2px;
+}
+.mvb {
+  width: 2px; border-radius: 2px;
+  background: linear-gradient(180deg, #00f0ff, #0077ff);
+  box-shadow: 0 0 3px #00f0ff44;
+  animation: vbA var(--vd,0.7s) ease-in-out infinite alternate;
+}
+@keyframes vbA { from{height:2px} to{height:var(--vh,16px)} }
+
+@keyframes spinR { to{transform:rotate(360deg)} }
+@keyframes orbPulse { 0%,100%{box-shadow:0 0 40px #00f0ff55,0 0 80px #0077ff33,0 0 130px #00f0ff18} 50%{box-shadow:0 0 60px #00f0ff88,0 0 110px #0077ff55,0 0 180px #00f0ff33} }
+@keyframes corePulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.2)} }
+
+/* ──────────────────────────────────────── */
+/* VIEW 2 — CONTROL DASHBOARD              */
+/* ──────────────────────────────────────── */
+.view-control {
+  height: 340px;
+  background: #030810;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.view-control::-webkit-scrollbar { width: 3px; }
+.view-control::-webkit-scrollbar-track { background: transparent; }
+.view-control::-webkit-scrollbar-thumb { background: #00f0ff15; border-radius: 2px; }
+
+.section-hdr {
+  font-family: 'Share Tech Mono', monospace; font-size: 7px;
+  letter-spacing: 0.3em; color: #00f0ff33;
+  border-bottom: 1px solid #00f0ff0a; padding-bottom: 5px; margin-bottom: 6px;
+}
+/* AI State — big badge */
+.ai-state-badge {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #00ff8808; border: 1px solid #00ff8820;
+  border-radius: 6px; padding: 8px 12px;
+}
+.ai-state-label { font-family: 'Share Tech Mono', monospace; font-size: 9px; color: #00ff8888; letter-spacing: 0.2em; }
+.ai-state-val { font-family: 'Orbitron', sans-serif; font-size: 11px; color: #00ff88; font-weight: 700; letter-spacing: 0.2em; }
+.ai-dot { width: 8px; height: 8px; border-radius: 50%; background: #00ff88; box-shadow: 0 0 8px #00ff88; animation: blink 1.5s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* Stat rows */
+.stat-row { display: flex; justify-content: space-between; align-items: center; padding: 2px 0; }
+.stat-label { font-family: 'Share Tech Mono', monospace; font-size: 8px; color: #00f0ff33; }
+.stat-val { font-family: 'Share Tech Mono', monospace; font-size: 9px; color: #00f0ffaa; }
+.bar { height: 2px; background: #00f0ff08; border-radius: 1px; margin: 2px 0 6px; }
+.bar-fill { height: 100%; border-radius: 1px; background: linear-gradient(90deg,#0077ff,#00f0ff); box-shadow: 0 0 4px #00f0ff33; }
+
+/* Logs */
+.log { font-family: 'Share Tech Mono', monospace; font-size: 8px; color: #00f0ff33; padding: 2px 0 2px 6px; border-left: 2px solid transparent; line-height: 1.7; }
+.log.hi { color: #00f0ffaa; border-left-color: #00f0ff33; }
+.log.warn { color: #ff8c0077; border-left-color: #ff8c0033; }
+.log-ts { color: #00f0ff1a; margin-right: 4px; }
+
+/* Config */
+.cfg-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid #00f0ff06; }
+.cfg-label { font-family: 'Share Tech Mono', monospace; font-size: 8px; color: #00f0ff33; }
+.cfg-pill { font-family: 'Share Tech Mono', monospace; font-size: 8px; color: #00f0ff88; background: #00f0ff0a; border: 1px solid #00f0ff15; border-radius: 3px; padding: 1px 7px; cursor: pointer; }
+.cfg-pill:hover { background: #00f0ff18; border-color: #00f0ff33; }
+
+/* Nav indicator */
+.nav-indicator {
+  display: flex; gap: 6px; align-items: center;
+  margin-top: 4px;
+}
+.nav-dot { width: 6px; height: 6px; border-radius: 50%; background: #00f0ff15; cursor: pointer; }
+.nav-dot.active { background: #00f0ff; box-shadow: 0 0 6px #00f0ff; }
+</style>
+</head>
+<body>
+
+<h2>DOS VISTAS INDEPENDIENTES</h2>
+<p class="subtitle">Vista 1 = solo el agente. Vista 2 = control total. Navegas entre ellas.</p>
+
+<div class="split">
+
+  <!-- VIEW 1: AGENT -->
+  <div class="view-wrap">
+    <div class="view-label">
+      VISTA 1 — AGENTE
+      <span>pantalla completa / inmersiva</span>
+    </div>
+    <div class="view-agent">
+      <!-- Stars -->
+      <div class="stars">
+        <div class="star" style="width:1px;height:1px;top:8%;left:12%;--d:2.5s;--delay:0s"></div>
+        <div class="star" style="width:2px;height:2px;top:20%;left:35%;--d:3.5s;--delay:0.5s"></div>
+        <div class="star" style="width:1px;height:1px;top:55%;left:8%;--d:2s;--delay:1s"></div>
+        <div class="star" style="width:1px;height:1px;top:70%;left:60%;--d:4s;--delay:0.3s"></div>
+        <div class="star" style="width:2px;height:2px;top:15%;left:80%;--d:3s;--delay:0.8s"></div>
+        <div class="star" style="width:1px;height:1px;top:85%;left:25%;--d:2.8s;--delay:1.2s"></div>
+        <div class="star" style="width:1px;height:1px;top:40%;left:90%;--d:3.2s;--delay:0.4s"></div>
+        <div class="star" style="width:2px;height:2px;top:90%;left:75%;--d:2.2s;--delay:1.5s"></div>
+        <div class="star" style="width:1px;height:1px;top:30%;left:55%;--d:3.8s;--delay:0.7s"></div>
+        <div class="star" style="width:1px;height:1px;top:65%;left:42%;--d:2.6s;--delay:0.2s"></div>
+      </div>
+      <div class="ambient"></div>
+
+      <!-- ORB -->
+      <div class="orb-wrap">
+        <div class="orb-ring" style="inset:-32px;--rs:14s;--rdir:reverse;opacity:0.6"></div>
+        <div class="orb-ring" style="inset:-18px;--rs:9s;opacity:0.8"></div>
+        <div class="orb-sphere">
+          <div class="wire" style="transform:rotateX(55deg)"></div>
+          <div class="wire" style="transform:rotateY(55deg)"></div>
+          <div class="wire" style="transform:rotate(35deg) rotateX(55deg);border-color:#0077ff12"></div>
+          <div class="wire" style="transform:rotate(-35deg) rotateX(55deg);border-color:#0077ff12"></div>
+          <!-- Particles -->
+          <div class="p" style="width:4px;height:4px;background:#00f0ff;box-shadow:0 0 8px #00f0ff;top:14px;left:50px;--pd:2.4s;--pdelay:0s;--tx:6px;--ty:-12px"></div>
+          <div class="p" style="width:3px;height:3px;background:#80ffff;box-shadow:0 0 6px #80ffff;top:55px;left:4px;--pd:3.1s;--pdelay:0.4s;--tx:-5px;--ty:-8px"></div>
+          <div class="p" style="width:5px;height:5px;background:#00f0ff;box-shadow:0 0 12px #00f0ff;top:118px;left:28px;--pd:2.2s;--pdelay:0.8s;--tx:7px;--ty:-14px"></div>
+          <div class="p" style="width:3px;height:3px;background:#0077ff;box-shadow:0 0 8px #0077ff;top:20px;left:118px;--pd:2.9s;--pdelay:1.2s;--tx:-6px;--ty:-9px"></div>
+          <div class="p" style="width:4px;height:4px;background:#00f0ff;box-shadow:0 0 8px #00f0ff;top:110px;left:132px;--pd:2.6s;--pdelay:0.3s;--tx:5px;--ty:-11px"></div>
+          <div class="p" style="width:2px;height:2px;background:#80ffff;box-shadow:0 0 5px #80ffff;top:75px;left:150px;--pd:3.3s;--pdelay:1.6s;--tx:-3px;--ty:-7px"></div>
+          <div class="p" style="width:3px;height:3px;background:#00f0ff;box-shadow:0 0 7px #00f0ff;top:142px;left:80px;--pd:2.0s;--pdelay:0.9s;--tx:8px;--ty:-6px"></div>
+          <div class="p" style="width:2px;height:2px;background:#0077ff;box-shadow:0 0 5px #0077ff;top:35px;left:82px;--pd:3.5s;--pdelay:0.2s;--tx:-5px;--ty:-10px"></div>
+          <div class="core-dot"></div>
+        </div>
+      </div>
+
+      <!-- Micro audio viz -->
+      <div class="micro-viz">
+        <div class="mvb" style="--vd:0.5s;--vh:8px"></div>
+        <div class="mvb" style="--vd:0.7s;--vh:18px"></div>
+        <div class="mvb" style="--vd:0.4s;--vh:24px"></div>
+        <div class="mvb" style="--vd:0.9s;--vh:12px"></div>
+        <div class="mvb" style="--vd:0.6s;--vh:20px"></div>
+        <div class="mvb" style="--vd:0.8s;--vh:6px"></div>
+        <div class="mvb" style="--vd:0.5s;--vh:16px"></div>
+        <div class="mvb" style="--vd:0.7s;--vh:26px"></div>
+        <div class="mvb" style="--vd:0.6s;--vh:10px"></div>
+        <div class="mvb" style="--vd:0.4s;--vh:20px"></div>
+        <div class="mvb" style="--vd:0.8s;--vh:14px"></div>
+      </div>
+
+      <!-- Nav hint -->
+      <div class="nav-hint">[ Tab ] → control panel</div>
+    </div>
+  </div>
+
+  <!-- VIEW 2: CONTROL -->
+  <div class="view-wrap">
+    <div class="view-label">
+      VISTA 2 — CONTROL PANEL
+      <span>independiente / siempre disponible</span>
+    </div>
+    <div class="view-control">
+
+      <!-- AI State -->
+      <div>
+        <div class="section-hdr">⬡ AI STATUS</div>
+        <div class="ai-state-badge">
+          <div class="ai-dot"></div>
+          <div class="ai-state-label">SYSTEM STATE</div>
+          <div class="ai-state-val">LISTENING</div>
+        </div>
+      </div>
+
+      <!-- System Stats -->
+      <div>
+        <div class="section-hdr">⬡ SYSTEM STATS</div>
+        <div class="stat-row"><span class="stat-label">CPU</span><span class="stat-val">34%</span></div>
+        <div class="bar"><div class="bar-fill" style="width:34%"></div></div>
+        <div class="stat-row"><span class="stat-label">GPU · RTX 2070S</span><span class="stat-val">12%</span></div>
+        <div class="bar"><div class="bar-fill" style="width:12%"></div></div>
+        <div class="stat-row"><span class="stat-label">RAM</span><span class="stat-val">11.2 GB</span></div>
+        <div class="bar"><div class="bar-fill" style="width:55%"></div></div>
+        <div class="stat-row"><span class="stat-label">UPTIME</span><span class="stat-val">4h 22m</span></div>
+        <div class="stat-row"><span class="stat-label">LIMA · WEATHER</span><span class="stat-val">19°C ☁ 72%</span></div>
+      </div>
+
+      <!-- Logs -->
+      <div>
+        <div class="section-hdr">⬡ SYSTEM LOG</div>
+        <div class="log"><span class="log-ts">00:14:32</span>Audio pipeline init OK</div>
+        <div class="log hi"><span class="log-ts">00:14:35</span>Wake word detected: "Hey CYRUS"</div>
+        <div class="log warn"><span class="log-ts">00:14:36</span>⚠ VAD threshold adjusted</div>
+        <div class="log hi"><span class="log-ts">00:14:37</span>Transcribing audio input...</div>
+        <div class="log hi"><span class="log-ts">00:14:39</span>Memory query · 3 results</div>
+        <div class="log"><span class="log-ts">00:14:41</span>TTS synthesis queued</div>
+        <div class="log hi"><span class="log-ts">00:14:42</span>Response · 142 tokens</div>
+      </div>
+
+      <!-- Config -->
+      <div>
+        <div class="section-hdr">⬡ CONFIGURATION</div>
+        <div class="cfg-row"><span class="cfg-label">LLM MODEL</span><span class="cfg-pill">phi3:medium</span></div>
+        <div class="cfg-row"><span class="cfg-label">TTS ENGINE</span><span class="cfg-pill">edge-tts</span></div>
+        <div class="cfg-row"><span class="cfg-label">VAD</span><span class="cfg-pill" style="color:#00ff8888;border-color:#00ff8822">ON</span></div>
+        <div class="cfg-row"><span class="cfg-label">WAKE WORD</span><span class="cfg-pill">hey cyrus</span></div>
+        <div class="cfg-row"><span class="cfg-label">BLOOM INTENSITY</span><span class="cfg-pill">1.4</span></div>
+        <div class="cfg-row"><span class="cfg-label">PARTICLE COUNT</span><span class="cfg-pill">800</span></div>
+        <div class="cfg-row"><span class="cfg-label">ORB SPEED</span><span class="cfg-pill">1.0x</span></div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- Nav -->
+<div style="display:flex;align-items:center;justify-content:center;gap:20px;padding:14px;background:#030810;border:1px solid #00f0ff10;border-radius:8px;">
+  <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:#00f0ff33;letter-spacing:0.2em;">NAVEGACIÓN</div>
+  <div class="nav-indicator">
+    <div class="nav-dot active"></div>
+    <div class="nav-dot"></div>
+  </div>
+  <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:#00f0ff22;">
+    <kbd style="background:#00f0ff0a;border:1px solid #00f0ff22;padding:2px 7px;border-radius:3px;color:#00f0ff55">Tab</kbd>
+    &nbsp;·&nbsp;
+    <kbd style="background:#00f0ff0a;border:1px solid #00f0ff22;padding:2px 7px;border-radius:3px;color:#00f0ff55">Ctrl+,</kbd>
+    &nbsp;para alternar vistas
+  </div>
+</div>
+</body>
+</html>
