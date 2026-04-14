@@ -96,3 +96,58 @@ body::after {
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
+
+/* ── Hologram ring animations ─────────────────────────────────────── */
+@keyframes holo-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes holo-spin-rev {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
+}
+@keyframes holo-pulse-glow {
+  0%,100% { opacity: 0.5; filter: drop-shadow(0 0 4px currentColor); }
+  50%     { opacity: 1;   filter: drop-shadow(0 0 14px currentColor); }
+}
+@keyframes holo-orbit {
+  from { transform: rotate(0deg)   translateX(100px) rotate(0deg); }
+  to   { transform: rotate(360deg) translateX(100px) rotate(-360deg); }
+}
+@keyframes holo-orbit-rev {
+  from { transform: rotate(0deg)    translateX(90px)  rotate(0deg); }
+  to   { transform: rotate(-360deg) translateX(90px)  rotate(360deg); }
+}
+@keyframes holo-scan {
+  0%   { transform: translateY(-160px); opacity: 0; }
+  10%  { opacity: 0.6; }
+  90%  { opacity: 0.6; }
+  100% { transform: translateY(160px);  opacity: 0; }
+}
+@keyframes holo-data-blink {
+  0%,100% { opacity: 0.2; }
+  50%     { opacity: 0.8; }
+}
+@keyframes holo-flicker {
+  0%,100% { opacity: 1; }
+  92%     { opacity: 1; }
+  93%     { opacity: 0.4; }
+  94%     { opacity: 1; }
+  97%     { opacity: 1; }
+  98%     { opacity: 0.6; }
+  99%     { opacity: 1; }
+}
+
+.holo-ring-cw-slow  { animation: holo-spin     8s linear infinite; transform-origin: 160px 160px; }
+.holo-ring-cw-med   { animation: holo-spin     5s linear infinite; transform-origin: 160px 160px; }
+.holo-ring-cw-fast  { animation: holo-spin     2s linear infinite; transform-origin: 160px 160px; }
+.holo-ring-ccw-slow { animation: holo-spin-rev 10s linear infinite; transform-origin: 160px 160px; }
+.holo-ring-ccw-med  { animation: holo-spin-rev 6s  linear infinite; transform-origin: 160px 160px; }
+.holo-pulse-slow    { animation: holo-pulse-glow 3s ease-in-out infinite; }
+.holo-pulse-fast    { animation: holo-pulse-glow 0.6s ease-in-out infinite; }
+.holo-orbit-a       { animation: holo-orbit     4s linear infinite; transform-origin: 160px 160px; }
+.holo-orbit-a-fast  { animation: holo-orbit     1.5s linear infinite; transform-origin: 160px 160px; }
+.holo-orbit-b       { animation: holo-orbit-rev 6s linear infinite; transform-origin: 160px 160px; }
+.holo-orbit-b-fast  { animation: holo-orbit-rev 2s linear infinite; transform-origin: 160px 160px; }
+.holo-scan          { animation: holo-scan      3s ease-in-out infinite; }
+.holo-flicker       { animation: holo-flicker   6s step-start infinite; }
