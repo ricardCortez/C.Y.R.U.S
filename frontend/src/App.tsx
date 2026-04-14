@@ -3,16 +3,21 @@
  * Holographic UI with three-panel layout: hologram | transcript | debug.
  */
 
+import { useState } from 'react'
 import { useWebSocket } from './hooks/useWebSocket'
 import { HologramView } from './components/HologramView'
 import { TranscriptPanel } from './components/TranscriptPanel'
 import { DebugPanel } from './components/DebugPanel'
+import { CameraStream } from './components/CameraStream'
 import { useCYRUSStore } from './store/useCYRUSStore'
+
+type LeftTab = 'hologram' | 'vision'
 
 export default function App() {
   useWebSocket()
   const systemState = useCYRUSStore((s) => s.systemState)
   const wsConnected = useCYRUSStore((s) => s.wsConnected)
+  const [leftTab, setLeftTab] = useState<LeftTab>('hologram')
 
   return (
     <div
@@ -56,30 +61,65 @@ export default function App() {
       {/* ── Main grid ──────────────────────────────────────────────────── */}
       <main className="flex-1 grid" style={{ gridTemplateColumns: '320px 1fr 260px', minHeight: 0 }}>
 
-        {/* Left — Hologram */}
+        {/* Left — Hologram / Vision tabs */}
         <div
-          className="flex flex-col items-center justify-center p-6 shrink-0"
+          className="flex flex-col shrink-0"
           style={{
             borderRight: '1px solid #0a4060',
             background: 'linear-gradient(180deg, #040d1a 0%, #071224 100%)',
           }}
         >
-          <HologramView />
+          {/* Tab bar */}
+          <div className="flex shrink-0" style={{ borderBottom: '1px solid #0a4060' }}>
+            {(['hologram', 'vision'] as LeftTab[]).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setLeftTab(tab)}
+                className="flex-1 py-2 font-mono text-xs tracking-widest uppercase transition-colors"
+                style={{
+                  background: leftTab === tab ? 'rgba(0,212,255,0.06)' : 'transparent',
+                  color: leftTab === tab ? '#00d4ff' : '#1a3040',
+                  borderBottom: leftTab === tab ? '1px solid #00d4ff' : '1px solid transparent',
+                  marginBottom: -1,
+                }}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
 
-          {/* Wake word hint */}
-          <div className="mt-8 text-center">
-            <p className="font-mono text-xs" style={{ color: '#203040' }}>WAKE WORDS</p>
-            <div className="mt-2 flex flex-col gap-1">
-              {['"Hola C.Y.R.U.S"', '"Hey C.Y.R.U.S"', '"C.Y.R.U.S"'].map((w) => (
-                <div
-                  key={w}
-                  className="px-2 py-1 rounded font-mono text-xs text-center"
-                  style={{ background: 'rgba(0,40,80,0.3)', border: '1px solid #0a2030', color: '#004060' }}
-                >
-                  {w}
+          {/* Tab content */}
+          <div className="flex-1 flex flex-col items-center justify-center p-6">
+            {leftTab === 'hologram' ? (
+              <>
+                <HologramView />
+                {/* Wake word hint */}
+                <div className="mt-8 text-center w-full">
+                  <p className="font-mono text-xs" style={{ color: '#203040' }}>WAKE WORDS</p>
+                  <div className="mt-2 flex flex-col gap-1">
+                    {['"Hola C.Y.R.U.S"', '"Hey C.Y.R.U.S"', '"C.Y.R.U.S"'].map((w) => (
+                      <div
+                        key={w}
+                        className="px-2 py-1 rounded font-mono text-xs text-center"
+                        style={{ background: 'rgba(0,40,80,0.3)', border: '1px solid #0a2030', color: '#004060' }}
+                      >
+                        {w}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
+              </>
+            ) : (
+              <div className="w-full">
+                <CameraStream />
+                <p
+                  className="mt-3 font-mono text-xs text-center tracking-widest"
+                  style={{ color: '#1a3040' }}
+                >
+                  VISION PIPELINE
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -112,7 +152,7 @@ export default function App() {
           © Personal Automation | C.Y.R.U.S
         </span>
         <span className="font-mono text-xs" style={{ color: '#1a3040' }}>
-          Phase 1 — Audio Loop → LLM → TTS
+          Phase 2 — Vision + Object & Face Detection
         </span>
       </footer>
     </div>

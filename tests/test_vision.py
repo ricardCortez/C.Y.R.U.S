@@ -52,15 +52,26 @@ def test_faces_in_prompt():
 # Task 2 — LocalCamera
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _mock_cv2():
+    """Return a MagicMock that stands in for the cv2 module."""
+    import sys
+    mock = MagicMock()
+    sys.modules.setdefault("cv2", mock)
+    return mock
+
+
 def test_local_camera_open_fail():
+    import sys
+    mock_cv2 = MagicMock()
+    mock_cv2.VideoCapture.return_value.isOpened.return_value = False
+    sys.modules["cv2"] = mock_cv2
+
     from backend.modules.vision.camera_local import LocalCamera
     from backend.utils.exceptions import CYRUSError
 
-    with patch("cv2.VideoCapture") as MockCap:
-        MockCap.return_value.isOpened.return_value = False
-        cam = LocalCamera(device_index=99)
-        with pytest.raises(CYRUSError):
-            cam.open()
+    cam = LocalCamera(device_index=99)
+    with pytest.raises(CYRUSError):
+        cam.open()
 
 
 def test_local_camera_read_none_when_closed():
@@ -72,20 +83,25 @@ def test_local_camera_read_none_when_closed():
 
 
 def test_local_camera_read_frame_ok():
+    import sys
+    fake_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    mock_cv2 = MagicMock()
+    mock_cap = MagicMock()
+    mock_cap.isOpened.return_value = True
+    mock_cap.read.return_value = (True, fake_frame)
+    mock_cv2.VideoCapture.return_value = mock_cap
+    mock_cv2.CAP_PROP_FRAME_WIDTH = 3
+    mock_cv2.CAP_PROP_FRAME_HEIGHT = 4
+    mock_cv2.CAP_PROP_FPS = 5
+    sys.modules["cv2"] = mock_cv2
+
     from backend.modules.vision.camera_local import LocalCamera
 
-    fake_frame = np.zeros((480, 640, 3), dtype=np.uint8)
-    with patch("cv2.VideoCapture") as MockCap:
-        mock_cap = MagicMock()
-        mock_cap.isOpened.return_value = True
-        mock_cap.read.return_value = (True, fake_frame)
-        MockCap.return_value = mock_cap
-
-        cam = LocalCamera()
-        cam.open()
-        frame = cam.read_frame()
-        assert frame is not None
-        assert frame.shape == (480, 640, 3)
+    cam = LocalCamera()
+    cam.open()
+    frame = cam.read_frame()
+    assert frame is not None
+    assert frame.shape == (480, 640, 3)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

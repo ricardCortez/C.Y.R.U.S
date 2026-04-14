@@ -43,6 +43,10 @@ interface CYRUSStore {
   setCurrentTranscript: (t: string) => void
   currentResponse: string
   setCurrentResponse: (r: string) => void
+
+  // Vision
+  cameraFrame: string | null
+  setCameraFrame: (frame: string | null) => void
 }
 
 let _entryCounter = 0
@@ -74,4 +78,7 @@ export const useCYRUSStore = create<CYRUSStore>((set) => ({
   setCurrentTranscript: (t) => set({ currentTranscript: t }),
   currentResponse: '',
   setCurrentResponse: (r) => set({ currentResponse: r }),
+
+  cameraFrame: null,
+  setCameraFrame: (frame) => set({ cameraFrame: frame }),
 }))
