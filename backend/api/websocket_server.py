@@ -13,7 +13,7 @@ import json
 from typing import Set
 
 import websockets
-from websockets.legacy.server import WebSocketServerProtocol
+from websockets.asyncio.server import ServerConnection
 
 from backend.core.event_bus import EventBus
 from backend.utils.logger import get_logger
@@ -48,7 +48,7 @@ class WebSocketServer:
         self._port = port
         self._ping_interval = ping_interval
         self._ping_timeout = ping_timeout
-        self._clients: Set[WebSocketServerProtocol] = set()
+        self._clients: Set[ServerConnection] = set()
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -74,7 +74,7 @@ class WebSocketServer:
     # Client handler
     # ------------------------------------------------------------------
 
-    async def _handle_client(self, ws: WebSocketServerProtocol, _path: str) -> None:
+    async def _handle_client(self, ws: ServerConnection) -> None:
         """Called for each new frontend connection."""
         self._clients.add(ws)
         addr = ws.remote_address
@@ -111,7 +111,7 @@ class WebSocketServer:
         if not self._clients:
             return
         message = json.dumps({"event": event, "data": payload})
-        disconnected: Set[WebSocketServerProtocol] = set()
+        disconnected: Set[ServerConnection] = set()
         for ws in list(self._clients):
             try:
                 await ws.send(message)
@@ -119,7 +119,7 @@ class WebSocketServer:
                 disconnected.add(ws)
         self._clients -= disconnected
 
-    async def _send(self, ws: WebSocketServerProtocol, event: str, payload: dict) -> None:
+    async def _send(self, ws: ServerConnection, event: str, payload: dict) -> None:
         """Send a message to a single client."""
         try:
             await ws.send(json.dumps({"event": event, "data": payload}))

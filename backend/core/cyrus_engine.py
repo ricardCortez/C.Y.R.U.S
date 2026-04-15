@@ -207,6 +207,11 @@ class CYRUSEngine:
     # Startup
     # ------------------------------------------------------------------
 
+    async def _models_then_pipeline(self) -> None:
+        """Load models then start the voice pipeline."""
+        await self._init_models()
+        await self._pipeline_loop()
+
     async def _init_models(self) -> None:
         """Load all ML models asynchronously (in executor to avoid blocking)."""
         loop = asyncio.get_event_loop()
@@ -403,12 +408,11 @@ class CYRUSEngine:
         logger.info(f"[C.Y.R.U.S] Time: {current_time_str()}")
         logger.info("=" * 60)
 
-        await self._init_models()
-
-        # Run WebSocket server and voice pipeline concurrently
+        # Start WebSocket server immediately so the frontend can connect
+        # while models are still loading, then run the voice pipeline.
         await asyncio.gather(
             self._ws.start(),
-            self._pipeline_loop(),
+            self._models_then_pipeline(),
         )
 
 

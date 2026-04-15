@@ -15,51 +15,111 @@ export interface LogEntry {
   message:   string
 }
 
-interface CYRUSStore {
-  // Existing
-  systemState:  SystemState
-  wsConnected:  boolean
-  transcript:   { role: 'user' | 'assistant'; text: string }[]
-  lastResponse: string
+export interface TranscriptEntry {
+  id:        number
+  role:      'user' | 'cyrus'
+  text:      string
+  timestamp: Date
+  language?: string
+}
 
-  // New
-  logs:           LogEntry[]
+interface CYRUSStore {
+  // Connection
+  systemState:   SystemState
+  wsConnected:   boolean
+  statusMessage: string
+
+  // Conversation
+  transcript:        TranscriptEntry[]
+  currentTranscript: string
+  currentResponse:   string
+  lastResponse:      string
+
+  // Vision
+  cameraFrame: string | null
+
+  // Logs / debug
+  logs: LogEntry[]
+
+  // Visual params
   particleCount:  number
   bloomIntensity: number
   orbSpeed:       number
 
   // Actions
-  setSystemState:    (s: SystemState) => void
-  setWsConnected:    (v: boolean) => void
-  addTranscript:     (entry: { role: 'user' | 'assistant'; text: string }) => void
-  setLastResponse:   (t: string) => void
-  addLog:            (level: LogLevel, message: string) => void
-  clearLogs:         () => void
-  setParticleCount:  (n: number) => void
-  setBloomIntensity: (v: number) => void
-  setOrbSpeed:       (v: number) => void
+  setSystemState:       (s: SystemState) => void
+  setWsConnected:       (v: boolean) => void
+  setStatusMessage:     (m: string) => void
+  addEntry:             (entry: { role: 'user' | 'cyrus'; text: string; language?: string }) => void
+  addTranscript:        (entry: { role: 'user' | 'assistant'; text: string }) => void
+  setCurrentTranscript: (t: string) => void
+  setCurrentResponse:   (t: string) => void
+  setLastResponse:      (t: string) => void
+  setCameraFrame:       (frame: string | null) => void
+  addLog:               (level: LogLevel, message: string) => void
+  clearLogs:            () => void
+  setParticleCount:     (n: number) => void
+  setBloomIntensity:    (v: number) => void
+  setOrbSpeed:          (v: number) => void
 }
 
-let logSeq = 0
+let seq = 0
 
 export const useCYRUSStore = create<CYRUSStore>((set) => ({
-  systemState:    'offline',
-  wsConnected:    false,
-  transcript:     [],
-  lastResponse:   '',
-  logs:           [],
+  // Connection
+  systemState:   'offline',
+  wsConnected:   false,
+  statusMessage: '',
+
+  // Conversation
+  transcript:        [],
+  currentTranscript: '',
+  currentResponse:   '',
+  lastResponse:      '',
+
+  // Vision
+  cameraFrame: null,
+
+  // Logs
+  logs: [],
+
+  // Visual params
   particleCount:  200,
   bloomIntensity: 1.4,
   orbSpeed:       1.0,
 
-  setSystemState:  (s) => set({ systemState: s }),
-  setWsConnected:  (v) => set({ wsConnected: v }),
-  addTranscript:   (e) => set((st) => ({ transcript: [...st.transcript, e] })),
-  setLastResponse: (t) => set({ lastResponse: t }),
+  // Actions
+  setSystemState:   (s) => set({ systemState: s }),
+  setWsConnected:   (v) => set({ wsConnected: v }),
+  setStatusMessage: (m) => set({ statusMessage: m }),
+
+  addEntry: (entry) => set((st) => ({
+    transcript: [...st.transcript, {
+      id:        ++seq,
+      role:      entry.role,
+      text:      entry.text,
+      timestamp: new Date(),
+      language:  entry.language,
+    }],
+  })),
+
+  addTranscript: (entry) => set((st) => ({
+    transcript: [...st.transcript, {
+      id:        ++seq,
+      role:      entry.role === 'assistant' ? 'cyrus' : 'user',
+      text:      entry.text,
+      timestamp: new Date(),
+    }],
+  })),
+
+  setCurrentTranscript: (t) => set({ currentTranscript: t }),
+  setCurrentResponse:   (t) => set({ currentResponse: t, lastResponse: t }),
+  setLastResponse:      (t) => set({ lastResponse: t }),
+  setCameraFrame:       (f) => set({ cameraFrame: f }),
 
   addLog: (level, message) => set((st) => {
     const entry: LogEntry = {
-      id:        ++logSeq,
+      id:        ++seq,
       timestamp: new Date().toLocaleTimeString('en-GB', { hour12: false }),
       level,
       message,

@@ -19,6 +19,7 @@ export function useWebSocket(): boolean {
     setCurrentTranscript,
     setCurrentResponse,
     setCameraFrame,
+    addLog,
   } = useCYRUSStore()
 
   useEffect(() => {
@@ -40,17 +41,24 @@ export function useWebSocket(): boolean {
           const mapped = stateMap[evt.data.state] ?? 'idle'
           setSystemState(mapped)
           setWsConnected(true)
-          if (evt.data.message) setStatusMessage(evt.data.message)
+          if (evt.data.message) {
+            setStatusMessage(evt.data.message)
+            addLog('info', evt.data.message)
+          } else {
+            addLog('info', `STATE → ${evt.data.state.toUpperCase()}`)
+          }
           break
         }
         case 'transcript':
           setCurrentTranscript(evt.data.text)
           addEntry({ role: 'user', text: evt.data.text, language: evt.data.language })
+          addLog('info', `YOU: ${evt.data.text}`)
           break
 
         case 'response':
           setCurrentResponse(evt.data.text)
           addEntry({ role: 'cyrus', text: evt.data.text, language: evt.data.language })
+          addLog('info', `CYRUS: ${evt.data.text}`)
           break
 
         case 'vision':
@@ -60,6 +68,7 @@ export function useWebSocket(): boolean {
         case 'error':
           setStatusMessage(evt.data.message)
           setSystemState('error')
+          addLog('error', evt.data.message)
           break
       }
     })
@@ -83,7 +92,7 @@ export function useWebSocket(): boolean {
     }
   }, [
     setWsConnected, setSystemState, setStatusMessage,
-    addEntry, setCurrentTranscript, setCurrentResponse, setCameraFrame,
+    addEntry, setCurrentTranscript, setCurrentResponse, setCameraFrame, addLog,
   ])
 
   return useCYRUSStore((s) => s.wsConnected)
