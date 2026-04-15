@@ -34,3 +34,8 @@ html, body, #root {
   font-family: 'Share Tech Mono', monospace;
   letter-spacing: 0.18em;
 }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.25; }
+}

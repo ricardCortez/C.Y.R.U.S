@@ -39,10 +39,10 @@ class KokoroTTS:
 
     def __init__(
         self,
-        voice: str = "af_sarah",
-        speed: float = 0.95,
+        voice: str = "ef_dora",
+        speed: float = 0.90,
         sample_rate: int = 24000,
-        lang_code: str = "a",
+        lang_code: str = "e",
     ) -> None:
         self._voice = voice
         self._speed = speed
@@ -63,8 +63,8 @@ class KokoroTTS:
         if not _KOKORO_AVAILABLE:
             raise KokoroUnavailableError("[C.Y.R.U.S] kokoro package not installed")
         try:
-            logger.info(f"[C.Y.R.U.S] TTS: loading Kokoro pipeline (voice={self._voice})…")
-            self._pipeline = KPipeline(lang_code=self._lang_code)
+            logger.info(f"[C.Y.R.U.S] TTS: loading Kokoro pipeline (voice={self._voice}, lang={self._lang_code})…")
+            self._pipeline = KPipeline(lang_code=self._lang_code, repo_id="hexgrad/Kokoro-82M")
             logger.info("[C.Y.R.U.S] TTS: Kokoro ready")
         except Exception as exc:
             raise KokoroUnavailableError(f"[C.Y.R.U.S] Kokoro load failed: {exc}") from exc

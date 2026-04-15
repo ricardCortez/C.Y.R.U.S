@@ -41,6 +41,15 @@ interface CYRUSStore {
   // Logs / debug
   logs: LogEntry[]
 
+  // Wake words (synced from backend)
+  wakeWords: string[]
+
+  // Enrollment
+  enrollmentStep: string        // idle | start | prompt | result | done
+  enrollmentSample: number
+  enrollmentTotal: number
+  enrollmentResults: string[]   // what was heard each sample
+
   // Visual params
   particleCount:  number
   bloomIntensity: number
@@ -58,6 +67,8 @@ interface CYRUSStore {
   setCameraFrame:       (frame: string | null) => void
   addLog:               (level: LogLevel, message: string) => void
   clearLogs:            () => void
+  setWakeWords:         (words: string[]) => void
+  setEnrollment:        (data: { step?: string; sample?: number; total?: number; heard?: string; added?: string[] }) => void
   setParticleCount:     (n: number) => void
   setBloomIntensity:    (v: number) => void
   setOrbSpeed:          (v: number) => void
@@ -82,6 +93,15 @@ export const useCYRUSStore = create<CYRUSStore>((set) => ({
 
   // Logs
   logs: [],
+
+  // Wake words
+  wakeWords: [],
+
+  // Enrollment
+  enrollmentStep: 'idle',
+  enrollmentSample: 0,
+  enrollmentTotal: 5,
+  enrollmentResults: [],
 
   // Visual params
   particleCount:  200,
@@ -129,6 +149,18 @@ export const useCYRUSStore = create<CYRUSStore>((set) => ({
   }),
 
   clearLogs:         () => set({ logs: [] }),
+  setWakeWords:      (words) => set({ wakeWords: words }),
+
+  setEnrollment: (data) => set((st) => {
+    const next: Partial<typeof st> = {}
+    if (data.step !== undefined) next.enrollmentStep = data.step
+    if (data.total !== undefined) next.enrollmentTotal = data.total
+    if (data.sample !== undefined) next.enrollmentSample = data.sample
+    if (data.step === 'start') next.enrollmentResults = []
+    if (data.step === 'result' && data.heard)
+      next.enrollmentResults = [...st.enrollmentResults, data.heard]
+    return next
+  }),
   setParticleCount:  (n) => set({ particleCount: Math.min(400, Math.max(100, n)) }),
   setBloomIntensity: (v) => set({ bloomIntensity: Math.min(2.5, Math.max(0.5, v)) }),
   setOrbSpeed:       (v) => set({ orbSpeed: Math.min(3, Math.max(0.1, v)) }),

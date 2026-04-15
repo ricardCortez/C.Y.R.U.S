@@ -1,16 +1,19 @@
 /**
  * C.Y.R.U.S — React hook for WebSocket lifecycle management.
- * Connects on mount, cleans up on unmount, and drives the Zustand store.
+ * Singleton client — safe to call from multiple components.
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useCallback } from 'react'
 import { CYRUSWebSocketClient, WSEvent } from '../utils/ws-client'
 import { useCYRUSStore, SystemState } from '../store/useCYRUSStore'
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8765'
 
-export function useWebSocket(): boolean {
-  const clientRef = useRef<CYRUSWebSocketClient | null>(null)
+// Module-level singleton — shared across all hook instances
+const _client = new CYRUSWebSocketClient(WS_URL)
+let _bootstrapped = false
+
+export function useWebSocket(): { connected: boolean; sendCommand: (cmd: string, extra?: object) => void } {
   const {
     setWsConnected,
     setSystemState,
@@ -20,13 +23,15 @@ export function useWebSocket(): boolean {
     setCurrentResponse,
     setCameraFrame,
     addLog,
+    setWakeWords,
+    setEnrollment,
   } = useCYRUSStore()
 
   useEffect(() => {
-    const client = new CYRUSWebSocketClient(WS_URL)
-    clientRef.current = client
+    if (_bootstrapped) return   // only wire up once
+    _bootstrapped = true
 
-    const unsubscribe = client.onMessage((evt: WSEvent) => {
+    _client.onMessage((evt: WSEvent) => {
       switch (evt.event) {
         case 'status': {
           const stateMap: Record<string, SystemState> = {
@@ -65,6 +70,20 @@ export function useWebSocket(): boolean {
           if (evt.data.frame) setCameraFrame(evt.data.frame)
           break
 
+        case 'debug': {
+          const lvl = evt.data.level ?? 'info'
+          addLog(lvl === 'warn' ? 'warn' : 'info', evt.data.text)
+          break
+        }
+
+        case 'wake_words':
+          setWakeWords(evt.data.words)
+          break
+
+        case 'enrollment':
+          setEnrollment(evt.data)
+          break
+
         case 'error':
           setStatusMessage(evt.data.message)
           setSystemState('error')
@@ -73,27 +92,33 @@ export function useWebSocket(): boolean {
       }
     })
 
-    // Poll connection state for the status indicator
+    // Poll connection state
+    const manualStates = new Set(['listening', 'transcribing', 'thinking', 'speaking'])
     const interval = setInterval(() => {
-      const connected = client.isConnected
+      const connected = _client.isConnected
       setWsConnected(connected)
       if (!connected) {
-        setSystemState('offline')
-        setStatusMessage('Reconnecting to C.Y.R.U.S…')
+        const cur = useCYRUSStore.getState().systemState
+        if (!manualStates.has(cur)) {
+          setSystemState('offline')
+          setStatusMessage('Reconnecting to C.Y.R.U.S…')
+        }
       }
     }, 1500)
 
-    client.connect()
+    _client.connect()
 
     return () => {
       clearInterval(interval)
-      unsubscribe()
-      client.disconnect()
+      // Don't disconnect the singleton on unmount — it lives for the app lifetime
     }
-  }, [
-    setWsConnected, setSystemState, setStatusMessage,
-    addEntry, setCurrentTranscript, setCurrentResponse, setCameraFrame, addLog,
-  ])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  return useCYRUSStore((s) => s.wsConnected)
+  const sendCommand = useCallback((cmd: string, extra: object = {}) => {
+    _client.send({ type: 'command', cmd, ...extra })
+  }, [])
+
+  const connected = useCYRUSStore((s) => s.wsConnected)
+  return { connected, sendCommand }
 }

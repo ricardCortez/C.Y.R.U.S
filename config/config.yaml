@@ -1,144 +1,118 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# C.Y.R.U.S — Cognitive sYstem for Real-time Utility & Services
-# Main configuration — Phase 1
-# Override any value via environment variable:  CYRUS_<SECTION>_<KEY>
-# ─────────────────────────────────────────────────────────────────────────────
-
 system:
-  name: "C.Y.R.U.S"
-  version: "1.0.0"
-  # LOCAL  → everything runs on-device (Ollama + Kokoro + ctranslate2)
-  # HYBRID → prefer local, fall back to API services on failure
-  mode: "LOCAL"
-  log_level: "INFO"
-
-# ── Local services (always tried first) ──────────────────────────────────────
+  name: C.Y.R.U.S
+  version: 1.0.0
+  mode: LOCAL
+  log_level: INFO
 local:
   llm:
-    provider: "ollama"
-    model: "phi3:latest"
-    host: "http://localhost:11434"
-    timeout: 30               # seconds before fallback is triggered
+    provider: ollama
+    model: phi3:latest
+    host: http://localhost:11434
+    timeout: 120
     stream: true
-
   tts:
-    provider: "kokoro"
-    voice: "af_sarah"         # kokoro voice ID (British-ish)
-    speed: 0.95
+    provider: kokoro
+    voice: ef_dora
+    speed: 0.9
     sample_rate: 24000
-
+    lang_code: e
   translation:
-    provider: "ctranslate2"
-    model: "mt5-small"        # auto-downloaded on first run
-    cache_dir: "~/.cyrus/models/translation"
-
-# ── API fallback services (used when local fails and mode == HYBRID) ─────────
+    provider: ctranslate2
+    model: mt5-small
+    cache_dir: ~/.cyrus/models/translation
 api:
   enabled: true
   fallback_mode: true
-
   llm:
-    provider: "anthropic"
-    api_key: "${CLAUDE_API_KEY}"
-    model: "claude-opus-4-1"
+    provider: anthropic
+    api_key: ${CLAUDE_API_KEY}
+    model: claude-opus-4-1
     max_tokens: 500
     timeout: 60
-
   tts:
-    provider: "edge-tts"      # free Microsoft TTS — no key required
-    voice: "en-GB-RyanNeural"
-    rate: "+0%"
-    volume: "+0%"
-
-# ── Audio hardware ───────────────────────────────────────────────────────────
+    provider: edge-tts
+    voice: en-GB-RyanNeural
+    rate: +0%
+    volume: +0%
 audio:
   input:
-    device: "default"         # "default" or exact device name from pyaudio
+    device: default
     sample_rate: 16000
     chunk_size: 1024
     channels: 1
-    format: "int16"
-    silence_threshold: 500    # amplitude RMS below which is silence
-    silence_duration: 1.5     # seconds of silence that ends a turn
-
+    format: int16
+    silence_threshold: 500
+    silence_duration: 1.5
   output:
-    device: "default"
+    device: default
     volume: 0.85
     sample_rate: 24000
-
-# ── Wake-word / trigger detection ────────────────────────────────────────────
 trigger:
   wake_words:
-    - "hola cyrus"
-    - "oye cyrus"
-    - "hey cyrus"
-    - "cyrus"
+  - hola cyrus
+  - oye cyrus
+  - hey cyrus
+  - cyrus
+  - ¡las eros!
+  - hola, sirus.
+  - hola, sirius.
+  - hola círus
+  - ¡hey, sedios!
   fuzzy_matching: true
-  threshold: 85               # 0–100 fuzzywuzzy ratio
-
-# ── ASR (Whisper) ─────────────────────────────────────────────────────────────
+  threshold: 78
 asr:
-  model: "tiny"               # tiny | base | small | medium | large-v3
-  device: "cuda"              # cuda | cpu
-  compute_type: "float16"     # float16 | int8 (int8 for CPU)
-  language: null              # null = auto-detect; or "es", "en", etc.
+  model: tiny
+  device: cuda
+  compute_type: float16
+  language: es
   beam_size: 5
   vad_filter: true
-
-# ── Conversation ─────────────────────────────────────────────────────────────
+  initial_prompt: Hola CYRUS, oye CYRUS, hey CYRUS, CYRUS
 conversation:
-  max_history_turns: 10       # how many past turns to include in context
-  system_prompt_file: "config/soul.md"
-  prompts_file: "config/prompts.yaml"
-
-# ── WebSocket server ─────────────────────────────────────────────────────────
+  max_history_turns: 10
+  system_prompt_file: config/soul.md
+  prompts_file: config/prompts.yaml
 websocket:
-  host: "localhost"
+  host: localhost
   port: 8765
   ping_interval: 20
   ping_timeout: 10
-
-# ── Vision pipeline ──────────────────────────────────────────────────────────
 vision:
-  enabled: false                # set true to activate camera + ML pipeline
-  source: "local"               # "local" (webcam) or "frigate" (NVR)
-  interval: 1.0                 # seconds between frame captures
-  encode_frame: false           # include base64 JPEG in LLM context (costs tokens)
+  enabled: false
+  source: local
+  interval: 1.0
+  encode_frame: false
   local:
     device_index: 0
     width: 640
     height: 480
     fps: 15
   frigate:
-    host: "http://192.168.1.50:5000"
-    camera: "front_door"
+    host: http://192.168.1.50:5000
+    camera: front_door
     timeout: 5
   yolo:
-    model: "yolov8n.pt"
+    model: yolov8n.pt
     confidence: 0.45
-    device: "cuda"
+    device: cuda
   face:
-    db_path: "data/faces"
-    model_name: "Facenet512"
-    detector_backend: "retinaface"
-
-# ── Memory (Phase 3) ─────────────────────────────────────────────────────────
+    db_path: data/faces
+    model_name: Facenet512
+    detector_backend: retinaface
 memory:
-  enabled: false          # set true when Qdrant is running
+  enabled: false
   qdrant:
-    host: "localhost"
+    host: localhost
     port: 6333
-    collection: "cyrus_memory"
+    collection: cyrus_memory
   embedder:
-    model: "all-MiniLM-L6-v2"
-  db_path: "data/conversations.db"
+    model: all-MiniLM-L6-v2
+  db_path: data/conversations.db
   top_k: 5
-
-# ── Logging ───────────────────────────────────────────────────────────────────
 logging:
-  level: "INFO"               # DEBUG | INFO | WARNING | ERROR
+  level: INFO
   console: true
   file: true
-  log_dir: "logs"             # relative to project root (created automatically)
-  max_bytes: 10485760         # 10 MB
+  log_dir: logs
+  max_bytes: 10485760
   backup_count: 5

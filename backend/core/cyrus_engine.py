@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import time
 from pathlib import Path
 
 # Ensure project root is on sys.path when run as __main__
@@ -44,6 +45,7 @@ from backend.modules.memory.conversation_db import ConversationDB
 from backend.modules.memory.memory_manager import MemoryManager
 from backend.utils.helpers import current_time_str
 from backend.utils.logger import configure_file_logging, get_logger
+from backend.utils.text_cleaner import clean_for_tts
 
 logger = get_logger("cyrus.engine")
 
@@ -86,6 +88,7 @@ class CYRUSEngine:
             language=asr_cfg.language,
             beam_size=asr_cfg.beam_size,
             vad_filter=asr_cfg.vad_filter,
+            initial_prompt=getattr(asr_cfg, "initial_prompt", None),
         )
 
         # ── Trigger ────────────────────────────────────────────────────────
@@ -126,6 +129,7 @@ class CYRUSEngine:
             voice=tts_local_cfg.voice,
             speed=tts_local_cfg.speed,
             sample_rate=tts_local_cfg.sample_rate,
+            lang_code=getattr(tts_local_cfg, "lang_code", "e"),
         )
         self._voiceforge = VoiceforgeTTS(
             voice=tts_api_cfg.voice,
@@ -203,6 +207,13 @@ class CYRUSEngine:
             ping_timeout=ws_cfg.ping_timeout,
         )
 
+        # ── Audio output lock — prevents greeting/TTS overlap ──────────────
+        self._audio_lock: asyncio.Lock | None = None   # created in async context
+        self._last_greeting_at: float = 0.0
+
+        # ── Enrollment mode ────────────────────────────────────────────────
+        self._enrollment_active: bool = False   # pauses the pipeline loop
+
     # ------------------------------------------------------------------
     # Startup
     # ------------------------------------------------------------------
@@ -252,13 +263,187 @@ class CYRUSEngine:
     # Main pipeline
     # ------------------------------------------------------------------
 
+    async def _save_wake_words(self) -> None:
+        """Persist current wake words list to config.yaml."""
+        import yaml as _yaml
+        config_path = self._cfg.project_root / "config" / "config.yaml"
+        try:
+            raw = _yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+            raw.setdefault("trigger", {})["wake_words"] = self._trigger.wake_words
+            config_path.write_text(
+                _yaml.dump(raw, allow_unicode=True, default_flow_style=False, sort_keys=False),
+                encoding="utf-8",
+            )
+            logger.info(f"[C.Y.R.U.S] Wake words saved to config: {self._trigger.wake_words}")
+        except Exception as exc:
+            logger.error(f"[C.Y.R.U.S] Failed to save wake words: {exc}")
+
+    async def _run_enrollment(self, samples: int = 5) -> None:
+        """Record N samples, transcribe each, and register all heard variants as wake words."""
+        self._enrollment_active = True
+        # Interrupt any currently-blocked recording
+        self._audio_in.request_stop()
+        await asyncio.sleep(0.5)  # let the interrupted recording return
+
+        collected: list[str] = []
+        added: list[str] = []
+
+        intro = (
+            f"Modo de enrollamiento activado. "
+            f"Voy a pedirte que digas mi nombre {samples} veces. "
+            f"Habla con naturalidad, como lo harías normalmente."
+        )
+        await self._bus.emit("enrollment", {"step": "start", "total": samples})
+        await self._bus.emit("status", {"state": "speaking"})
+        await self._bus.emit("response", {"text": intro, "language": "es"})
+        async with self._audio_lock:
+            try:
+                audio_bytes, mime = await self._tts.synthesise(intro)
+                if audio_bytes:
+                    await self._audio_out.play_wav(audio_bytes) if mime == "audio/wav" else await self._play_mp3(audio_bytes)
+            except Exception as exc:
+                logger.warning(f"[C.Y.R.U.S] Enrollment TTS failed: {exc}")
+
+        for i in range(1, samples + 1):
+            prompt_text = f"Muestra {i} de {samples}. Di mi nombre ahora."
+            await self._bus.emit("enrollment", {"step": "prompt", "sample": i, "total": samples})
+            await self._bus.emit("debug", {"text": f"ENROLLMENT {i}/{samples}: escuchando…", "level": "info"})
+
+            # Play short beep prompt via TTS
+            async with self._audio_lock:
+                try:
+                    ab, mime = await self._tts.synthesise(f"Muestra {i}.")
+                    if ab:
+                        await self._audio_out.play_wav(ab) if mime == "audio/wav" else await self._play_mp3(ab)
+                except Exception:
+                    pass
+
+            await asyncio.sleep(0.3)
+
+            # Record one utterance
+            try:
+                pcm = await self._audio_in.record_utterance()
+            except Exception as exc:
+                logger.warning(f"[C.Y.R.U.S] Enrollment recording failed: {exc}")
+                continue
+
+            if not pcm:
+                await self._bus.emit("enrollment", {"step": "result", "sample": i, "heard": "(silencio)"})
+                continue
+
+            # Transcribe with no initial_prompt so we capture raw perception
+            orig_prompt = self._asr._initial_prompt
+            self._asr._initial_prompt = None
+            try:
+                text, lang = self._asr.transcribe(pcm)
+            except Exception as exc:
+                logger.warning(f"[C.Y.R.U.S] Enrollment ASR failed: {exc}")
+                text = ""
+            finally:
+                self._asr._initial_prompt = orig_prompt
+
+            heard = text.strip().lower()
+            collected.append(heard)
+            await self._bus.emit("enrollment", {"step": "result", "sample": i, "heard": heard or "(silencio)"})
+            await self._bus.emit("debug", {"text": f"  Muestra {i}: \"{heard}\"", "level": "info"})
+
+            if heard:
+                self._trigger.add_wake_word(heard)
+                added.append(heard)
+
+        # Save to config.yaml
+        if added:
+            await self._save_wake_words()
+            await self._bus.emit("wake_words", {"words": self._trigger.wake_words})
+
+        # Summary
+        if added:
+            summary = f"Enrollamiento completado. Registré {len(added)} variante{'s' if len(added) != 1 else ''}: {', '.join(added)}."
+        else:
+            summary = "No detecté audio claro. Intenta de nuevo en un ambiente más silencioso."
+
+        await self._bus.emit("enrollment", {"step": "done", "added": added})
+        await self._bus.emit("status", {"state": "speaking"})
+        await self._bus.emit("response", {"text": summary, "language": "es"})
+        async with self._audio_lock:
+            try:
+                ab, mime = await self._tts.synthesise(summary)
+                if ab:
+                    await self._audio_out.play_wav(ab) if mime == "audio/wav" else await self._play_mp3(ab)
+            except Exception as exc:
+                logger.warning(f"[C.Y.R.U.S] Enrollment summary TTS failed: {exc}")
+
+        self._enrollment_active = False
+        await self._bus.emit("status", {"state": "idle"})
+        await self._bus.emit("enrollment", {"step": "idle"})
+
+    async def _greet(self) -> None:
+        """Synthesise and play the startup greeting in Spanish."""
+        GREETING = (
+            "Hola. Soy C.Y.R.U.S, tu asistente de inteligencia artificial. "
+            "Todos los sistemas están en línea. "
+            "Menciona mi nombre cuando necesites asistencia."
+        )
+        logger.info("[C.Y.R.U.S] Playing startup greeting")
+        await self._bus.emit("status", {"state": "speaking"})
+        await self._bus.emit("response", {"text": GREETING, "language": "es"})
+        async with self._audio_lock:
+            try:
+                audio_bytes, mime = await self._tts.synthesise(GREETING)
+                if audio_bytes:
+                    if mime == "audio/wav":
+                        await self._audio_out.play_wav(audio_bytes)
+                    else:
+                        await self._play_mp3(audio_bytes)
+                    self._audio_in.mute_for(1.5)
+            except Exception as exc:
+                logger.warning(f"[C.Y.R.U.S] Greeting TTS failed: {exc}")
+        self._last_greeting_at = time.monotonic()
+        await self._bus.emit("status", {"state": "idle"})
+
+    async def _on_client_connected(self, _payload: dict) -> None:
+        """Trigger greeting when a new frontend client connects."""
+        # Send current wake words list so the UI can display them
+        await self._bus.emit("wake_words", {"words": self._trigger.wake_words})
+        # Debounce: skip if greeted less than 20 seconds ago
+        if time.monotonic() - self._last_greeting_at < 20:
+            return
+        asyncio.create_task(self._greet())
+
+    async def _on_frontend_command(self, payload: dict) -> None:
+        """Handle commands sent from the frontend UI."""
+        cmd = payload.get("cmd")
+        if cmd == "add_wake_word":
+            word = str(payload.get("word", "")).strip()
+            if word:
+                self._trigger.add_wake_word(word)
+                logger.info(f"[C.Y.R.U.S] Wake word added via UI: '{word}'")
+                await self._bus.emit("wake_words", {"words": self._trigger.wake_words})
+                await self._bus.emit("debug", {"text": f"✓ Wake word '{word}' registrado", "level": "ok"})
+        elif cmd == "remove_wake_word":
+            word = str(payload.get("word", "")).strip().lower()
+            self._trigger.remove_wake_word(word)
+            await self._save_wake_words()
+            await self._bus.emit("wake_words", {"words": self._trigger.wake_words})
+            await self._bus.emit("debug", {"text": f"✗ Wake word '{word}' eliminado", "level": "warn"})
+        elif cmd == "start_enrollment":
+            if not self._enrollment_active:
+                samples = int(payload.get("samples", 5))
+                asyncio.create_task(self._run_enrollment(samples=samples))
+
     async def _pipeline_loop(self) -> None:
         """Continuous voice pipeline loop."""
+        self._audio_lock = asyncio.Lock()
         self._audio_in.open()
         self._audio_out.open()
 
+        # Subscribe to client-connected events so we greet on every new session
+        self._bus.subscribe("client_connected", self._on_client_connected)
+        # Handle commands sent by the frontend
+        self._bus.subscribe("frontend_command", self._on_frontend_command)
+
         logger.info("[C.Y.R.U.S] Starting… Say 'Hola C.Y.R.U.S' or 'Hey C.Y.R.U.S'")
-        await self._bus.emit("status", {"state": "idle", "message": "C.Y.R.U.S online — listening"})
+        await self._bus.emit("status", {"state": "idle", "message": "C.Y.R.U.S online"})
         await self._state.set_status(SystemStatus.IDLE)
 
         try:
@@ -276,6 +461,11 @@ class CYRUSEngine:
 
     async def _process_one_turn(self) -> None:
         """Capture one utterance and drive it through the full pipeline."""
+
+        # Yield to enrollment if active
+        if self._enrollment_active:
+            await asyncio.sleep(0.1)
+            return
 
         # 1. Capture audio ───────────────────────────────────────────────
         await self._state.set_status(SystemStatus.LISTENING)
@@ -306,14 +496,18 @@ class CYRUSEngine:
             return
 
         logger.info(f"[C.Y.R.U.S] Transcript: '{transcript}' [{lang}]")
+        # Emit raw ASR result to frontend debug log
+        await self._bus.emit("debug", {"text": f"ASR [{lang}]: \"{transcript}\"", "level": "info"})
         await self._bus.emit("transcript", {"text": transcript, "language": lang})
 
         # 3. Trigger detection ───────────────────────────────────────────
         triggered, clean_input = self._trigger.detect(transcript)
         if not triggered:
             logger.debug(f"[C.Y.R.U.S] No wake word in: '{transcript}'")
+            await self._bus.emit("debug", {"text": f"⚠ Sin wake word en: \"{transcript}\"", "level": "warn"})
             await self._state.set_status(SystemStatus.IDLE)
             return
+        await self._bus.emit("debug", {"text": f"✓ Wake word detectado → \"{clean_input or '(sin consulta)'}\"", "level": "ok"})
 
         if not clean_input.strip():
             # Wake word only — prompt for intent
@@ -361,13 +555,16 @@ class CYRUSEngine:
         await self._state.set_status(SystemStatus.SPEAKING)
         await self._bus.emit("status", {"state": "speaking"})
         try:
-            audio_bytes, mime = await self._tts.synthesise(response)
+            speech_text = clean_for_tts(response)
+            audio_bytes, mime = await self._tts.synthesise(speech_text)
             if audio_bytes:
-                if mime == "audio/wav":
-                    await self._audio_out.play_wav(audio_bytes)
-                else:
-                    # MP3 from edge-tts — play via soundfile/numpy decode if needed
-                    await self._play_mp3(audio_bytes)
+                async with self._audio_lock:
+                    if mime == "audio/wav":
+                        await self._audio_out.play_wav(audio_bytes)
+                    else:
+                        await self._play_mp3(audio_bytes)
+                # Mute mic briefly so CYRUS doesn't transcribe its own voice (echo)
+                self._audio_in.mute_for(1.2)
         except Exception as exc:
             logger.error(f"[C.Y.R.U.S] TTS/playback failed: {exc}")
 

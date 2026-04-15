@@ -45,6 +45,7 @@ class WhisperASR:
         language: Optional[str] = None,
         beam_size: int = 5,
         vad_filter: bool = True,
+        initial_prompt: Optional[str] = None,
     ) -> None:
         self._model_size = model_size
         self._device = device
@@ -52,6 +53,7 @@ class WhisperASR:
         self._language = language
         self._beam_size = beam_size
         self._vad_filter = vad_filter
+        self._initial_prompt = initial_prompt
         self._model: Optional["WhisperModel"] = None  # lazy load
 
     # ------------------------------------------------------------------
@@ -141,10 +143,39 @@ class WhisperASR:
                 language=self._language,
                 beam_size=self._beam_size,
                 vad_filter=self._vad_filter,
+                initial_prompt=self._initial_prompt,
             )
             text = " ".join(seg.text.strip() for seg in segments).strip()
-            lang = info.language if info.language else "en"
+            lang = info.language if info.language else "es"
             logger.info(f"[C.Y.R.U.S] ASR: transcript='{text}' lang={lang}")
             return text, lang
         except Exception as exc:
+            # CUDA inference may fail even if model loaded — fallback to CPU
+            if self._device != "cpu":
+                logger.warning(
+                    f"[C.Y.R.U.S] ASR: CUDA transcription failed ({exc}); reloading on CPU"
+                )
+                try:
+                    self._model = WhisperModel(
+                        self._model_size, device="cpu", compute_type="int8"
+                    )
+                    self._device = "cpu"
+                    self._compute_type = "int8"
+                    logger.info("[C.Y.R.U.S] ASR: CPU reload OK — retrying transcription")
+                    wav_buf.seek(0)
+                    segments, info = self._model.transcribe(
+                        wav_buf,
+                        language=self._language,
+                        beam_size=self._beam_size,
+                        vad_filter=self._vad_filter,
+                        initial_prompt=self._initial_prompt,
+                    )
+                    text = " ".join(seg.text.strip() for seg in segments).strip()
+                    lang = info.language if info.language else "es"
+                    logger.info(f"[C.Y.R.U.S] ASR: transcript='{text}' lang={lang}")
+                    return text, lang
+                except Exception as exc2:
+                    raise ASRError(
+                        f"[C.Y.R.U.S] ASR: transcription failed on CPU too: {exc2}"
+                    ) from exc2
             raise ASRError(f"[C.Y.R.U.S] ASR: transcription failed: {exc}") from exc

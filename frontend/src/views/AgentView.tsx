@@ -3,15 +3,15 @@
  * Full-screen immersive particle network. No panels, no distractions.
  */
 
-import { useEffect, useRef, useState } from 'react'
-import { useNavigate }                  from 'react-router-dom'
-import { motion, AnimatePresence }      from 'framer-motion'
-import { ParticleNetwork }              from '../components/ParticleNetwork'
-import { AudioVisualizer }              from '../components/AudioVisualizer'
-import { useAudioAnalyser }             from '../hooks/useAudioAnalyser'
-import { useCYRUSStore }                from '../store/useCYRUSStore'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { useNavigate }                               from 'react-router-dom'
+import { motion, AnimatePresence }                   from 'framer-motion'
+import { ParticleNetwork }                           from '../components/ParticleNetwork'
+import { AudioVisualizer }                           from '../components/AudioVisualizer'
+import { useAudioAnalyser }                          from '../hooks/useAudioAnalyser'
+import { useCYRUSStore }                             from '../store/useCYRUSStore'
 
-// ── State color map ─────────────────────────────────────────────────────────
+// ── State color map ────────────────────────────────────────────────────────
 const STATE_COLOR: Record<string, string> = {
   offline:      '#ff3333',
   connected:    '#00d4ff',
@@ -23,7 +23,7 @@ const STATE_COLOR: Record<string, string> = {
   error:        '#ff3333',
 }
 
-// ── Current-turn response overlay ──────────────────────────────────────────
+// ── Response overlay ───────────────────────────────────────────────────────
 function ResponseOverlay() {
   const currentResponse = useCYRUSStore(s => s.currentResponse)
   const systemState     = useCYRUSStore(s => s.systemState)
@@ -52,7 +52,7 @@ function ResponseOverlay() {
   )
 }
 
-// ── Listening transcript preview ────────────────────────────────────────────
+// ── Transcript preview ─────────────────────────────────────────────────────
 function TranscriptPreview() {
   const currentTranscript = useCYRUSStore(s => s.currentTranscript)
   const systemState       = useCYRUSStore(s => s.systemState)
@@ -79,7 +79,7 @@ function TranscriptPreview() {
   )
 }
 
-// ── State badge — minimal, top center ─────────────────────────────────────
+// ── State badge ────────────────────────────────────────────────────────────
 function StateBadge() {
   const systemState = useCYRUSStore(s => s.systemState)
   const wsConnected = useCYRUSStore(s => s.wsConnected)
@@ -106,24 +106,95 @@ function StateBadge() {
   )
 }
 
+// ── Mic test button ────────────────────────────────────────────────────────
+type MicStatus = 'idle' | 'active' | 'error'
+
+function MicTestButton({ onActivate }: { onActivate: () => Promise<void> }) {
+  const [status, setStatus] = useState<MicStatus>('idle')
+
+  const handleClick = async () => {
+    if (status === 'active') return
+    setStatus('idle')
+    try {
+      await onActivate()
+      setStatus('active')
+    } catch (e) {
+      console.error('[MIC]', e)
+      setStatus('error')
+      setTimeout(() => setStatus('idle'), 3000)
+    }
+  }
+
+  const color = status === 'active' ? '#00ff88'
+              : status === 'error'  ? '#ff3333'
+              : '#00d4ff'
+
+  const label = status === 'active' ? 'MIC ON'
+              : status === 'error'  ? 'MIC ERR'
+              : '🎤 MIC TEST'
+
+  return (
+    <button
+      onClick={handleClick}
+      style={{
+        position: 'fixed',
+        bottom: 24,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 9999,
+        fontFamily: '"Share Tech Mono", monospace',
+        fontSize: 11,
+        letterSpacing: '0.2em',
+        color,
+        background: `${color}22`,
+        border: `1px solid ${color}`,
+        boxShadow: `0 0 14px ${color}55`,
+        borderRadius: 4,
+        padding: '8px 20px',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        pointerEvents: 'all',
+      }}
+    >
+      {status === 'active' && (
+        <span style={{
+          width: 7, height: 7, borderRadius: '50%',
+          background: color, display: 'inline-block',
+          animation: 'pulse 1s infinite',
+        }} />
+      )}
+      {label}
+    </button>
+  )
+}
+
 // ── Main ───────────────────────────────────────────────────────────────────
 export function AgentView() {
-  const analyser          = useAudioAnalyser()
-  const analyserRef       = useRef(analyser)
+  const analyser    = useAudioAnalyser()
+  const analyserRef = useRef(analyser)
   const [showHint, setShowHint] = useState(true)
-  const navigate          = useNavigate()
-  const systemState       = useCYRUSStore(s => s.systemState)
+  const navigate    = useNavigate()
+  const systemState = useCYRUSStore(s => s.systemState)
+  const setSystemState = useCYRUSStore(s => s.setSystemState)
 
-  // Wire mic during listening state
-  useEffect(() => {
-    analyserRef.current = analyser
-  }, [analyser])
+  useEffect(() => { analyserRef.current = analyser }, [analyser])
 
+  // Auto-connect mic when backend sends listening state
   useEffect(() => {
     if (systemState === 'listening') {
-      analyserRef.current.connectMic().catch(() => {/* permission denied — fallback to simulation */})
+      analyserRef.current.connectMic().catch(err => {
+        console.warn('[MIC] auto-connect failed:', err)
+      })
     }
   }, [systemState])
+
+  // Manual mic test — forces listening state for visual testing
+  const handleMicTest = useCallback(async () => {
+    await analyserRef.current.connectMic()   // throws on denial → caught in button
+    setSystemState('listening')
+  }, [setSystemState])
 
   // Tab hint fades after 4s
   useEffect(() => {
@@ -131,7 +202,7 @@ export function AgentView() {
     return () => clearTimeout(id)
   }, [])
 
-  // Ctrl+, shortcut → /control
+  // Ctrl+, shortcut
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === ',' && e.ctrlKey) { e.preventDefault(); navigate('/control') }
@@ -145,34 +216,37 @@ export function AgentView() {
       className="relative w-screen h-screen overflow-hidden"
       style={{ background: '#05070d' }}
     >
-      {/* ── Particle network — fills entire screen ── */}
+      {/* ── Particle network ── */}
       <div className="absolute inset-0">
         <ParticleNetwork analyser={analyser} />
       </div>
 
-      {/* ── State badge — top center ── */}
+      {/* ── State badge ── */}
       <StateBadge />
 
-      {/* ── Response / transcript overlays ── */}
+      {/* ── Overlays ── */}
       <ResponseOverlay />
       <TranscriptPreview />
 
-      {/* ── Audio visualizer — bottom center ── */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-full max-w-sm px-6">
+      {/* ── Audio visualizer bar — bottom center ── */}
+      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-full max-w-sm px-6">
         <AudioVisualizer analyser={analyser} />
       </div>
 
-      {/* ── C.Y.R.U.S wordmark — very subtle, bottom left ── */}
-      <div className="absolute bottom-5 left-5 pointer-events-none">
+      {/* ── Mic test button ── */}
+      <MicTestButton onActivate={handleMicTest} />
+
+      {/* ── Wordmark ── */}
+      <div className="absolute bottom-3 left-5 pointer-events-none">
         <span
           className="font-mono font-bold"
-          style={{ fontSize: 9, letterSpacing: '0.4em', color: '#00f0ff18' }}
+          style={{ fontSize: 9, letterSpacing: '0.4em', color: '#00f0ff14' }}
         >
           C.Y.R.U.S
         </span>
       </div>
 
-      {/* ── Tab hint — bottom right, fades after 4s ── */}
+      {/* ── Tab hint ── */}
       <AnimatePresence>
         {showHint && (
           <motion.button
@@ -180,15 +254,15 @@ export function AgentView() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, transition: { duration: 1 } }}
             onClick={() => navigate('/control')}
-            className="absolute bottom-5 right-5 font-mono cursor-pointer"
+            className="absolute top-5 right-14 font-mono cursor-pointer"
             style={{ fontSize: 8, letterSpacing: '0.2em', color: '#00f0ff33', background: 'none', border: 'none' }}
           >
-            TAB — CONTROL PANEL →
+            TAB — CONTROL →
           </motion.button>
         )}
       </AnimatePresence>
 
-      {/* ── Persistent control panel button (always visible, minimal) ── */}
+      {/* ── Settings button ── */}
       <motion.button
         whileHover={{ opacity: 0.7 }}
         onClick={() => navigate('/control')}

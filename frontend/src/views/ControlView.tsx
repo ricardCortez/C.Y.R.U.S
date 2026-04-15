@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate }                  from 'react-router-dom'
 import { motion, AnimatePresence }      from 'framer-motion'
 import { useCYRUSStore, SystemState, LogEntry } from '../store/useCYRUSStore'
+import { useWebSocket } from '../hooks/useWebSocket'
 
 // ── Color map ───────────────────────────────────────────────────────────────
 const STATE_COLOR: Record<SystemState, string> = {
@@ -422,9 +423,168 @@ function ConversationHistory() {
   )
 }
 
+// ── Voice Enrollment ───────────────────────────────────────────────────────
+function VoiceCalibration({ sendCommand }: { sendCommand: (cmd: string, extra?: object) => void }) {
+  const wakeWords       = useCYRUSStore(s => s.wakeWords)
+  const logs            = useCYRUSStore(s => s.logs)
+  const enrollStep      = useCYRUSStore(s => s.enrollmentStep)
+  const enrollSample    = useCYRUSStore(s => s.enrollmentSample)
+  const enrollTotal     = useCYRUSStore(s => s.enrollmentTotal)
+  const enrollResults   = useCYRUSStore(s => s.enrollmentResults)
+  const [newWord, setNewWord] = useState('')
+
+  const isEnrolling = enrollStep !== 'idle' && enrollStep !== 'done'
+
+  const asrLines = logs
+    .filter(l => l.message.startsWith('ASR '))
+    .slice(-6)
+    .reverse()
+
+  const addWord = () => {
+    const w = newWord.trim().toLowerCase()
+    if (!w) return
+    sendCommand('add_wake_word', { word: w })
+    setNewWord('')
+  }
+
+  return (
+    <Section delay={0.45}>
+      <SectionTitle label="RECONOCIMIENTO DE VOZ" />
+
+      {/* ── Enrollment wizard ── */}
+      <div className="mb-4 rounded p-3" style={{ background: 'rgba(0,255,136,0.04)', border: '1px solid #00ff8820' }}>
+        <p className="font-mono mb-2" style={{ fontSize: 9, color: '#00ff8877', letterSpacing: '0.15em' }}>
+          ENROLLAR MI VOZ
+        </p>
+        <p className="font-mono mb-3" style={{ fontSize: 9, color: '#304050', lineHeight: 1.6 }}>
+          CYRUS grabará {enrollTotal} muestras de cómo pronuncias su nombre y aprenderá esas variantes.
+          Habla de forma natural.
+        </p>
+
+        {/* Progress bar during enrollment */}
+        {isEnrolling && (
+          <div className="mb-3">
+            <div className="flex justify-between mb-1">
+              <span className="font-mono" style={{ fontSize: 9, color: '#00ff88' }}>
+                {enrollStep === 'prompt' ? `Escuchando muestra ${enrollSample}…` : 'Procesando…'}
+              </span>
+              <span className="font-mono" style={{ fontSize: 9, color: '#00ff8866' }}>
+                {enrollSample}/{enrollTotal}
+              </span>
+            </div>
+            <div className="rounded-full overflow-hidden" style={{ height: 3, background: '#0a1a20' }}>
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${(enrollSample / enrollTotal) * 100}%`, background: 'linear-gradient(90deg, #00ff8844, #00ff88)' }}
+              />
+            </div>
+            {/* Results so far */}
+            <div className="mt-2 flex flex-wrap gap-1">
+              {enrollResults.map((r, i) => (
+                <span key={i} className="font-mono rounded px-1.5 py-0.5"
+                  style={{ fontSize: 8, background: '#001810', border: '1px solid #00ff8830', color: '#00ff8877' }}>
+                  {r || '(silencio)'}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {enrollStep === 'done' && (
+          <div className="mb-3 rounded p-2" style={{ background: '#001810', border: '1px solid #00ff8830' }}>
+            <p className="font-mono" style={{ fontSize: 9, color: '#00ff88' }}>✓ Enrollamiento completado</p>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {enrollResults.map((r, i) => r && (
+                <span key={i} className="font-mono rounded px-1.5"
+                  style={{ fontSize: 8, background: '#002818', border: '1px solid #00ff8830', color: '#00ff8866' }}>
+                  {r}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <button
+          disabled={isEnrolling}
+          onClick={() => sendCommand('start_enrollment', { samples: 5 })}
+          className="font-mono w-full rounded py-2"
+          style={{
+            fontSize: 10, letterSpacing: '0.2em',
+            background: isEnrolling ? '#001810' : '#00ff8822',
+            border: `1px solid ${isEnrolling ? '#00ff8820' : '#00ff8866'}`,
+            color: isEnrolling ? '#00ff8844' : '#00ff88',
+            cursor: isEnrolling ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {isEnrolling ? `GRABANDO ${enrollSample}/${enrollTotal}…` : '🎤 INICIAR ENROLLAMIENTO DE VOZ'}
+        </button>
+      </div>
+
+      {/* ── Recent ASR log ── */}
+      <div className="mb-3">
+        <p className="font-mono mb-1.5" style={{ fontSize: 8, color: '#304050', letterSpacing: '0.2em' }}>
+          LO QUE CYRUS ESCUCHÓ (últimas frases) — clic para agregar
+        </p>
+        <div className="rounded" style={{ background: 'rgba(0,8,16,0.7)', border: '1px solid #0a1e2a', padding: '6px 8px', minHeight: 40 }}>
+          {asrLines.length === 0
+            ? <p className="font-mono" style={{ fontSize: 9, color: '#0a2030' }}>Habla para ver transcripciones en tiempo real…</p>
+            : asrLines.map(l => {
+                const m = l.message.match(/"([^"]+)"/)
+                const word = m?.[1] ?? ''
+                return (
+                  <div key={l.id} className="flex gap-2 font-mono leading-relaxed"
+                    onClick={() => word && setNewWord(word)} style={{ cursor: word ? 'pointer' : 'default', fontSize: 9 }}>
+                    <span style={{ color: '#203040', flexShrink: 0 }}>{l.timestamp}</span>
+                    <span style={{ color: '#00ff8877', wordBreak: 'break-word' }}>{l.message}</span>
+                  </div>
+                )
+              })
+          }
+        </div>
+      </div>
+
+      {/* ── Manual add ── */}
+      <div className="flex gap-2 mb-4">
+        <input
+          value={newWord}
+          onChange={e => setNewWord(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && addWord()}
+          placeholder="agregar variante manual…"
+          className="font-mono flex-1 rounded px-2 py-1 outline-none"
+          style={{ fontSize: 10, background: '#040c14', border: '1px solid #00f0ff22', color: '#00f0ff88' }}
+        />
+        <button onClick={addWord} className="font-mono rounded px-3"
+          style={{ fontSize: 9, background: '#00f0ff11', border: '1px solid #00f0ff33', color: '#00f0ff77', cursor: 'pointer' }}>
+          + ADD
+        </button>
+      </div>
+
+      {/* ── Wake words chips ── */}
+      <div>
+        <p className="font-mono mb-1.5" style={{ fontSize: 8, color: '#304050', letterSpacing: '0.2em' }}>
+          PALABRAS ACTIVAS — clic para eliminar
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {wakeWords.length === 0
+            ? <span className="font-mono" style={{ fontSize: 9, color: '#102030' }}>Cargando…</span>
+            : wakeWords.map(w => (
+              <span key={w} className="font-mono rounded px-2 py-0.5 cursor-pointer"
+                style={{ fontSize: 9, background: '#001828', border: '1px solid #00f0ff22', color: '#00f0ff55' }}
+                onClick={() => sendCommand('remove_wake_word', { word: w })}>
+                {w} ×
+              </span>
+            ))
+          }
+        </div>
+      </div>
+    </Section>
+  )
+}
+
 // ── Main ───────────────────────────────────────────────────────────────────
 export function ControlView() {
   const navigate = useNavigate()
+  const { sendCommand } = useWebSocket()
 
   return (
     <motion.div
@@ -465,6 +625,7 @@ export function ControlView() {
           <AIStateBadge />
           <SystemStats />
           <SystemLog />
+          <VoiceCalibration sendCommand={sendCommand} />
           <ConversationHistory />
           <Configuration />
         </div>

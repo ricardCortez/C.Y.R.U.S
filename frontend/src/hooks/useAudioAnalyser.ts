@@ -71,8 +71,11 @@ export function useAudioAnalyser(): AudioAnalyserHandle {
 
   const connectMic = useCallback(async () => {
     const { ctx, analyser } = ensureCtx()
-    sourceRef.current?.disconnect()
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    // Resume suspended context (browser requires user gesture first)
+    if (ctx.state === 'suspended') await ctx.resume()
+    // Don't reconnect if already on mic
+    if (sourceRef.current) sourceRef.current.disconnect()
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
     const src = ctx.createMediaStreamSource(stream)
     src.connect(analyser)
     sourceRef.current = src

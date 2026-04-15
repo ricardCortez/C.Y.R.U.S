@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import asyncio
 import io
+import threading
+import time
 import wave
 from pathlib import Path
 from typing import AsyncIterator, Optional
@@ -59,6 +61,8 @@ class AudioInput:
         self._pa: Optional[pyaudio.PyAudio] = None
         self._device_index: Optional[int] = None
         self._vad = VADDetector(sample_rate=sample_rate)
+        self._stop_flag = threading.Event()    # set to interrupt a live recording
+        self._muted_until: float = 0.0         # monotonic timestamp — ignore input before this
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -124,6 +128,15 @@ class AudioInput:
     # Recording
     # ------------------------------------------------------------------
 
+    def request_stop(self) -> None:
+        """Signal the current recording to stop at the next chunk boundary."""
+        self._stop_flag.set()
+
+    def mute_for(self, seconds: float) -> None:
+        """Suppress voice detection for *seconds* — prevents mic from picking up TTS output."""
+        self._muted_until = time.monotonic() + seconds
+        logger.debug(f"[C.Y.R.U.S] AudioInput: muted for {seconds:.1f}s (echo prevention)")
+
     async def record_utterance(self) -> bytes:
         """Block until a full voice utterance is captured.
 
@@ -159,6 +172,7 @@ class AudioInput:
 
         logger.debug("[C.Y.R.U.S] AudioInput: listening for speech…")
         self._vad.reset()
+        self._stop_flag.clear()
         frames: list[bytes] = []
         silence_count = 0
         speech_started = False
@@ -167,6 +181,10 @@ class AudioInput:
 
         try:
             while True:
+                if self._stop_flag.is_set():
+                    self._stop_flag.clear()
+                    logger.debug("[C.Y.R.U.S] AudioInput: recording interrupted by stop flag")
+                    break
                 data = stream.read(self._chunk_size, exception_on_overflow=False)
                 is_speech = self._vad.feed(data)
                 rms = self._rms(data)
@@ -175,6 +193,10 @@ class AudioInput:
                     pre_roll.append(data)
                     if len(pre_roll) > max_pre_roll:
                         pre_roll.pop(0)
+
+                # Ignore audio while muted (post-TTS echo window)
+                if time.monotonic() < self._muted_until:
+                    continue
 
                 if is_speech and rms > self._silence_threshold:
                     if not speech_started:

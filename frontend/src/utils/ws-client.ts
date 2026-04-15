@@ -4,12 +4,15 @@
  */
 
 export type WSEvent =
-  | { event: 'transcript'; data: { text: string; language: string } }
-  | { event: 'response';   data: { text: string; language: string } }
-  | { event: 'status';     data: { state: string; message?: string } }
-  | { event: 'error';      data: { message: string } }
-  | { event: 'metrics';    data: Record<string, unknown> }
-  | { event: 'vision';     data: { frame?: string } }
+  | { event: 'transcript';  data: { text: string; language: string } }
+  | { event: 'response';    data: { text: string; language: string } }
+  | { event: 'status';      data: { state: string; message?: string } }
+  | { event: 'error';       data: { message: string } }
+  | { event: 'metrics';     data: Record<string, unknown> }
+  | { event: 'vision';      data: { frame?: string } }
+  | { event: 'debug';       data: { text: string; level?: 'info' | 'warn' | 'ok' } }
+  | { event: 'wake_words';  data: { words: string[] } }
+  | { event: 'enrollment';  data: { step: string; sample?: number; total?: number; heard?: string; added?: string[] } }
 
 export type WSEventHandler = (evt: WSEvent) => void
 
@@ -46,6 +49,12 @@ export class CYRUSWebSocketClient {
 
   get isConnected(): boolean {
     return this.ws?.readyState === WebSocket.OPEN
+  }
+
+  send(payload: object): void {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(payload))
+    }
   }
 
   private _open(): void {

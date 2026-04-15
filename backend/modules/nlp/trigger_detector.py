@@ -156,6 +156,13 @@ class TriggerDetector:
         """Currently registered wake words."""
         return list(self._wake_words)
 
+    def remove_wake_word(self, word: str) -> None:
+        """Remove a wake word at runtime."""
+        normalised = word.lower().strip()
+        if normalised in self._wake_words:
+            self._wake_words.remove(normalised)
+            logger.info(f"[C.Y.R.U.S] Trigger: removed wake word '{normalised}'")
+
     def add_wake_word(self, word: str) -> None:
         """Register an additional wake word at runtime.
 

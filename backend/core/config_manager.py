@@ -36,9 +36,10 @@ class LLMLocalConfig:
 @dataclass
 class TTSLocalConfig:
     provider: str = "kokoro"
-    voice: str = "af_sarah"
+    voice: str = "ef_dora"
     speed: float = 0.95
     sample_rate: int = 24000
+    lang_code: str = "e"
 
 
 @dataclass
@@ -113,6 +114,7 @@ class ASRConfig:
     language: Optional[str] = None
     beam_size: int = 5
     vad_filter: bool = True
+    initial_prompt: Optional[str] = None
 
 
 @dataclass

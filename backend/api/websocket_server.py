@@ -21,7 +21,7 @@ from backend.utils.logger import get_logger
 logger = get_logger("cyrus.api.websocket")
 
 # Event names that the server forwards to frontend clients
-_BROADCAST_EVENTS = {"transcript", "response", "status", "error", "metrics"}
+_BROADCAST_EVENTS = {"transcript", "response", "status", "error", "metrics", "debug", "wake_words", "enrollment"}
 
 
 class WebSocketServer:
@@ -83,12 +83,17 @@ class WebSocketServer:
         # Send a welcome status immediately
         await self._send(ws, "status", {"state": "connected", "message": "C.Y.R.U.S online"})
 
+        # Notify the engine that a client connected (triggers greeting)
+        await self._bus.emit("client_connected", {})
+
         try:
             async for raw_message in ws:
-                # Frontend messages in Phase 1 are informational only
                 try:
                     msg = json.loads(raw_message)
                     logger.debug(f"[C.Y.R.U.S] WebSocket: received from client: {msg}")
+                    # Route frontend commands to the engine via the event bus
+                    if isinstance(msg, dict) and msg.get("type") == "command":
+                        await self._bus.emit("frontend_command", msg)
                 except json.JSONDecodeError:
                     pass
         except websockets.ConnectionClosed:
