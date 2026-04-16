@@ -12,7 +12,8 @@ export type WSEvent =
   | { event: 'vision';      data: { frame?: string } }
   | { event: 'debug';       data: { text: string; level?: 'info' | 'warn' | 'ok' } }
   | { event: 'wake_words';  data: { words: string[] } }
-  | { event: 'enrollment';  data: { step: string; sample?: number; total?: number; heard?: string; added?: string[] } }
+  | { event: 'enrollment';   data: { step: string; sample?: number; total?: number; heard?: string; added?: string[] } }
+  | { event: 'system_stats'; data: { cpu: number; ram: number; vram: number; gpu_temp: number; gpu_name: string; uptime: number; tts_backend: string } }
 
 export type WSEventHandler = (evt: WSEvent) => void
 

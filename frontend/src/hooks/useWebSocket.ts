@@ -5,7 +5,7 @@
 
 import { useEffect, useCallback } from 'react'
 import { CYRUSWebSocketClient, WSEvent } from '../utils/ws-client'
-import { useCYRUSStore, SystemState } from '../store/useCYRUSStore'
+import { useCYRUSStore, SystemState, SystemStats } from '../store/useCYRUSStore'
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8765'
 
@@ -25,6 +25,7 @@ export function useWebSocket(): { connected: boolean; sendCommand: (cmd: string,
     addLog,
     setWakeWords,
     setEnrollment,
+    setSystemStats,
   } = useCYRUSStore()
 
   useEffect(() => {
@@ -83,6 +84,20 @@ export function useWebSocket(): { connected: boolean; sendCommand: (cmd: string,
         case 'enrollment':
           setEnrollment(evt.data)
           break
+
+        case 'system_stats': {
+          const d = evt.data
+          setSystemStats({
+            cpu:        d.cpu        ?? 0,
+            ram:        d.ram        ?? 0,
+            vram:       d.vram       ?? 0,
+            gpuTemp:    d.gpu_temp   ?? 0,
+            gpuName:    d.gpu_name   ?? 'GPU',
+            uptime:     d.uptime     ?? 0,
+            ttsBackend: d.tts_backend ?? 'unknown',
+          } as SystemStats)
+          break
+        }
 
         case 'error':
           setStatusMessage(evt.data.message)

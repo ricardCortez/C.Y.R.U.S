@@ -16,6 +16,20 @@ import sys
 import time
 from pathlib import Path
 
+# System monitoring
+try:
+    import psutil as _psutil
+    _PSUTIL_OK = True
+except ImportError:
+    _PSUTIL_OK = False
+
+try:
+    import pynvml as _pynvml
+    _pynvml.nvmlInit()
+    _NVML_OK = True
+except Exception:
+    _NVML_OK = False
+
 # Ensure project root is on sys.path when run as __main__
 if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -221,6 +235,9 @@ class CYRUSEngine:
         # ── Enrollment mode ────────────────────────────────────────────────
         self._enrollment_active: bool = False   # pauses the pipeline loop
 
+        # ── Startup timestamp for uptime tracking ─────────────────────────
+        self._start_time: float = time.monotonic()
+
     # ------------------------------------------------------------------
     # Startup
     # ------------------------------------------------------------------
@@ -274,6 +291,77 @@ class CYRUSEngine:
             logger.info(f"[C.Y.R.U.S] Memory session: {self._memory.session_id}")
 
         logger.info("[C.Y.R.U.S] All models initialised")
+
+    # ------------------------------------------------------------------
+    # System stats broadcaster
+    # ------------------------------------------------------------------
+
+    async def _stats_loop(self) -> None:
+        """Broadcast real system metrics every 5 seconds."""
+        # Prime psutil CPU measurement (first call returns 0)
+        if _PSUTIL_OK:
+            _psutil.cpu_percent(interval=None)
+        await asyncio.sleep(2)
+
+        while True:
+            try:
+                cpu = _psutil.cpu_percent(interval=None) if _PSUTIL_OK else 0.0
+                ram = _psutil.virtual_memory().percent if _PSUTIL_OK else 0.0
+
+                vram_pct = 0.0
+                gpu_temp = 0
+                gpu_name = "RTX 2070S"
+                if _NVML_OK:
+                    try:
+                        handle = _pynvml.nvmlDeviceGetHandleByIndex(0)
+                        mem = _pynvml.nvmlDeviceGetMemoryInfo(handle)
+                        vram_pct = round(mem.used / mem.total * 100, 1)
+                        gpu_temp = _pynvml.nvmlDeviceGetTemperature(
+                            handle, _pynvml.NVML_TEMPERATURE_GPU
+                        )
+                        raw_name = _pynvml.nvmlDeviceGetName(handle)
+                        gpu_name = raw_name if isinstance(raw_name, str) else raw_name.decode()
+                    except Exception:
+                        pass
+
+                uptime = int(time.monotonic() - self._start_time)
+
+                await self._bus.emit("system_stats", {
+                    "cpu":         round(cpu, 1),
+                    "ram":         round(ram, 1),
+                    "vram":        vram_pct,
+                    "gpu_temp":    gpu_temp,
+                    "gpu_name":    gpu_name,
+                    "uptime":      uptime,
+                    "tts_backend": self._tts.active_backend,
+                })
+            except Exception as exc:
+                logger.debug(f"[C.Y.R.U.S] Stats loop error: {exc}")
+
+            await asyncio.sleep(5)
+
+    # ------------------------------------------------------------------
+    # TTS helper (used by test_tts command and enrollment)
+    # ------------------------------------------------------------------
+
+    async def _speak_text(self, text: str) -> None:
+        """Synthesise and play text without going through the full pipeline."""
+        if self._audio_lock is None:
+            return
+        await self._bus.emit("status", {"state": "speaking"})
+        await self._bus.emit("response", {"text": text, "language": "es"})
+        async with self._audio_lock:
+            try:
+                audio_bytes, mime = await self._tts.synthesise(text)
+                if audio_bytes:
+                    if mime == "audio/wav":
+                        await self._audio_out.play_wav(audio_bytes)
+                    else:
+                        await self._play_mp3(audio_bytes)
+                    self._audio_in.mute_for(1.2)
+            except Exception as exc:
+                logger.error(f"[C.Y.R.U.S] _speak_text failed: {exc}")
+        await self._bus.emit("status", {"state": "idle"})
 
     # ------------------------------------------------------------------
     # Main pipeline
@@ -447,6 +535,24 @@ class CYRUSEngine:
                 samples = int(payload.get("samples", 5))
                 asyncio.create_task(self._run_enrollment(samples=samples))
 
+        elif cmd == "set_tts_speed":
+            speed = float(payload.get("speed", 1.0))
+            self._tts.set_speed(speed)
+            logger.info(f"[C.Y.R.U.S] TTS speed → {speed}")
+            await self._bus.emit("debug", {"text": f"TTS speed ajustada a {speed:.2f}", "level": "ok"})
+
+        elif cmd == "test_tts":
+            text = str(payload.get("text", "Sistema de voz operativo. C.Y.R.U.S en línea.")).strip()
+            if text and not self._enrollment_active:
+                asyncio.create_task(self._speak_text(text))
+
+        elif cmd == "set_llm_model":
+            model = str(payload.get("model", "")).strip()
+            if model:
+                self._ollama._model = model
+                logger.info(f"[C.Y.R.U.S] LLM model → {model}")
+                await self._bus.emit("debug", {"text": f"Modelo LLM cambiado a {model}", "level": "ok"})
+
     async def _pipeline_loop(self) -> None:
         """Continuous voice pipeline loop."""
         self._audio_lock = asyncio.Lock()
@@ -457,6 +563,9 @@ class CYRUSEngine:
         self._bus.subscribe("client_connected", self._on_client_connected)
         # Handle commands sent by the frontend
         self._bus.subscribe("frontend_command", self._on_frontend_command)
+
+        # Start background system stats broadcaster
+        asyncio.create_task(self._stats_loop())
 
         logger.info("[C.Y.R.U.S] Starting… Say 'Hola C.Y.R.U.S' or 'Hey C.Y.R.U.S'")
         await self._bus.emit("status", {"state": "idle", "message": "C.Y.R.U.S online"})

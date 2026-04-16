@@ -23,6 +23,16 @@ export interface TranscriptEntry {
   language?: string
 }
 
+export interface SystemStats {
+  cpu:        number
+  ram:        number
+  vram:       number
+  gpuTemp:    number
+  gpuName:    string
+  uptime:     number
+  ttsBackend: string
+}
+
 interface CYRUSStore {
   // Connection
   systemState:   SystemState
@@ -45,10 +55,16 @@ interface CYRUSStore {
   wakeWords: string[]
 
   // Enrollment
-  enrollmentStep: string        // idle | start | prompt | result | done
-  enrollmentSample: number
-  enrollmentTotal: number
-  enrollmentResults: string[]   // what was heard each sample
+  enrollmentStep:    string
+  enrollmentSample:  number
+  enrollmentTotal:   number
+  enrollmentResults: string[]
+
+  // System stats (real — from backend)
+  systemStats: SystemStats | null
+
+  // TTS speed (local copy — synced to backend)
+  ttsSpeed: number
 
   // Visual params
   particleCount:  number
@@ -69,6 +85,8 @@ interface CYRUSStore {
   clearLogs:            () => void
   setWakeWords:         (words: string[]) => void
   setEnrollment:        (data: { step?: string; sample?: number; total?: number; heard?: string; added?: string[] }) => void
+  setSystemStats:       (s: SystemStats) => void
+  setTtsSpeed:          (v: number) => void
   setParticleCount:     (n: number) => void
   setBloomIntensity:    (v: number) => void
   setOrbSpeed:          (v: number) => void
@@ -98,10 +116,16 @@ export const useCYRUSStore = create<CYRUSStore>((set) => ({
   wakeWords: [],
 
   // Enrollment
-  enrollmentStep: 'idle',
-  enrollmentSample: 0,
-  enrollmentTotal: 5,
+  enrollmentStep:    'idle',
+  enrollmentSample:  0,
+  enrollmentTotal:   5,
   enrollmentResults: [],
+
+  // System stats
+  systemStats: null,
+
+  // TTS speed
+  ttsSpeed: 0.92,
 
   // Visual params
   particleCount:  200,
@@ -148,19 +172,23 @@ export const useCYRUSStore = create<CYRUSStore>((set) => ({
     return { logs: logs.length > 200 ? logs.slice(-200) : logs }
   }),
 
-  clearLogs:         () => set({ logs: [] }),
-  setWakeWords:      (words) => set({ wakeWords: words }),
+  clearLogs:    () => set({ logs: [] }),
+  setWakeWords: (words) => set({ wakeWords: words }),
 
   setEnrollment: (data) => set((st) => {
     const next: Partial<typeof st> = {}
-    if (data.step !== undefined) next.enrollmentStep = data.step
-    if (data.total !== undefined) next.enrollmentTotal = data.total
+    if (data.step   !== undefined) next.enrollmentStep   = data.step
+    if (data.total  !== undefined) next.enrollmentTotal  = data.total
     if (data.sample !== undefined) next.enrollmentSample = data.sample
     if (data.step === 'start') next.enrollmentResults = []
     if (data.step === 'result' && data.heard)
       next.enrollmentResults = [...st.enrollmentResults, data.heard]
     return next
   }),
+
+  setSystemStats: (s) => set({ systemStats: s }),
+  setTtsSpeed:    (v) => set({ ttsSpeed: Math.min(2.0, Math.max(0.5, v)) }),
+
   setParticleCount:  (n) => set({ particleCount: Math.min(400, Math.max(100, n)) }),
   setBloomIntensity: (v) => set({ bloomIntensity: Math.min(2.5, Math.max(0.5, v)) }),
   setOrbSpeed:       (v) => set({ orbSpeed: Math.min(3, Math.max(0.1, v)) }),

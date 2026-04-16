@@ -1,6 +1,11 @@
 /**
  * C.Y.R.U.S — Agent View (route "/")
- * Full-screen immersive particle network. No panels, no distractions.
+ *
+ * Improvements:
+ *  1. ThinkingOverlay — animated dots during "thinking" state
+ *  2. PersistentHUD   — last 2 conversation turns always visible
+ *  3. IdleHint        — wake-word hint fades in after 30s idle
+ *  4. TTS badge       — active backend shown in corner
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
@@ -23,17 +28,42 @@ const STATE_COLOR: Record<string, string> = {
   error:        '#ff3333',
 }
 
-// ── Response overlay ───────────────────────────────────────────────────────
+// ── 1. Response overlay (speaking) + thinking dots ────────────────────────
 function ResponseOverlay() {
   const currentResponse = useCYRUSStore(s => s.currentResponse)
   const systemState     = useCYRUSStore(s => s.systemState)
-  const visible = systemState === 'speaking' && !!currentResponse
+
+  const showResponse = (systemState === 'speaking' || systemState === 'idle') && !!currentResponse
+  const showThinking = systemState === 'thinking'
 
   return (
-    <AnimatePresence>
-      {visible && (
+    <AnimatePresence mode="wait">
+      {showThinking && (
         <motion.div
-          key={currentResponse}
+          key="thinking"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3 }}
+          className="absolute bottom-28 left-1/2 -translate-x-1/2 pointer-events-none"
+        >
+          <div className="flex items-center gap-2">
+            {[0, 1, 2].map(i => (
+              <motion.div
+                key={i}
+                className="rounded-full"
+                style={{ width: 6, height: 6, background: '#ff8c00' }}
+                animate={{ opacity: [0.2, 1, 0.2], scale: [0.8, 1.2, 0.8] }}
+                transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.3, ease: 'easeInOut' }}
+              />
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {showResponse && (
+        <motion.div
+          key={currentResponse?.slice(0, 20)}
           initial={{ opacity: 0, y: 12, filter: 'blur(6px)' }}
           animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
           exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
@@ -52,7 +82,49 @@ function ResponseOverlay() {
   )
 }
 
-// ── Transcript preview ─────────────────────────────────────────────────────
+// ── 2. Persistent HUD — last 2 conversation turns ─────────────────────────
+function ConversationHUD() {
+  const transcript  = useCYRUSStore(s => s.transcript)
+  const systemState = useCYRUSStore(s => s.systemState)
+
+  // Don't show during active interaction states — response overlay handles that
+  const hide = systemState === 'speaking' || systemState === 'thinking' || systemState === 'transcribing'
+  const last2 = transcript.slice(-2)
+
+  if (hide || last2.length === 0) return null
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="absolute bottom-28 left-1/2 -translate-x-1/2 w-full max-w-lg px-6 pointer-events-none"
+    >
+      <div className="flex flex-col gap-1.5">
+        {last2.map(entry => (
+          <div
+            key={entry.id}
+            className={`flex gap-2 font-mono ${entry.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          >
+            <span
+              style={{
+                fontSize: 10,
+                letterSpacing: '0.04em',
+                lineHeight: 1.5,
+                maxWidth: '80%',
+                color: entry.role === 'user' ? '#80c8e866' : '#00f0ff55',
+                textAlign: entry.role === 'user' ? 'right' : 'left',
+              }}
+            >
+              {entry.text.length > 90 ? entry.text.slice(0, 90) + '…' : entry.text}
+            </span>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  )
+}
+
+// ── Transcript preview (transcribing state) ────────────────────────────────
 function TranscriptPreview() {
   const currentTranscript = useCYRUSStore(s => s.currentTranscript)
   const systemState       = useCYRUSStore(s => s.systemState)
@@ -67,10 +139,7 @@ function TranscriptPreview() {
           exit={{ opacity: 0 }}
           className="absolute bottom-28 left-1/2 -translate-x-1/2 w-full max-w-lg px-6 pointer-events-none text-center"
         >
-          <p
-            className="font-mono"
-            style={{ fontSize: 11, color: '#00ff8888', letterSpacing: '0.06em' }}
-          >
+          <p className="font-mono" style={{ fontSize: 11, color: '#00ff8888', letterSpacing: '0.06em' }}>
             ▶ {currentTranscript}
           </p>
         </motion.div>
@@ -96,13 +165,89 @@ function StateBadge() {
         className="w-1.5 h-1.5 rounded-full"
         style={{ background: color, boxShadow: `0 0 6px ${color}` }}
       />
-      <span
-        className="font-mono"
-        style={{ fontSize: 9, letterSpacing: '0.3em', color: `${color}bb` }}
-      >
+      <span className="font-mono" style={{ fontSize: 9, letterSpacing: '0.3em', color: `${color}bb` }}>
         {wsConnected ? systemState.toUpperCase() : 'OFFLINE'}
       </span>
     </motion.div>
+  )
+}
+
+// ── 3. Idle hint — shows after 30s with no activity ───────────────────────
+function IdleHint() {
+  const systemState = useCYRUSStore(s => s.systemState)
+  const wakeWords   = useCYRUSStore(s => s.wakeWords)
+  const [visible, setVisible] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  const primaryWakeWord = wakeWords[0] ?? 'hola cyrus'
+
+  useEffect(() => {
+    clearTimeout(timerRef.current)
+    setVisible(false)
+
+    if (systemState === 'idle') {
+      timerRef.current = setTimeout(() => setVisible(true), 30_000)
+    }
+    return () => clearTimeout(timerRef.current)
+  }, [systemState])
+
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.97 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 1.2, ease: 'easeOut' }}
+          className="absolute inset-0 flex items-center justify-center pointer-events-none"
+        >
+          <div className="text-center">
+            <p
+              className="font-mono"
+              style={{ fontSize: 10, letterSpacing: '0.35em', color: '#00f0ff18' }}
+            >
+              DI
+            </p>
+            <p
+              className="font-mono font-bold mt-1"
+              style={{ fontSize: 14, letterSpacing: '0.4em', color: '#00f0ff28', textShadow: '0 0 30px #00f0ff11' }}
+            >
+              "{primaryWakeWord.toUpperCase()}"
+            </p>
+            <p
+              className="font-mono mt-1"
+              style={{ fontSize: 9, letterSpacing: '0.25em', color: '#00f0ff12' }}
+            >
+              PARA ACTIVAR
+            </p>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+// ── 4. TTS backend badge ───────────────────────────────────────────────────
+function TTSBadge() {
+  const stats = useCYRUSStore(s => s.systemStats)
+  if (!stats) return null
+
+  const backend = stats.ttsBackend.toUpperCase()
+  const color = backend === 'PIPER' ? '#00ff88' : backend === 'KOKORO' ? '#00d4ff' : '#ff8c00'
+
+  return (
+    <div
+      className="absolute font-mono pointer-events-none"
+      style={{
+        bottom: 14, right: 14,
+        fontSize: 7, letterSpacing: '0.25em',
+        color: `${color}55`,
+        display: 'flex', alignItems: 'center', gap: 4,
+      }}
+    >
+      <div style={{ width: 4, height: 4, borderRadius: '50%', background: color, opacity: 0.4 }} />
+      TTS {backend}
+    </div>
   )
 }
 
@@ -125,44 +270,24 @@ function MicTestButton({ onActivate }: { onActivate: () => Promise<void> }) {
     }
   }
 
-  const color = status === 'active' ? '#00ff88'
-              : status === 'error'  ? '#ff3333'
-              : '#00d4ff'
-
-  const label = status === 'active' ? 'MIC ON'
-              : status === 'error'  ? 'MIC ERR'
-              : '🎤 MIC TEST'
+  const color = status === 'active' ? '#00ff88' : status === 'error' ? '#ff3333' : '#00d4ff'
+  const label = status === 'active' ? 'MIC ON' : status === 'error' ? 'MIC ERR' : 'MIC TEST'
 
   return (
     <button
       onClick={handleClick}
       style={{
-        position: 'fixed',
-        bottom: 24,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 9999,
-        fontFamily: '"Share Tech Mono", monospace',
-        fontSize: 11,
-        letterSpacing: '0.2em',
-        color,
-        background: `${color}22`,
-        border: `1px solid ${color}`,
-        boxShadow: `0 0 14px ${color}55`,
-        borderRadius: 4,
-        padding: '8px 20px',
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        pointerEvents: 'all',
+        position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+        zIndex: 9999, fontFamily: '"Share Tech Mono", monospace', fontSize: 11,
+        letterSpacing: '0.2em', color, background: `${color}22`, border: `1px solid ${color}`,
+        boxShadow: `0 0 14px ${color}55`, borderRadius: 4, padding: '8px 20px',
+        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, pointerEvents: 'all',
       }}
     >
       {status === 'active' && (
         <span style={{
-          width: 7, height: 7, borderRadius: '50%',
-          background: color, display: 'inline-block',
-          animation: 'pulse 1s infinite',
+          width: 7, height: 7, borderRadius: '50%', background: color,
+          display: 'inline-block', animation: 'pulse 1s infinite',
         }} />
       )}
       {label}
@@ -176,33 +301,27 @@ export function AgentView() {
   const analyserRef = useRef(analyser)
   const [showHint, setShowHint] = useState(true)
   const navigate    = useNavigate()
-  const systemState = useCYRUSStore(s => s.systemState)
+  const systemState    = useCYRUSStore(s => s.systemState)
   const setSystemState = useCYRUSStore(s => s.setSystemState)
 
   useEffect(() => { analyserRef.current = analyser }, [analyser])
 
-  // Auto-connect mic when backend sends listening state
   useEffect(() => {
     if (systemState === 'listening') {
-      analyserRef.current.connectMic().catch(err => {
-        console.warn('[MIC] auto-connect failed:', err)
-      })
+      analyserRef.current.connectMic().catch(err => console.warn('[MIC] auto-connect failed:', err))
     }
   }, [systemState])
 
-  // Manual mic test — forces listening state for visual testing
   const handleMicTest = useCallback(async () => {
-    await analyserRef.current.connectMic()   // throws on denial → caught in button
+    await analyserRef.current.connectMic()
     setSystemState('listening')
   }, [setSystemState])
 
-  // Tab hint fades after 4s
   useEffect(() => {
     const id = setTimeout(() => setShowHint(false), 4000)
     return () => clearTimeout(id)
   }, [])
 
-  // Ctrl+, shortcut
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === ',' && e.ctrlKey) { e.preventDefault(); navigate('/control') }
@@ -212,10 +331,7 @@ export function AgentView() {
   }, [navigate])
 
   return (
-    <div
-      className="relative w-screen h-screen overflow-hidden"
-      style={{ background: '#05070d' }}
-    >
+    <div className="relative w-screen h-screen overflow-hidden" style={{ background: '#05070d' }}>
       {/* ── Particle network ── */}
       <div className="absolute inset-0">
         <ParticleNetwork analyser={analyser} />
@@ -224,11 +340,15 @@ export function AgentView() {
       {/* ── State badge ── */}
       <StateBadge />
 
+      {/* ── Idle hint ── */}
+      <IdleHint />
+
       {/* ── Overlays ── */}
       <ResponseOverlay />
       <TranscriptPreview />
+      <ConversationHUD />
 
-      {/* ── Audio visualizer bar — bottom center ── */}
+      {/* ── Audio visualizer bar ── */}
       <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-full max-w-sm px-6">
         <AudioVisualizer analyser={analyser} />
       </div>
@@ -236,12 +356,12 @@ export function AgentView() {
       {/* ── Mic test button ── */}
       <MicTestButton onActivate={handleMicTest} />
 
+      {/* ── TTS backend badge ── */}
+      <TTSBadge />
+
       {/* ── Wordmark ── */}
       <div className="absolute bottom-3 left-5 pointer-events-none">
-        <span
-          className="font-mono font-bold"
-          style={{ fontSize: 9, letterSpacing: '0.4em', color: '#00f0ff14' }}
-        >
+        <span className="font-mono font-bold" style={{ fontSize: 9, letterSpacing: '0.4em', color: '#00f0ff14' }}>
           C.Y.R.U.S
         </span>
       </div>
