@@ -15,6 +15,13 @@ export type WSEvent =
   | { event: 'enrollment';   data: { step: string; sample?: number; total?: number; heard?: string; added?: string[] } }
   | { event: 'available_models'; data: { models: { name: string; compatible: boolean; compatibility: string }[]; current: string } }
   | { event: 'system_stats'; data: { cpu: number; ram: number; vram: number; gpu_temp: number; gpu_name: string; uptime: number; tts_backend: string } }
+  | { event: 'service_status'; data: {
+      tts:      { enabled: boolean; online: boolean; host: string }
+      asr:      { enabled: boolean; online: boolean; host: string }
+      vision:   { enabled: boolean; online: boolean; host: string }
+      embedder: { enabled: boolean; online: boolean; host: string }
+    }
+  }
 
 export type WSEventHandler = (evt: WSEvent) => void
 

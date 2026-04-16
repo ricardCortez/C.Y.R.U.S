@@ -31,7 +31,11 @@ httpx==0.27.0
 ollama==0.2.1
 
 # ── WebSocket server ──────────────────────────────────────────────────────────
-websockets==12.0
+websockets>=12.0,<14.0
+
+# ── Microservices (TTS/ASR/Vision/Embedder servers) ──────────────────────────
+fastapi==0.111.1
+uvicorn[standard]==0.30.1
 
 # ── Configuration & environment ───────────────────────────────────────────────
 pyyaml==6.0.2

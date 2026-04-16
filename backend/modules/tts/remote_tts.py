@@ -83,7 +83,7 @@ class RemoteTTS:
                     r = await client.get(f"{self._host}{ep}")
                     if r.status_code < 500:
                         self._available = True
-                        logger.info(f"[C.Y.R.U.S] RemoteTTS: server online at {self._host} (probe {ep} → {r.status_code})")
+                        logger.info(f"[C.Y.R.U.S] RemoteTTS: server online at {self._host} (probe {ep} -> {r.status_code})")
                         return True
                 except Exception:
                     continue
@@ -131,7 +131,7 @@ class RemoteTTS:
                     json=payload,
                 )
                 if r.status_code == 200 and r.content:
-                    logger.info(f"[C.Y.R.U.S] RemoteTTS: xtts-api-server → {len(r.content)} bytes")
+                    logger.info(f"[C.Y.R.U.S] RemoteTTS: xtts-api-server -> {len(r.content)} bytes")
                     self._available = True
                     return r.content
                 if r.status_code not in (404, 405):
@@ -152,7 +152,7 @@ class RemoteTTS:
                     },
                 )
                 if r.status_code == 200 and r.content:
-                    logger.info(f"[C.Y.R.U.S] RemoteTTS: OpenAI-compat → {len(r.content)} bytes")
+                    logger.info(f"[C.Y.R.U.S] RemoteTTS: OpenAI-compat -> {len(r.content)} bytes")
                     self._available = True
                     return r.content
                 raise TTSError(f"[C.Y.R.U.S] RemoteTTS: OpenAI endpoint returned {r.status_code}: {r.text[:200]}")
@@ -169,9 +169,9 @@ class RemoteTTS:
     def set_speaker(self, speaker: str) -> None:
         """Update the speaker at runtime."""
         self._speaker = speaker
-        logger.info(f"[C.Y.R.U.S] RemoteTTS: speaker → '{speaker}'")
+        logger.info(f"[C.Y.R.U.S] RemoteTTS: speaker -> '{speaker}'")
 
     def set_language(self, language: str) -> None:
         """Update the synthesis language at runtime."""
         self._language = language
-        logger.info(f"[C.Y.R.U.S] RemoteTTS: language → '{language}'")
+        logger.info(f"[C.Y.R.U.S] RemoteTTS: language -> '{language}'")

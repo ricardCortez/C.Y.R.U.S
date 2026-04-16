@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate }                  from 'react-router-dom'
 import { motion, AnimatePresence }      from 'framer-motion'
 import ReactMarkdown                    from 'react-markdown'
-import { useCYRUSStore, SystemState, LogEntry } from '../store/useCYRUSStore'
+import { useCYRUSStore, SystemState, LogEntry, ServiceStatus } from '../store/useCYRUSStore'
 import { useWebSocket } from '../hooks/useWebSocket'
 
 // ── Color maps ──────────────────────────────────────────────────────────────
@@ -139,7 +139,7 @@ function Slider({ label, value, min, max, step = 0.05, unit = '', onChange, onCo
 
 // ── Tab bar ──────────────────────────────────────────────────────────────────
 
-const TABS = ['SISTEMA', 'CONFIG', 'VOZ'] as const
+const TABS = ['SISTEMA', 'CONFIG', 'VOZ', 'API'] as const
 type Tab = typeof TABS[number]
 
 function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
@@ -340,6 +340,7 @@ function TabConfig({ sendCommand }: { sendCommand: (cmd: string, extra?: object)
   const setTtsSpeed     = useCYRUSStore(s => s.setTtsSpeed)
   const availableModels = useCYRUSStore(s => s.availableModels)
   const currentModel    = useCYRUSStore(s => s.currentModel)
+  const systemStats     = useCYRUSStore(s => s.systemStats)
   const particleCount   = useCYRUSStore(s => s.particleCount)
   const bloomIntensity  = useCYRUSStore(s => s.bloomIntensity)
   const orbSpeed        = useCYRUSStore(s => s.orbSpeed)
@@ -473,7 +474,14 @@ function TabConfig({ sendCommand }: { sendCommand: (cmd: string, extra?: object)
       <Card style={{ marginBottom: 10, border: '1px solid #003a68', background: 'rgba(0,16,28,0.88)' }}>
         <div className="flex items-center justify-between gap-4">
           <Label>SÍNTESIS DE VOZ</Label>
-          <Badge label="PRUEBA" color="#00a2d8cc" />
+          <div className="flex items-center gap-2">
+            {systemStats?.ttsBackend && (
+              <span className="font-mono" style={{ fontSize: 8, letterSpacing: '0.15em', color: '#00ff88cc' }}>
+                ACTIVO: {systemStats.ttsBackend.toUpperCase()}
+              </span>
+            )}
+            <Badge label="PRUEBA" color="#00a2d8cc" />
+          </div>
         </div>
 
         <div className="grid gap-3 mt-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
@@ -788,6 +796,129 @@ function TabVoz({ sendCommand }: { sendCommand: (cmd: string, extra?: object) =>
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TAB 4 — API
+// ═══════════════════════════════════════════════════════════════════════════
+
+function TabAPI({ sendCommand }: { sendCommand: (cmd: string, extra?: object) => void }) {
+  const serviceStatus = useCYRUSStore(s => s.serviceStatus)
+
+  useEffect(() => {
+    sendCommand('probe_services')
+  }, [sendCommand])
+
+  const services: { key: keyof ServiceStatus; label: string; port: string }[] = [
+    { key: 'tts',      label: 'TTS Server',    port: '8020' },
+    { key: 'asr',      label: 'ASR Server',    port: '8000' },
+    { key: 'vision',   label: 'Vision Server', port: '8001' },
+    { key: 'embedder', label: 'Embedder',       port: '8002' },
+  ]
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+
+      <Card style={{ marginBottom: 10, border: '1px solid #003a5a', background: 'rgba(0,14,26,0.9)' }}>
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <Label>SERVICIOS API</Label>
+          <button
+            onClick={() => sendCommand('probe_services')}
+            style={{
+              fontSize: 9, letterSpacing: '0.14em', fontFamily: 'monospace',
+              padding: '6px 12px', borderRadius: 6,
+              border: '1px solid #00f0ff33', background: 'rgba(0,240,255,0.07)',
+              color: '#b5f7ff', cursor: 'pointer',
+            }}
+          >
+            COMPROBAR
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {services.map(({ key, label, port }) => {
+            const info = serviceStatus?.[key]
+            const isActive    = info?.enabled && info?.online
+            const isAvailable = !info?.enabled && info?.online
+            const isOffline   = info?.enabled && !info?.online
+            const dotColor = !info ? '#2a3a4a'
+              : isActive    ? '#00ff88'
+              : isAvailable ? '#ffaa00'
+              : isOffline   ? '#ff4444'
+              : '#2a3a4a'
+            const statusLabel = !info ? 'DESCONOCIDO'
+              : isActive    ? 'ACTIVO'
+              : isAvailable ? 'DISPONIBLE'
+              : isOffline   ? 'OFFLINE'
+              : 'DESACTIVADO'
+            const statusColor = !info ? '#1e3a4acc'
+              : isActive    ? '#008272cc'
+              : isAvailable ? '#7a5a00cc'
+              : isOffline   ? '#8b1a1acc'
+              : '#1e3a4acc'
+            const host = info?.host ?? `http://localhost:${port}`
+
+            return (
+              <div key={key} style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '10px 12px', borderRadius: 6,
+                background: 'rgba(0,8,16,0.6)', border: '1px solid #071828',
+              }}>
+                <div style={{
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: dotColor, flexShrink: 0,
+                  boxShadow: info?.online ? `0 0 6px ${dotColor}` : 'none',
+                }} />
+                <span className="font-mono" style={{ fontSize: 9, color: '#7ab8cc', letterSpacing: '0.12em', minWidth: 94 }}>
+                  {label}
+                </span>
+                <span className="font-mono" style={{ fontSize: 8, color: '#1e3a4a', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {host}
+                </span>
+                <span className="font-mono" style={{
+                  fontSize: 7, letterSpacing: '0.18em',
+                  padding: '3px 8px', borderRadius: 999,
+                  background: statusColor, color: '#e8f8ff',
+                  flexShrink: 0,
+                }}>
+                  {statusLabel}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+
+        <p className="font-mono" style={{ fontSize: 8, color: '#1e3a4a', marginTop: 10, lineHeight: 1.6 }}>
+          {!serviceStatus
+            ? 'Pulsa COMPROBAR para verificar el estado de los servicios'
+            : 'DISPONIBLE = servidor activo pero desactivado en config.yaml · ACTIVO = en uso por CYRUS'}
+        </p>
+      </Card>
+
+      {/* ── Port reference ── */}
+      <Card style={{ border: '1px solid #001a2a', background: 'rgba(0,10,20,0.85)' }}>
+        <Label>REFERENCIA DE PUERTOS</Label>
+        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {[
+            { port: '8020', service: 'TTS Server',    cmd: 'services/tts_server/start.bat',      note: 'Kokoro / Piper' },
+            { port: '8000', service: 'ASR Server',    cmd: 'services/asr_server/start.bat',      note: 'faster-whisper' },
+            { port: '8001', service: 'Vision Server', cmd: 'services/vision_server/start.bat',   note: 'YOLO + DeepFace' },
+            { port: '8002', service: 'Embedder',      cmd: 'services/embedder_server/start.bat', note: 'sentence-transformers' },
+          ].map(({ port, service, cmd, note }) => (
+            <div key={port} style={{ display: 'grid', gridTemplateColumns: '40px 90px 1fr', gap: 8, alignItems: 'start' }}>
+              <span className="font-mono" style={{ fontSize: 9, color: '#00f0ff55' }}>{port}</span>
+              <span className="font-mono" style={{ fontSize: 9, color: '#4a8a9a' }}>{service}</span>
+              <div>
+                <div className="font-mono" style={{ fontSize: 8, color: '#1e3a4a', wordBreak: 'break-all' }}>{cmd}</div>
+                <div className="font-mono" style={{ fontSize: 7, color: '#0e2230', marginTop: 1 }}>{note}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+    </motion.div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // ROOT
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -840,6 +971,7 @@ export function ControlView() {
           {tab === 'SISTEMA' && <TabSistema key="sistema" />}
           {tab === 'CONFIG'  && <TabConfig  key="config"  sendCommand={sendCommand} />}
           {tab === 'VOZ'     && <TabVoz     key="voz"     sendCommand={sendCommand} />}
+          {tab === 'API'     && <TabAPI     key="api"     sendCommand={sendCommand} />}
         </AnimatePresence>
 
         {/* ── Footer ── */}

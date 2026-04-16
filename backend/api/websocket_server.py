@@ -13,7 +13,7 @@ import json
 from typing import Set
 
 import websockets
-from websockets.asyncio.server import ServerConnection
+from websockets.legacy.server import WebSocketServerProtocol as ServerConnection
 
 from backend.core.event_bus import EventBus
 from backend.utils.logger import get_logger
@@ -21,7 +21,7 @@ from backend.utils.logger import get_logger
 logger = get_logger("cyrus.api.websocket")
 
 # Event names that the server forwards to frontend clients
-_BROADCAST_EVENTS = {"transcript", "response", "status", "error", "metrics", "debug", "wake_words", "enrollment", "system_stats", "available_models"}
+_BROADCAST_EVENTS = {"transcript", "response", "status", "error", "metrics", "debug", "wake_words", "enrollment", "system_stats", "available_models", "service_status"}
 
 
 class WebSocketServer:

@@ -5,7 +5,7 @@
 
 import { useEffect, useCallback } from 'react'
 import { CYRUSWebSocketClient, WSEvent } from '../utils/ws-client'
-import { useCYRUSStore, SystemState, SystemStats } from '../store/useCYRUSStore'
+import { useCYRUSStore, SystemState, SystemStats, ServiceStatus } from '../store/useCYRUSStore'
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8765'
 
@@ -28,6 +28,7 @@ export function useWebSocket(): { connected: boolean; sendCommand: (cmd: string,
     setSystemStats,
     setAvailableModels,
     setCurrentModel,
+    setServiceStatus,
   } = useCYRUSStore()
 
   useEffect(() => {
@@ -105,6 +106,10 @@ export function useWebSocket(): { connected: boolean; sendCommand: (cmd: string,
           } as SystemStats)
           break
         }
+
+        case 'service_status':
+          setServiceStatus(evt.data as ServiceStatus)
+          break
 
         case 'error':
           setStatusMessage(evt.data.message)

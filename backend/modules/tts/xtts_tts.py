@@ -61,18 +61,33 @@ class XTTTS:
     # ------------------------------------------------------------------
 
     def load(self) -> None:
-        """Download (first time) and load the XTTS v2 model."""
+        """Download (first time ~1.8 GB) and load the XTTS v2 model."""
         try:
-            from TTS.api import TTS as CoquiTTS
+            import os as _os
             import torch
+            from TTS.tts.configs.xtts_config import XttsConfig
+            from TTS.tts.models.xtts import Xtts
+            from TTS.utils.manage import ModelManager
+
+            # Accept CPML non-commercial license automatically (no interactive prompt)
+            _os.environ.setdefault("COQUI_TOS_AGREED", "1")
 
             dev = self._device or ("cuda" if torch.cuda.is_available() else "cpu")
-            logger.info(f"[C.Y.R.U.S] TTS XTTS: loading {_XTTS_MODEL} on {dev}…")
-            self._tts = CoquiTTS(_XTTS_MODEL).to(dev)
+            logger.info(f"[C.Y.R.U.S] TTS XTTS: loading {_XTTS_MODEL} on {dev}...")
+
+            # Download model files if not cached
+            manager = ModelManager()
+            model_path, config_path, _ = manager.download_model(_XTTS_MODEL)
+
+            config = XttsConfig()
+            config.load_json(config_path)
+            self._tts = Xtts.init_from_config(config)
+            self._tts.load_checkpoint(config, checkpoint_dir=model_path, eval=True)
+            self._tts.to(dev)
             self._available = True
-            logger.info("[C.Y.R.U.S] TTS XTTS: ready")
-        except ImportError:
-            logger.warning("[C.Y.R.U.S] TTS XTTS: TTS package not installed — run: pip install TTS")
+            logger.info(f"[C.Y.R.U.S] TTS XTTS: ready on {dev}")
+        except ImportError as exc:
+            logger.warning(f"[C.Y.R.U.S] TTS XTTS: TTS package not available ({exc})")
         except Exception as exc:
             logger.warning(f"[C.Y.R.U.S] TTS XTTS: load failed — {exc}")
 
@@ -100,44 +115,46 @@ class XTTTS:
             raise TTSError("[C.Y.R.U.S] XTTS: model not loaded")
 
         try:
-            # Determine whether _speaker is a file path or a name
-            speaker_wav: Optional[str] = None
-            speaker_name: Optional[str] = None
+            import io, wave, os, tempfile
+            import numpy as np
 
             sp = str(self._speaker)
-            if Path(sp).is_file():
-                speaker_wav = sp
+            speaker_wav: Optional[str] = sp if Path(sp).is_file() else None
+
+            # XTTS v2 requires a reference WAV for voice cloning; use a built-in
+            # speaker embedding when no reference file is given.
+            if speaker_wav:
+                gpt_cond_latent, speaker_embedding = self._tts.get_conditioning_latents(
+                    audio_path=[speaker_wav]
+                )
             else:
-                speaker_name = sp
+                # Use default speaker from config (first available)
+                gpt_cond_latent, speaker_embedding = self._tts.get_conditioning_latents(
+                    audio_path=[]
+                )
 
-            import tempfile, os
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-                tmp_path = tmp.name
+            out = self._tts.inference(
+                text=text,
+                language=self._language,
+                gpt_cond_latent=gpt_cond_latent,
+                speaker_embedding=speaker_embedding,
+                speed=self._speed,
+            )
 
-            try:
-                if speaker_wav:
-                    self._tts.tts_to_file(
-                        text=text,
-                        speaker_wav=speaker_wav,
-                        language=self._language,
-                        file_path=tmp_path,
-                        speed=self._speed,
-                    )
-                else:
-                    self._tts.tts_to_file(
-                        text=text,
-                        speaker=speaker_name,
-                        language=self._language,
-                        file_path=tmp_path,
-                        speed=self._speed,
-                    )
-                with open(tmp_path, "rb") as f:
-                    wav_bytes = f.read()
-            finally:
-                try:
-                    os.unlink(tmp_path)
-                except OSError:
-                    pass
+            # Convert float32 tensor -> 16-bit WAV bytes
+            audio = out["wav"]
+            if hasattr(audio, "cpu"):
+                audio = audio.cpu().numpy()
+            audio = np.clip(audio, -1.0, 1.0)
+            pcm = (audio * 32767).astype(np.int16)
+
+            buf = io.BytesIO()
+            with wave.open(buf, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(24000)
+                wf.writeframes(pcm.tobytes())
+            wav_bytes = buf.getvalue()
 
             logger.info(f"[C.Y.R.U.S] TTS XTTS: {len(wav_bytes)} bytes synthesised")
             return wav_bytes

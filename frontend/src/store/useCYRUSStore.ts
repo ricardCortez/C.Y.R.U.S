@@ -29,6 +29,19 @@ export interface ModelInfo {
   compatibility: string
 }
 
+export interface ServiceInfo {
+  enabled: boolean
+  online:  boolean
+  host:    string
+}
+
+export interface ServiceStatus {
+  tts:      ServiceInfo
+  asr:      ServiceInfo
+  vision:   ServiceInfo
+  embedder: ServiceInfo
+}
+
 export interface SystemStats {
   cpu:        number
   ram:        number
@@ -76,6 +89,9 @@ interface CYRUSStore {
   availableModels: ModelInfo[]
   currentModel:  string
 
+  // Microservice health status
+  serviceStatus: ServiceStatus | null
+
   // Visual params
   particleCount:  number
   bloomIntensity: number
@@ -99,6 +115,7 @@ interface CYRUSStore {
   setTtsSpeed:          (v: number) => void
   setAvailableModels:   (models: ModelInfo[]) => void
   setCurrentModel:      (model: string) => void
+  setServiceStatus:     (s: ServiceStatus) => void
   setParticleCount:     (n: number) => void
   setBloomIntensity:    (v: number) => void
   setOrbSpeed:          (v: number) => void
@@ -142,6 +159,9 @@ export const useCYRUSStore = create<CYRUSStore>((set) => ({
   // Available local models
   availableModels: [],
   currentModel: '',
+
+  // Microservice health status
+  serviceStatus: null,
 
   // Visual params
   particleCount:  200,
@@ -205,6 +225,7 @@ export const useCYRUSStore = create<CYRUSStore>((set) => ({
   setSystemStats: (s) => set({ systemStats: s }),
   setTtsSpeed:    (v) => set({ ttsSpeed: Math.min(2.0, Math.max(0.5, v)) }),
   setAvailableModels: (models) => set({ availableModels: models }),
+  setServiceStatus:   (s) => set({ serviceStatus: s }),
 
   setParticleCount:  (n) => set({ particleCount: Math.min(400, Math.max(100, n)) }),
   setBloomIntensity: (v) => set({ bloomIntensity: Math.min(2.5, Math.max(0.5, v)) }),

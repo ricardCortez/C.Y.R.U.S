@@ -40,6 +40,7 @@ from backend.core.event_bus import EventBus
 from backend.core.state_manager import StateManager, SystemStatus
 from backend.modules.audio.audio_input import AudioInput
 from backend.modules.audio.audio_output import AudioOutput
+from backend.modules.audio.remote_asr import RemoteASR
 from backend.modules.audio.speaker_profile import SpeakerProfile
 from backend.modules.audio.whisper_asr import WhisperASR
 from backend.modules.llm.claude_client import ClaudeClient
@@ -51,6 +52,7 @@ from backend.modules.tts.piper_tts import PiperTTS
 from backend.modules.vision.camera_local import LocalCamera
 from backend.modules.vision.face_detector import FaceDetector
 from backend.modules.vision.frigate_client import FrigateClient
+from backend.modules.vision.remote_vision import RemoteVision
 from backend.modules.vision.vision_manager import VisionManager
 from backend.modules.vision.yolo_detector import YOLODetector
 from backend.modules.tts.remote_tts import RemoteTTS
@@ -58,6 +60,7 @@ from backend.modules.tts.tts_manager import TTSManager
 from backend.modules.tts.voiceforge_tts import VoiceforgeTTS
 from backend.modules.tts.xtts_tts import XTTTS
 from backend.modules.memory.embedder import Embedder
+from backend.modules.memory.remote_embedder import RemoteEmbedder
 from backend.modules.memory.qdrant_store import QdrantStore
 from backend.modules.memory.conversation_db import ConversationDB
 from backend.modules.memory.memory_manager import MemoryManager
@@ -107,6 +110,14 @@ class CYRUSEngine:
             vad_filter=asr_cfg.vad_filter,
             initial_prompt=getattr(asr_cfg, "initial_prompt", None),
         )
+        # RemoteASR — external ASR server (faster-whisper-server / OpenAI-compat)
+        svc_asr = self._cfg.services.asr
+        self._remote_asr: RemoteASR | None = RemoteASR(
+            host=svc_asr.host,
+            language=svc_asr.language,
+            timeout=svc_asr.timeout,
+            sample_rate=self._cfg.audio.input.sample_rate,
+        ) if svc_asr.enabled else None
 
         # ── Trigger ────────────────────────────────────────────────────────
         trig_cfg = self._cfg.trigger
@@ -187,8 +198,13 @@ class CYRUSEngine:
 
         # ── Vision ─────────────────────────────────────────────────────
         vis_cfg = getattr(self._cfg, "vision", None)
-        self._vision: VisionManager | None = None
-        if vis_cfg and getattr(vis_cfg, "enabled", False):
+        svc_vis = self._cfg.services.vision
+        self._vision: VisionManager | RemoteVision | None = None
+
+        if svc_vis.enabled:
+            # RemoteVision takes priority over in-process VisionManager
+            self._vision = RemoteVision(host=svc_vis.host, timeout=svc_vis.timeout)
+        elif vis_cfg and getattr(vis_cfg, "enabled", False):
             lc = vis_cfg.local
             fr = vis_cfg.frigate
             yo = vis_cfg.yolo
@@ -220,13 +236,21 @@ class CYRUSEngine:
                 encode_frame=vis_cfg.encode_frame,
             )
 
-        # ── Memory (Phase 3) ───────────────────────────────────────────────
+        # ── Memory ────────────────────────────────────────────────────────
         mem_cfg = getattr(self._cfg, "memory", None)
+        svc_emb = self._cfg.services.embedder
         self._memory: MemoryManager | None = None
         if mem_cfg and getattr(mem_cfg, "enabled", False):
             qd = mem_cfg.qdrant
             emb_cfg = mem_cfg.embedder
-            self._embedder = Embedder(model_name=emb_cfg.model)
+            # Use RemoteEmbedder if configured, otherwise in-process Embedder
+            if svc_emb.enabled:
+                self._embedder: Embedder | RemoteEmbedder = RemoteEmbedder(
+                    host=svc_emb.host,
+                    timeout=svc_emb.timeout,
+                )
+            else:
+                self._embedder = Embedder(model_name=emb_cfg.model)
             self._qdrant_store = QdrantStore(
                 host=qd.host,
                 port=qd.port,
@@ -283,8 +307,19 @@ class CYRUSEngine:
         """Load all ML models asynchronously (in executor to avoid blocking)."""
         loop = asyncio.get_event_loop()
 
-        logger.info("[C.Y.R.U.S] Loading Whisper ASR model…")
-        await loop.run_in_executor(None, self._asr.load)
+        # RemoteASR — probe if enabled, otherwise load local Whisper
+        if self._remote_asr is not None:
+            logger.info(f"[C.Y.R.U.S] Probing RemoteASR server at {self._cfg.services.asr.host}…")
+            ok = await self._remote_asr.check_health()
+            if ok:
+                logger.info("[C.Y.R.U.S] RemoteASR server ready — skipping local Whisper load")
+            else:
+                logger.warning("[C.Y.R.U.S] RemoteASR server not reachable — falling back to local Whisper")
+                self._remote_asr = None   # disable so pipeline uses local ASR
+
+        if self._remote_asr is None:
+            logger.info("[C.Y.R.U.S] Loading Whisper ASR model…")
+            await loop.run_in_executor(None, self._asr.load)
 
         # Try Piper first (best quality) — non-fatal if unavailable
         if getattr(self._cfg.local.tts, "piper_model", ""):
@@ -331,8 +366,14 @@ class CYRUSEngine:
             await self._vision.start()
 
         if self._memory:
-            logger.info("[C.Y.R.U.S] Loading embedder model…")
-            await loop.run_in_executor(None, self._embedder.load)
+            if isinstance(self._embedder, RemoteEmbedder):
+                logger.info(f"[C.Y.R.U.S] Probing RemoteEmbedder at {self._cfg.services.embedder.host}…")
+                ok = await self._embedder.check_health()
+                if not ok:
+                    logger.warning("[C.Y.R.U.S] RemoteEmbedder not reachable — memory search disabled")
+            else:
+                logger.info("[C.Y.R.U.S] Loading embedder model…")
+                await loop.run_in_executor(None, self._embedder.load)
             logger.info("[C.Y.R.U.S] Connecting to Qdrant…")
             try:
                 self._qdrant_store.connect()
@@ -353,6 +394,43 @@ class CYRUSEngine:
             logger.info("[C.Y.R.U.S] No voice profile found — barge-in accepts any voice (run enrollment to set up)")
 
         logger.info("[C.Y.R.U.S] All models initialised")
+
+        # Broadcast service status to frontend
+        await self._emit_service_status()
+
+    # ------------------------------------------------------------------
+    # Service status helper
+    # ------------------------------------------------------------------
+
+    async def _emit_service_status(self) -> None:
+        """Probe all configured microservices and emit their status to frontend."""
+        svc = self._cfg.services
+
+        async def _probe(enabled: bool, host: str) -> dict:
+            # Always do a fresh HTTP probe so status reflects the current moment,
+            # not a cached value from startup.
+            try:
+                import httpx
+                async with httpx.AsyncClient(timeout=2.0) as c:
+                    r = await c.get(f"{host}/health")
+                    online = r.status_code < 500
+            except Exception:
+                online = False
+            return {"enabled": enabled, "online": online, "host": host}
+
+        tts_info, asr_info, vis_info, emb_info = await asyncio.gather(
+            _probe(svc.tts.enabled,      svc.tts.host),
+            _probe(svc.asr.enabled,      svc.asr.host),
+            _probe(svc.vision.enabled,   svc.vision.host),
+            _probe(svc.embedder.enabled, svc.embedder.host),
+        )
+
+        await self._bus.emit("service_status", {
+            "tts":      tts_info,
+            "asr":      asr_info,
+            "vision":   vis_info,
+            "embedder": emb_info,
+        })
 
     # ------------------------------------------------------------------
     # System stats broadcaster
@@ -532,15 +610,21 @@ class CYRUSEngine:
             pcm_samples.append(pcm)  # keep for voice profile
 
             # Transcribe with no initial_prompt so we capture raw perception
-            orig_prompt = self._asr._initial_prompt
-            self._asr._initial_prompt = None
             try:
-                text, lang = self._asr.transcribe(pcm)
+                if self._remote_asr is not None:
+                    text, lang = await self._remote_asr.atranscribe(
+                        pcm, self._cfg.audio.input.sample_rate
+                    )
+                else:
+                    orig_prompt = self._asr._initial_prompt
+                    self._asr._initial_prompt = None
+                    try:
+                        text, lang = self._asr.transcribe(pcm)
+                    finally:
+                        self._asr._initial_prompt = orig_prompt
             except Exception as exc:
                 logger.warning(f"[C.Y.R.U.S] Enrollment ASR failed: {exc}")
                 text = ""
-            finally:
-                self._asr._initial_prompt = orig_prompt
 
             heard = text.strip().lower()
             collected.append(heard)
@@ -724,11 +808,23 @@ class CYRUSEngine:
             engine = str(payload.get("engine", "")).strip().lower()
             valid = {"piper", "remote-tts", "xtts", "kokoro", "edge-tts"}
             if engine in valid:
+                # Check backend is actually available before pinning
+                unavailable = (
+                    (engine == "piper"      and (not self._piper or not self._piper.available)) or
+                    (engine == "remote-tts" and (not self._remote_tts or not self._remote_tts.available)) or
+                    (engine == "xtts"       and (not self._xtts or not self._xtts.available))
+                )
                 self._tts.set_forced_backend(engine)
-                await self._bus.emit("debug", {"text": f"Motor TTS fijado a: {engine}", "level": "ok"})
+                if unavailable:
+                    await self._bus.emit("debug", {
+                        "text": f"Motor TTS '{engine}' no disponible — usando fallback automatico",
+                        "level": "warn",
+                    })
+                else:
+                    await self._bus.emit("debug", {"text": f"Motor TTS fijado a: {engine}", "level": "ok"})
             elif engine == "auto":
                 self._tts.set_forced_backend(None)
-                await self._bus.emit("debug", {"text": "Motor TTS: prioridad automática restaurada", "level": "ok"})
+                await self._bus.emit("debug", {"text": "Motor TTS: prioridad automatica restaurada", "level": "ok"})
             else:
                 await self._bus.emit("debug", {"text": f"Motor TTS desconocido: {engine}", "level": "warn"})
 
@@ -774,6 +870,10 @@ class CYRUSEngine:
                     await self._bus.emit("available_models", {"models": results, "current": self._ollama._model})
                 except Exception:
                     pass
+
+        elif cmd == "probe_services":
+            await self._bus.emit("debug", {"text": "Comprobando servicios API...", "level": "info"})
+            await self._emit_service_status()
 
     async def _pipeline_loop(self) -> None:
         """Continuous voice pipeline loop."""
@@ -849,7 +949,14 @@ class CYRUSEngine:
         await self._state.set_status(SystemStatus.PROCESSING)
         await self._bus.emit("status", {"state": "transcribing"})
         try:
-            transcript, lang = self._asr.transcribe(pcm)
+            if self._remote_asr is not None:
+                transcript, lang = await self._remote_asr.atranscribe(
+                    pcm, self._cfg.audio.input.sample_rate
+                )
+            else:
+                transcript, lang = await asyncio.get_event_loop().run_in_executor(
+                    None, self._asr.transcribe, pcm
+                )
         except Exception as exc:
             logger.error(f"[C.Y.R.U.S] ASR failed: {exc}")
             await self._bus.emit("error", {"message": "Transcription failed — please repeat"})

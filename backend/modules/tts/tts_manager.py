@@ -90,55 +90,49 @@ class TTSManager:
 
         forced = getattr(self, "_forced_backend", None)
 
-        # ── 1. Piper (best quality, offline subprocess) ───────────────
+        # ── 1. Piper ──────────────────────────────────────────────────
         if (forced == "piper" or forced is None) and self._piper and self._piper.available:
             try:
                 wav = self._piper.synthesise(text)
-                logger.info(f"[C.Y.R.U.S] TTS: Piper → {len(wav)} bytes")
+                logger.info(f"[C.Y.R.U.S] TTS: Piper -> {len(wav)} bytes")
                 return wav, "audio/wav"
             except TTSError as exc:
-                logger.warning(f"[C.Y.R.U.S] TTS: Piper failed ({exc}); trying RemoteTTS…")
+                logger.warning(f"[C.Y.R.U.S] TTS: Piper failed ({exc}); trying RemoteTTS...")
+        elif forced == "piper":
+            logger.warning("[C.Y.R.U.S] TTS: Piper forced but unavailable — falling back")
 
-        if forced == "piper":
-            raise TTSError("[C.Y.R.U.S] TTS: Piper forced but unavailable")
-
-        # ── 2. RemoteTTS (external server — xtts-api-server etc.) ─────
-        if (forced == "remote-tts" or forced is None) and self._remote and self._remote.available:
+        # ── 2. RemoteTTS ──────────────────────────────────────────────
+        if (forced in ("remote-tts", None)) and self._remote and self._remote.available:
             try:
                 wav = await self._remote.synthesise(text)
-                logger.info(f"[C.Y.R.U.S] TTS: RemoteTTS → {len(wav)} bytes")
+                logger.info(f"[C.Y.R.U.S] TTS: RemoteTTS -> {len(wav)} bytes")
                 return wav, "audio/wav"
             except TTSError as exc:
-                logger.warning(f"[C.Y.R.U.S] TTS: RemoteTTS failed ({exc}); trying XTTS…")
+                logger.warning(f"[C.Y.R.U.S] TTS: RemoteTTS failed ({exc}); trying XTTS...")
+        elif forced == "remote-tts":
+            logger.warning("[C.Y.R.U.S] TTS: RemoteTTS forced but unavailable — falling back")
 
-        if forced == "remote-tts":
-            raise TTSError("[C.Y.R.U.S] TTS: RemoteTTS forced but unavailable")
-
-        # ── 3. XTTS v2 (high-quality offline, optional) ───────────────
+        # ── 3. XTTS v2 ────────────────────────────────────────────────
         if (forced == "xtts" or forced is None) and self._xtts and self._xtts.available:
             try:
                 wav = self._xtts.synthesise(text)
-                logger.info(f"[C.Y.R.U.S] TTS: XTTS v2 → {len(wav)} bytes")
+                logger.info(f"[C.Y.R.U.S] TTS: XTTS v2 -> {len(wav)} bytes")
                 return wav, "audio/wav"
             except TTSError as exc:
-                logger.warning(f"[C.Y.R.U.S] TTS: XTTS failed ({exc}); trying Kokoro…")
+                logger.warning(f"[C.Y.R.U.S] TTS: XTTS failed ({exc}); trying Kokoro...")
+        elif forced == "xtts":
+            logger.warning("[C.Y.R.U.S] TTS: XTTS forced but unavailable — falling back")
 
-        if forced == "xtts":
-            raise TTSError("[C.Y.R.U.S] TTS: XTTS forced but unavailable")
-
-        # ── 3. Kokoro (offline fallback) ───────────────────────────────
-        try:
-            wav = self._kokoro.synthesise(text)
-            logger.info(f"[C.Y.R.U.S] TTS: Kokoro → {len(wav)} bytes")
-            return wav, "audio/wav"
-        except KokoroUnavailableError as exc:
-            logger.warning(f"[C.Y.R.U.S] TTS: Kokoro unavailable ({exc})")
-        except TTSError as exc:
-            logger.warning(f"[C.Y.R.U.S] TTS: Kokoro error ({exc}); trying Edge-TTS…")
-
-        # ── 3. Edge-TTS (API — available in LOCAL and HYBRID) ─────────
-        if forced == "kokoro":
-            raise TTSError("[C.Y.R.U.S] TTS: Kokoro forced but unavailable")
+        # ── 4. Kokoro ─────────────────────────────────────────────────
+        if forced in ("kokoro", None) or forced not in ("piper", "remote-tts", "xtts", "edge-tts"):
+            try:
+                wav = self._kokoro.synthesise(text)
+                logger.info(f"[C.Y.R.U.S] TTS: Kokoro -> {len(wav)} bytes")
+                return wav, "audio/wav"
+            except KokoroUnavailableError as exc:
+                logger.warning(f"[C.Y.R.U.S] TTS: Kokoro unavailable ({exc})")
+            except TTSError as exc:
+                logger.warning(f"[C.Y.R.U.S] TTS: Kokoro error ({exc}); trying Edge-TTS...")
         try:
             logger.info("[C.Y.R.U.S] TTS: falling back to Edge-TTS…")
             mp3 = await self._voiceforge.synthesise(text)

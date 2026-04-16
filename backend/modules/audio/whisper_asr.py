@@ -60,10 +60,48 @@ class WhisperASR:
     # Initialisation
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # CUDA + cuDNN probe
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _cuda_usable() -> bool:
+        """Return True only when CUDA is present AND cuDNN is loadable.
+
+        ctranslate2 links cuDNN at runtime — even ``int8`` ops call cuDNN
+        internally on some builds.  We probe the DLL before loading the model
+        so we can fall back to CPU gracefully instead of crashing the process.
+        """
+        try:
+            import ctranslate2 as _ct2
+            if _ct2.get_cuda_device_count() == 0:
+                return False
+        except Exception:
+            return False
+
+        # Try loading the cuDNN 8 ops DLL that ctranslate2 requires
+        import ctypes, sys
+        cudnn_names = (
+            ["cudnn_ops_infer64_8.dll"]        if sys.platform == "win32" else
+            ["libcudnn_ops_infer.so.8", "libcudnn.so.8"]
+        )
+        for name in cudnn_names:
+            try:
+                ctypes.cdll.LoadLibrary(name)
+                return True
+            except OSError:
+                continue
+        return False
+
+    # ------------------------------------------------------------------
+    # Initialisation
+    # ------------------------------------------------------------------
+
     def load(self) -> None:
         """Download (on first run) and load the Whisper model into memory.
 
-        Falls back to CPU with int8 if CUDA is unavailable.
+        Auto-selects CPU when the configured device is ``cuda`` but cuDNN is
+        not present — avoids a fatal DLL crash during first inference.
 
         Raises:
             ASRError: If the model cannot be loaded.
@@ -71,12 +109,22 @@ class WhisperASR:
         if not _WHISPER_AVAILABLE:
             raise ASRError("[C.Y.R.U.S] faster-whisper is not installed")
 
-        device = self._device
+        device       = self._device
         compute_type = self._compute_type
+
+        if device == "cuda" and not self._cuda_usable():
+            logger.warning(
+                "[C.Y.R.U.S] ASR: CUDA requested but cuDNN not available — "
+                "falling back to CPU/int8 (install cuDNN to enable GPU)"
+            )
+            device       = "cpu"
+            compute_type = "int8"
+            self._device       = device
+            self._compute_type = compute_type
 
         try:
             logger.info(
-                f"[C.Y.R.U.S] ASR: loading whisper/{self._model_size} on {device} ({compute_type})…"
+                f"[C.Y.R.U.S] ASR: loading whisper/{self._model_size} on {device} ({compute_type})..."
             )
             self._model = WhisperModel(
                 self._model_size,
@@ -90,7 +138,9 @@ class WhisperASR:
                     f"[C.Y.R.U.S] ASR: CUDA load failed ({exc}); retrying on CPU with int8"
                 )
                 try:
-                    self._model = WhisperModel(self._model_size, device="cpu", compute_type="int8")
+                    self._model        = WhisperModel(self._model_size, device="cpu", compute_type="int8")
+                    self._device       = "cpu"
+                    self._compute_type = "int8"
                     logger.info("[C.Y.R.U.S] ASR: model ready (CPU fallback)")
                 except Exception as exc2:
                     raise ASRError(f"[C.Y.R.U.S] ASR: model load failed: {exc2}") from exc2

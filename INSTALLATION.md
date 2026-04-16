@@ -1,148 +1,113 @@
-# C.Y.R.U.S — Installation Guide
+# C.Y.R.U.S — Guía de Instalación
 
-**Cognitive sYstem for Real-time Utility & Services — Phase 1**
-
----
-
-## Prerequisites
-
-### Required
-
-| Requirement | Version | Notes |
-|-------------|---------|-------|
-| Python | 3.11.x | Do **not** use 3.12+ (package compatibility) |
-| Node.js | 18+ | For the React frontend |
-| npm | 9+ | Bundled with Node.js |
-| Ollama | latest | Local LLM inference |
-| espeak-ng | any | Required by Kokoro TTS |
-
-### Hardware
-
-- Microphone (USB recommended)
-- Speaker or headphones
-- NVIDIA GPU with CUDA support (for Whisper ASR acceleration)
-  - RTX 2070S or better recommended
-  - CPU fallback available (slower)
+**Cognitive sYstem for Real-time Utility & Services**
 
 ---
 
-## Step 1 — Install System Dependencies
+## Requisitos
+
+### Software
+
+| Requisito | Versión | Notas |
+|-----------|---------|-------|
+| Python | 3.11.x | No usar 3.12+ (compatibilidad de paquetes) |
+| Node.js | 18+ | Para el frontend React |
+| npm | 9+ | Incluido con Node.js |
+| Ollama | latest | Inferencia LLM local |
+| espeak-ng | any | Requerido por Kokoro TTS |
+
+### Hardware recomendado
+
+- Micrófono USB
+- Altavoces o auriculares
+- GPU NVIDIA con CUDA (para Whisper ASR acelerado)
+  - RTX 2070S o mejor recomendado
+  - Fallback a CPU disponible (más lento)
+
+---
+
+## Paso 1 — Dependencias del sistema
 
 ### Python 3.11
 
-Download from [python.org](https://python.org). During installation:
-- Check **"Add Python to PATH"**
-- Check **"Install for all users"** (optional)
+Descarga desde [python.org](https://python.org). Durante la instalación:
+- Marcar **"Add Python to PATH"**
 
-Verify:
 ```bat
 py -3.11 --version
 ```
 
 ### Node.js 18+
 
-Download from [nodejs.org](https://nodejs.org). Choose the LTS release.
+Descarga desde [nodejs.org](https://nodejs.org). Elegir la versión LTS.
 
-Verify:
 ```bat
-node --version
-npm --version
+node --version && npm --version
 ```
 
 ### Ollama
 
-Download from [ollama.ai](https://ollama.ai). After installation:
+Descarga desde [ollama.ai](https://ollama.ai). Después:
 
 ```bat
 ollama serve
+:: En otra terminal:
+ollama pull phi3:latest
 ```
 
-Then pull the Mistral model (in a separate terminal):
-```bat
-ollama pull mistral:latest
-```
+### espeak-ng (para Kokoro TTS)
 
-This downloads ~4GB. Run it once and Ollama caches it permanently.
-
-### espeak-ng (for Kokoro TTS)
-
-Download the Windows installer from the
+Descarga el instalador para Windows desde
 [espeak-ng releases](https://github.com/espeak-ng/espeak-ng/releases).
 
-After installation, ensure it is on your PATH:
 ```bat
 espeak-ng --version
 ```
 
 ---
 
-## Step 2 — Clone / Copy Project Files
+## Paso 2 — Clonar el repositorio
 
-If using Git:
 ```bat
-git clone <your-repo-url> C:\C.Y.R.U.S
-cd C:\C.Y.R.U.S
+git clone <repo-url> D:\Archivos\Desarrollo\C.Y.R.U.S
+cd D:\Archivos\Desarrollo\C.Y.R.U.S
 ```
-
-Or extract the project archive to `C:\C.Y.R.U.S`.
 
 ---
 
-## Step 3 — Backend Setup
-
-Run the automated setup script **from the project root**:
+## Paso 3 — Backend Python
 
 ```bat
-deployment\setup.bat
-```
-
-This script:
-1. Creates a Python 3.11 virtual environment (`venv/`)
-2. Installs all Python dependencies from `requirements.txt`
-3. Copies `.env` from the template
-4. Creates the `logs/` directory
-5. Installs frontend Node.js dependencies
-
-### Manual setup (alternative)
-
-```bat
-:: Create venv with Python 3.11
 py -3.11 -m venv venv
-
-:: Activate
 venv\Scripts\activate
-
-:: Install dependencies
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
 ---
 
-## Step 4 — Configure Environment
+## Paso 4 — Configuración
 
-Copy the environment template:
 ```bat
 copy config\.env.example .env
 ```
 
-Edit `.env` and fill in your values:
+Edita `.env`:
 
 ```dotenv
-# Required only for HYBRID mode (API fallback)
+# Solo necesario para modo HYBRID (fallback a Claude API)
 CLAUDE_API_KEY=sk-ant-...
-
-# Optional — override defaults
-CYRUS_LOG_LEVEL=INFO
-OLLAMA_HOST=http://localhost:11434
 ```
 
-> **Note:** In `LOCAL` mode (default), no API keys are required.
-> C.Y.R.U.S runs 100% offline.
+En `config/config.yaml` puedes ajustar:
+- `local.llm.model` — modelo Ollama a usar
+- `local.tts.voice` — voz de Kokoro
+- `asr.model` — tamaño de Whisper (tiny/base/small/medium/large)
+- `services.*` — habilitar microservicios (ver sección Microservicios)
 
 ---
 
-## Step 5 — Frontend Setup
+## Paso 5 — Frontend
 
 ```bat
 cd frontend
@@ -152,129 +117,193 @@ cd ..
 
 ---
 
-## Step 6 — Verify Installation
-
-Run the test suite to confirm everything is working:
+## Paso 6 — Verificar instalación
 
 ```bat
 venv\Scripts\activate
 pytest tests/ -v
 ```
 
-Expected output:
-```
-46 passed, 6 skipped
-```
-
-The 6 skipped tests require actual hardware (GPU, microphone) and are normal.
+Salida esperada: `46 passed, 6 skipped` (los 6 skipped requieren hardware real).
 
 ---
 
-## Step 7 — Start C.Y.R.U.S
+## Paso 7 — Arrancar C.Y.R.U.S
 
-You need **3 terminals**:
+### Modo mínimo (3 terminales)
 
-### Terminal 1 — Ollama (if not already running)
 ```bat
+:: Terminal 1
 ollama serve
+
+:: Terminal 2
+venv\Scripts\activate && python -m backend.core.cyrus_engine
+
+:: Terminal 3
+cd frontend && npm run dev
 ```
 
-### Terminal 2 — Backend
+### Modo completo con microservicios (5 terminales)
+
 ```bat
+:: Terminal 1 — LLM
+ollama serve
+
+:: Terminal 2 — TTS Server (síntesis remota, mejor latencia)
+venv\Scripts\activate
+python -m uvicorn services.tts_server.main:app --host 0.0.0.0 --port 8020
+
+:: Terminal 3 — ASR Server (transcripción remota, Whisper cargado una vez)
+venv\Scripts\activate
+python -m uvicorn services.asr_server.main:app --host 0.0.0.0 --port 8000
+
+:: Terminal 4 — Backend principal
 venv\Scripts\activate
 python -m backend.core.cyrus_engine
+
+:: Terminal 5 — Frontend
+cd frontend && npm run dev
 ```
 
-You should see:
-```
-[C.Y.R.U.S] COGNITIVE SYSTEM v1.0 — STARTING
-[C.Y.R.U.S] Mode: LOCAL
-[C.Y.R.U.S] Loading Whisper ASR model…
-[C.Y.R.U.S] Checking Ollama availability…
-[C.Y.R.U.S] Ollama is online
-[C.Y.R.U.S] Starting… Say 'Hola C.Y.R.U.S' or 'Hey C.Y.R.U.S'
-```
-
-### Terminal 3 — Frontend
-```bat
-cd frontend
-npm run dev
+Luego habilitar en `config/config.yaml`:
+```yaml
+services:
+  tts:
+    enabled: true
+    host: http://localhost:8020
+  asr:
+    enabled: true
+    host: http://localhost:8000
 ```
 
-Open your browser at **http://localhost:5173**
+Abrir **http://localhost:5173**
 
 ---
 
-## Troubleshooting
+## Microservicios — Arquitectura
 
-### PyAudio fails to install
+C.Y.R.U.S separa los módulos pesados de ML en servicios HTTP independientes.
+Cada servicio tiene su propio proceso y puede correr en otra máquina del LAN.
+
+```
+C.Y.R.U.S Core (backend principal)
+  ├── LLM          → Ollama          :11434  (siempre externo)
+  ├── TTS Server   → services/tts    :8020   (Kokoro / Piper / XTTS v2)
+  ├── ASR Server   → services/asr    :8000   (faster-whisper)
+  ├── Vision Server→ services/vision :8001   (YOLO + DeepFace)
+  └── Embedder     → services/embed  :8002   (sentence-transformers)
+```
+
+| Servicio | Puerto | Estado | Arranque |
+|----------|--------|--------|----------|
+| Ollama (LLM) | 11434 | Siempre activo | `ollama serve` |
+| TTS Server | 8020 | Recomendado | `services\tts_server\start.bat` |
+| ASR Server | 8000 | Recomendado | `services\asr_server\start.bat` |
+| Embedder | 8002 | Opcional (memoria) | `services\embedder_server\start.bat` |
+| Vision | 8001 | Opcional | `services\vision_server\start.bat` |
+
+Ver detalles en [SERVICES_PLAN.md](SERVICES_PLAN.md).
+
+---
+
+## Comandos de diagnóstico
+
+```bat
+:: Ver todos los procesos activos de C.Y.R.U.S
+tasklist /fi "imagename eq python.exe" /v
+
+:: Ver puertos en uso
+netstat -ano | findstr "8020 8000 8002 8765 11434 5173"
+
+:: Salud de los servicios
+curl http://localhost:8020/health
+curl http://localhost:8000/health
+curl http://localhost:8002/health
+
+:: Matar un puerto (ejemplo 8020)
+for /f "tokens=5" %a in ('netstat -ano ^| findstr ":8020 "') do taskkill /pid %a /f
+```
+
+```powershell
+# PowerShell — estado de todos los puertos CYRUS
+@(8020, 8000, 8002, 8765, 11434, 5173) | ForEach-Object {
+    $c = Get-NetTCPConnection -LocalPort $_ -ErrorAction SilentlyContinue
+    if ($c) { "ACTIVO  :$_ -> PID $($c.OwningProcess)" } else { "libre   :$_" }
+}
+```
+
+---
+
+## Solución de problemas
+
+### Sin respuesta de voz
+- Verifica TTS Server: `curl http://localhost:8020/health`
+- Si no corre, arranca `services\tts_server\start.bat`
+
+### Ollama offline
+- Corre `ollama serve` en otra terminal
+- Verifica: `curl http://localhost:11434/api/version`
+
+### PyAudio / webrtcvad no instalan
 ```
 error: Microsoft Visual C++ 14.0 is required
 ```
-Install [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/).
+Instala [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/).
 
-### webrtcvad fails to install
-Same solution as PyAudio — requires C++ Build Tools.
-
-### Ollama not responding
-```
-[C.Y.R.U.S] Ollama not responding — API fallback will be used
-```
-- Ensure `ollama serve` is running in another terminal
-- Check `http://localhost:11434` is accessible
-- In `config/config.yaml`, `mode` can be set to `HYBRID` to use Claude API as fallback
-
-### Whisper loads on CPU (slow)
-- CUDA is not available or GPU VRAM is insufficient
-- In `config/config.yaml`, change `asr.device` to `"cpu"` explicitly
-- CPU inference is ~5× slower but still functional
-
-### kokoro not installed / TTS silent
-```
-[C.Y.R.U.S] kokoro package not installed; local TTS unavailable
-```
-Install espeak-ng first, then:
+### Puerto ocupado
 ```bat
-pip install kokoro
+netstat -ano | findstr ":8020"
+taskkill /pid <PID> /f
 ```
 
-### edge-tts fallback not available
-```
-[C.Y.R.U.S] edge-tts not installed; API TTS fallback unavailable
-```
-```bat
-pip install edge-tts
-```
-edge-tts is free and requires no API key — it uses Microsoft Azure TTS via the browser API.
+### Whisper lento en CPU
+- Normal si no hay CUDA. Activa ASR Server para cargar el modelo una sola vez.
+- O cambia en `config.yaml`: `asr.device: cpu` y `asr.compute_type: int8`
+
+### XTTS v2 no disponible
+- Requiere Visual Studio C++ Build Tools + `pip install xtts-api-server`
+- Alternativa: el TTS Server ya usa Kokoro (calidad similar, sin compilación)
 
 ---
 
-## GPU Memory Reference (RTX 2070S)
+## Referencia de VRAM (RTX 2070S)
 
-| State | VRAM used |
-|-------|-----------|
-| Idle (Ollama daemon) | ~2.0 GB |
-| Whisper TINY active | +1.5 GB |
-| Mistral 7B inference | +2.5 GB |
+| Estado | VRAM usada |
+|--------|-----------|
+| Ollama idle | ~2.0 GB |
+| Whisper TINY activo | +1.5 GB |
+| phi3 7B inferencia | +2.5 GB |
 | **Peak** | **~4.0 GB** |
 
-Safe margin: 4 GB remaining out of 8 GB total.
+Margen seguro: 4 GB libres de 8 GB totales.
 
 ---
 
-## Project Structure
+## Estructura del proyecto
 
 ```
 C.Y.R.U.S/
-├── backend/           Python backend (audio, ASR, LLM, TTS, WebSocket)
-├── frontend/          React frontend (hologram UI, transcript)
-├── config/            YAML configuration + soul.md personality
-├── deployment/        Docker Compose, Dockerfiles, setup scripts
-├── tests/             pytest test suite
-├── logs/              Runtime logs (auto-created)
-└── venv/              Python virtual environment (auto-created)
+├── backend/              Backend Python principal
+│   ├── api/              WebSocket server
+│   ├── core/             Engine + config + state
+│   └── modules/          audio, asr, llm, tts, vision, memory
+├── services/             Microservicios independientes
+│   ├── tts_server/       TTS HTTP API (puerto 8020)
+│   ├── asr_server/       ASR HTTP API (puerto 8000)
+│   ├── vision_server/    Vision HTTP API (puerto 8001)
+│   └── embedder_server/  Embedder HTTP API (puerto 8002)
+├── frontend/             React + Three.js (UI holográfica)
+├── config/               config.yaml, soul.md, prompts.yaml
+├── data/                 Faces DB, conversaciones SQLite
+├── models/               Modelos TTS (Piper .onnx)
+├── logs/                 Logs de runtime (auto-creado)
+├── tests/                Suite pytest
+├── SERVICES_PLAN.md      Arquitectura de microservicios
+├── QUICK_START.md        Arranque rápido
+└── INSTALLATION.md       Esta guía
 ```
 
 ---
 
-*For a 5-minute quick start, see [QUICK_START.md](QUICK_START.md).*
+*Para arranque rápido ver [QUICK_START.md](QUICK_START.md).*
+*Arquitectura de servicios ver [SERVICES_PLAN.md](SERVICES_PLAN.md).*

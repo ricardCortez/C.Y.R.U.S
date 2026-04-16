@@ -19,9 +19,9 @@ local:
     piper_model: models/tts/piper/es_MX-ald-medium.onnx
     piper_speaker: null
     xtts:
-      enabled: false          # set to true to enable XTTS v2 (downloads ~1.8 GB on first run)
+      enabled: true
       language: es
-      speaker: Tammie Ema     # built-in speaker OR path to a reference .wav for voice cloning
+      speaker: Tammie Ema
   translation:
     provider: ctranslate2
     model: mt5-small
@@ -63,7 +63,7 @@ trigger:
 asr:
   model: tiny
   device: cuda
-  compute_type: float16
+  compute_type: int8
   language: es
   beam_size: 5
   vad_filter: true
@@ -118,14 +118,14 @@ logging:
   backup_count: 5
 services:
   tts:
-    enabled: false
-    host: http://localhost:8020   # xtts-api-server: pip install xtts-api-server
+    enabled: true
+    host: http://localhost:8020
     language: es
-    speaker: ""                   # speaker name or path to reference .wav for cloning
+    speaker: ''
     timeout: 60
   asr:
     enabled: false
-    host: http://localhost:8000   # faster-whisper-server (OpenAI-compat)
+    host: http://localhost:8000
     model: large-v3
     language: es
     timeout: 30

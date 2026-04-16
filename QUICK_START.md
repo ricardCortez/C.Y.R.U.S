@@ -1,101 +1,196 @@
-# C.Y.R.U.S — Quick Start (5 minutes)
+# C.Y.R.U.S — Quick Start
 
-> Assumes Python 3.11, Node.js 18+, and Ollama are already installed.
-> For fresh installs see [INSTALLATION.md](INSTALLATION.md).
+> Asume Python 3.11, Node.js 18+ y Ollama ya instalados.
+> Para instalación desde cero ver [INSTALLATION.md](INSTALLATION.md).
 
 ---
 
-## 1. Set up the environment (1 min)
+## 1. Entorno Python
 
 ```bat
-cd C:\C.Y.R.U.S
+cd D:\Archivos\Desarrollo\C.Y.R.U.S
 
-:: Create venv with Python 3.11
 py -3.11 -m venv venv
 venv\Scripts\activate
 
-:: Install Python dependencies
 pip install -r requirements.txt
-
-:: Copy environment template
 copy config\.env.example .env
 ```
 
 ---
 
-## 2. Pull the LLM model (3 min, one-time)
+## 2. Modelo LLM (una sola vez, ~4 GB)
 
 ```bat
-ollama pull mistral:latest
+ollama pull phi3:latest
 ```
 
 ---
 
-## 3. Start everything
+## 3. Arrancar todo
 
-Open **3 terminals** in `C:\C.Y.R.U.S`:
+### Opción A — Script unificado (recomendado)
+
+Abre **2 terminales**:
 
 **Terminal 1 — Ollama**
 ```bat
 ollama serve
 ```
 
-**Terminal 2 — Backend**
+**Terminal 2 — Todo lo demás** (mata procesos previos, levanta limpio)
+```bat
+REM TTS + backend CYRUS  (modo por defecto)
+start_services.bat
+
+REM Todo: TTS + ASR + Vision + Embedder + backend + frontend
+start_services.bat all
+
+REM Solo los que necesites + backend
+start_services.bat tts asr
+
+REM Todo sin frontend
+start_services.bat all nofrontend
+```
+
+El script abre una ventana CMD por servicio (`CYRUS TTS :8020`, `CYRUS BACKEND :8765`, etc.)  
+y hace health-check automático al terminar.
+
+**Apagar todo de golpe:**
+```bat
+stop_services.bat
+```
+
+---
+
+### Opción B — Manual
+
+**Terminal 1 — Ollama**
+```bat
+ollama serve
+```
+
+**Terminal 2 — TTS Server (puerto 8020)**
+```bat
+venv\Scripts\activate
+python -m uvicorn services.tts_server.main:app --host 0.0.0.0 --port 8020
+```
+
+**Terminal 3 — Backend CYRUS**
 ```bat
 venv\Scripts\activate
 python -m backend.core.cyrus_engine
 ```
 
-**Terminal 3 — Frontend**
+**Terminal 4 — Frontend React**
 ```bat
-cd frontend
-npm install
-npm run dev
+cd frontend && npm run dev
+```
+
+Abre **http://localhost:3007** en el navegador.
+
+---
+
+## 4. Comandos de línea de comandos
+
+### Ver procesos activos de C.Y.R.U.S
+```bat
+:: Todos los procesos Python relacionados
+tasklist /fi "imagename eq python.exe" /v | findstr /i "cyrus uvicorn ollama"
+
+:: Puertos en uso (8020 TTS, 8000 ASR, 8765 WebSocket, 11434 Ollama)
+netstat -ano | findstr "8020 8000 8765 11434 3007"
+
+:: Quién ocupa un puerto específico (ejemplo: 8020)
+netstat -ano | findstr ":8020"
+for /f "tokens=5" %a in ('netstat -ano ^| findstr ":8020 "') do tasklist /fi "pid eq %a" /fo list | findstr "PID\|Image"
+```
+
+### PowerShell (alternativa más legible)
+```powershell
+# Procesos Python + puerto que usan
+Get-Process python | Select-Object Id, Name, CPU, @{n='Mem(MB)';e={[math]::Round($_.WorkingSet64/1MB,1)}}
+
+# Ver qué escucha en cada puerto de CYRUS
+@(8020, 8000, 8002, 8765, 11434, 3007) | ForEach-Object {
+    $conn = Get-NetTCPConnection -LocalPort $_ -ErrorAction SilentlyContinue
+    if ($conn) { "Puerto $_ -> PID $($conn.OwningProcess)" }
+    else { "Puerto $_ -> libre" }
+}
+
+# Matar un puerto específico (ejemplo: liberar 8020)
+Stop-Process -Id (Get-NetTCPConnection -LocalPort 8020).OwningProcess -Force
+```
+
+### Salud de los servicios
+```bat
+:: TTS Server
+curl http://localhost:8020/health
+
+:: ASR Server
+curl http://localhost:8000/health
+
+:: Embedder Server
+curl http://localhost:8002/health
+
+:: Ollama
+curl http://localhost:11434/api/version
+
+:: WebSocket backend (verifica que responde)
+curl http://localhost:8765
+```
+
+### Logs en tiempo real
+```bat
+:: Backend principal
+type logs\cyrus.log
+
+:: Seguir el log en vivo (PowerShell)
+Get-Content logs\cyrus.log -Wait -Tail 50
 ```
 
 ---
 
-## 4. Open the UI
+## 5. Habilitar servicios remotos en config.yaml
 
-Go to **http://localhost:5173** in your browser.
+```yaml
+# config/config.yaml
 
----
+services:
+  tts:
+    enabled: true          # usa TTS Server (puerto 8020) en lugar de Kokoro in-process
+    host: http://localhost:8020
+    language: es
+    speaker: ""
 
-## 5. Talk to C.Y.R.U.S
+  asr:
+    enabled: true          # usa ASR Server (puerto 8000) en lugar de Whisper in-process
+    host: http://localhost:8000
+    language: es
 
-Say one of these wake words into your microphone:
+  embedder:
+    enabled: false         # habilitar cuando quieras memoria semántica remota
+    host: http://localhost:8002
 
-- **"Hola C.Y.R.U.S, ¿qué hora es?"**
-- **"Hey Cyrus, what time is it?"**
-- **"Oye Cyrus, enciende las luces"**
-
-You should hear a response in British English within ~2–4 seconds.
-
----
-
-## What to expect
-
-```
-[C.Y.R.U.S] COGNITIVE SYSTEM v1.0 — STARTING
-[C.Y.R.U.S] Mode: LOCAL
-[C.Y.R.U.S] Loading Whisper ASR model…
-[C.Y.R.U.S] Ollama is online
-[C.Y.R.U.S] Starting… Say 'Hola C.Y.R.U.S' or 'Hey C.Y.R.U.S'
-[C.Y.R.U.S] Transcript: 'Hola C.Y.R.U.S, ¿qué hora es?' [es]
-[C.Y.R.U.S] Trigger detected: 'hola cyrus'
-[C.Y.R.U.S] Response: 'It's currently 14:35. How else may I assist you?'
+  vision:
+    enabled: false         # habilitar con servidor de vision corriendo
+    host: http://localhost:8001
 ```
 
 ---
 
-## Something not working?
+## 6. Algo no funciona
 
-| Problem | Fix |
-|---------|-----|
-| No audio response | Install `espeak-ng` then `pip install kokoro` |
-| Ollama offline warning | Run `ollama serve` in a terminal |
-| Whisper loading on CPU | Normal if no CUDA — just slower (~2s extra) |
-| Port 5173 not found | Run `npm run dev` in the `frontend/` folder |
-| Tests failing | Run `pytest tests/ -v` to see details |
+| Problema | Solución |
+|----------|----------|
+| Sin respuesta de voz | Verifica que TTS Server corre: `curl http://localhost:8020/health` |
+| Ollama offline | Corre `ollama serve` en otra terminal |
+| Puerto ocupado | `stop_services.bat` — libera los 4 puertos de golpe |
+| Whisper lento en CPU | Normal — ASR Server lo resuelve (carga el modelo una sola vez) |
+| WebSocket no conecta | Backend no está corriendo — revisa Terminal 2 |
+| Frontend no carga | Corre `npm run dev` en `frontend/` |
 
-Full details in [INSTALLATION.md](INSTALLATION.md).
+---
+
+*Para instalación completa desde cero ver [INSTALLATION.md](INSTALLATION.md).*
+*Arquitectura de microservicios ver [SERVICES_PLAN.md](SERVICES_PLAN.md).*

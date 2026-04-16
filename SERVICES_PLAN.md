@@ -19,18 +19,20 @@ puede correr en otra máquina del LAN (Proxmox, HA, etc.).
 
 ---
 
-## Fase 1 — TTS Server ✅ COMPLETADO (2026-04-16)
+## Fase 1 — TTS Server ✅ COMPLETADO + EN PRODUCCION (2026-04-16)
 
 **Servicio:** `xtts-api-server`
 **Puerto:** `8020`
 **Config:** `services.tts.enabled: true`
 
-### Instalación
+### Servidor propio (activo)
 ```bash
-# Entorno separado recomendado
-pip install xtts-api-server
-xtts-server --port 8020 --device cuda
+# Desde la raíz del proyecto — usa Kokoro (ya instalado)
+python -m uvicorn services.tts_server.main:app --host 0.0.0.0 --port 8020
+# o doble-click en services/tts_server/start.bat
 ```
+> **Nota XTTS v2:** el servidor soporta XTTS v2 opcionalmente.
+> Requiere Visual Studio C++ Build Tools + `pip install xtts-api-server`.
 
 ### Integración en C.Y.R.U.S
 - Nuevo backend: `backend/modules/tts/remote_tts.py` (`RemoteTTS`)
@@ -50,16 +52,17 @@ services:
 
 ---
 
-## Fase 2 — ASR Server (PRÓXIMO)
+## Fase 2 — ASR Server ✅ IMPLEMENTADO (2026-04-16)
 
 **Servicio:** `faster-whisper-server` (compatible OpenAI `/v1/audio/transcriptions`)
 **Puerto:** `8000`
 **Config:** `services.asr.enabled: true`
 
-### Instalación
+### Servidor propio (activo)
 ```bash
-pip install faster-whisper-server
-uvicorn faster_whisper_server.main:app --port 8000
+# faster-whisper ya instalado — servidor custom en services/asr_server/
+python -m uvicorn services.asr_server.main:app --host 0.0.0.0 --port 8000
+# o doble-click en services/asr_server/start.bat
 ```
 
 ### Integración planeada
@@ -81,7 +84,7 @@ services:
 
 ---
 
-## Fase 3 — Vision Server (FUTURO)
+## Fase 3 — Vision Server ✅ IMPLEMENTADO (2026-04-16)
 
 **Servicio:** FastAPI custom con YOLO + DeepFace
 **Puerto:** `8001`
@@ -105,7 +108,7 @@ services:
 
 ---
 
-## Fase 4 — Embedder Server (FUTURO)
+## Fase 4 — Embedder Server ✅ IMPLEMENTADO (2026-04-16)
 
 **Servicio:** FastAPI custom con sentence-transformers
 **Puerto:** `8002`
@@ -141,7 +144,7 @@ services:
 
 | Fase | Módulo       | Estado     | Fecha      |
 |------|--------------|------------|------------|
-| 1    | TTS Server   | ✅ Listo   | 2026-04-16 |
-| 2    | ASR Server   | ⏳ Próximo | —          |
-| 3    | Vision Server| 📋 Planeado| —          |
-| 4    | Embedder     | 📋 Planeado| —          |
+| 1    | TTS Server    | ✅ Producción | 2026-04-16 |
+| 2    | ASR Server    | ✅ Listo      | 2026-04-16 |
+| 3    | Vision Server | ✅ Listo      | 2026-04-16 |
+| 4    | Embedder      | ✅ Listo      | 2026-04-16 |
