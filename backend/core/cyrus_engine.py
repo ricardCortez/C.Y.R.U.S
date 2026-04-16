@@ -32,6 +32,7 @@ from backend.modules.llm.llm_manager import LLMManager
 from backend.modules.llm.ollama_client import OllamaClient
 from backend.modules.nlp.trigger_detector import TriggerDetector
 from backend.modules.tts.kokoro_tts import KokoroTTS
+from backend.modules.tts.piper_tts import PiperTTS
 from backend.modules.vision.camera_local import LocalCamera
 from backend.modules.vision.face_detector import FaceDetector
 from backend.modules.vision.frigate_client import FrigateClient
@@ -135,10 +136,17 @@ class CYRUSEngine:
             rate=tts_api_cfg.rate,
             volume=tts_api_cfg.volume,
         )
+        # Piper — instantiated always; only activated when load() succeeds
+        self._piper = PiperTTS(
+            model_path=getattr(tts_local_cfg, "piper_model", ""),
+            speed=tts_local_cfg.speed,
+            speaker_id=getattr(tts_local_cfg, "piper_speaker", None),
+        )
         self._tts = TTSManager(
             kokoro=self._kokoro,
             voiceforge=self._voiceforge,
             mode=self._cfg.system.mode,
+            piper=self._piper,
         )
 
         # ── Vision ─────────────────────────────────────────────────────
@@ -228,6 +236,15 @@ class CYRUSEngine:
 
         logger.info("[C.Y.R.U.S] Loading Whisper ASR model…")
         await loop.run_in_executor(None, self._asr.load)
+
+        # Try Piper first (best quality) — non-fatal if unavailable
+        if getattr(self._cfg.local.tts, "piper_model", ""):
+            logger.info("[C.Y.R.U.S] Loading Piper TTS model…")
+            try:
+                await loop.run_in_executor(None, self._piper.load)
+                logger.info(f"[C.Y.R.U.S] Piper ready — active backend: piper")
+            except Exception as exc:
+                logger.warning(f"[C.Y.R.U.S] Piper unavailable ({exc}); falling back to Kokoro")
 
         logger.info("[C.Y.R.U.S] Loading Kokoro TTS model…")
         try:
@@ -549,7 +566,13 @@ class CYRUSEngine:
                 await self._memory.store_turn("assistant", display_text, lang)
             except Exception as exc:
                 logger.warning(f"[C.Y.R.U.S] Memory storage failed: {exc}")
-        logger.info(f"[C.Y.R.U.S] Display: '{display_text[:80]}…' | Speech: '{speech_text[:80]}…'")
+        # Debug log: show full text transformation pipeline
+        logger.info(f"[C.Y.R.U.S] DISPLAY ({len(display_text)}ch): {display_text[:120]!r}")
+        logger.info(f"[C.Y.R.U.S] SPEECH  ({len(speech_text)}ch): {speech_text[:120]!r}")
+        await self._bus.emit("debug", {
+            "text": f"DISPLAY ({len(display_text)}ch) → SPEECH ({len(speech_text)}ch) via {self._tts.active_backend}",
+            "level": "info",
+        })
         # Emit display text to frontend (markdown rendered in UI)
         await self._bus.emit("response", {"text": display_text, "language": lang})
 

@@ -151,23 +151,21 @@ class LLMManager:
         response is used as display text and :func:`clean_for_tts` is applied
         to produce the speech version.
         """
-        from backend.utils.text_cleaner import clean_for_tts
+        import re
+        from backend.utils.text_cleaner import prepare_speech
 
         # Look for "VOZ:" at the start of any line (case-insensitive)
-        import re
         match = re.search(r'(?im)^VOZ:\s*(.+?)$', raw)
         if match:
             # Display = everything before the VOZ line (strip trailing blank lines)
             display = raw[: match.start()].rstrip()
-            # Speech = the content on the VOZ line
-            speech = match.group(1).strip()
-            # Edge-case: VOZ line might itself contain residual markdown
-            speech = clean_for_tts(speech)
-            logger.debug(f"[C.Y.R.U.S] LLM: dual-output split — display {len(display)}ch, speech {len(speech)}ch")
+            # Speech = the VOZ line content — run through full prepare_speech pipeline
+            speech = prepare_speech(match.group(1).strip())
+            logger.debug(f"[C.Y.R.U.S] LLM: VOZ marker found — display {len(display)}ch, speech {len(speech)}ch")
             return display, speech
 
-        # No explicit VOZ marker — fall back to clean_for_tts
-        speech = clean_for_tts(raw)
+        # No explicit VOZ marker — apply full speech preparation pipeline
+        speech = prepare_speech(raw)
         return raw, speech
 
     # ------------------------------------------------------------------

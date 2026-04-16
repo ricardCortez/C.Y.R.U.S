@@ -35,11 +35,14 @@ class LLMLocalConfig:
 
 @dataclass
 class TTSLocalConfig:
-    provider: str = "kokoro"
-    voice: str = "ef_dora"
-    speed: float = 0.95
-    sample_rate: int = 24000
-    lang_code: str = "e"
+    provider: str = "kokoro"           # kokoro | piper
+    voice: str = "ef_dora"            # Kokoro voice ID
+    speed: float = 0.95               # speaking rate (0.5–2.0)
+    sample_rate: int = 24000          # output sample rate (Hz)
+    lang_code: str = "e"             # Kokoro language code
+    # Piper-specific fields (only used when provider = "piper")
+    piper_model: str = ""            # path to .onnx model file
+    piper_speaker: Optional[int] = None  # speaker ID for multi-speaker models
 
 
 @dataclass
@@ -256,8 +259,9 @@ def load_config(config_path: Optional[Path] = None) -> CYRUSConfig:
 
     # ── local ────────────────────────────────────────────────────────────────
     if loc := raw.get("local"):
-        llm_cfg = LLMLocalConfig(**(loc.get("llm") or {}))
-        tts_cfg = TTSLocalConfig(**(loc.get("tts") or {}))
+        llm_cfg = LLMLocalConfig(**{k: v for k, v in (loc.get("llm") or {}).items() if k in LLMLocalConfig.__dataclass_fields__})
+        tts_raw = dict(loc.get("tts") or {})
+        tts_cfg = TTSLocalConfig(**{k: v for k, v in tts_raw.items() if k in TTSLocalConfig.__dataclass_fields__})
         cfg.local = LocalConfig(llm=llm_cfg, tts=tts_cfg)
 
     # ── api ──────────────────────────────────────────────────────────────────
