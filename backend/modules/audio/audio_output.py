@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import threading
 import wave
 from typing import Optional
 
@@ -47,6 +48,7 @@ class AudioOutput:
         self._device_name = device_name
         self._pa: Optional[pyaudio.PyAudio] = None
         self._device_index: Optional[int] = None
+        self._stop_flag = threading.Event()   # set to interrupt playback mid-stream
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -89,6 +91,10 @@ class AudioOutput:
     # Playback
     # ------------------------------------------------------------------
 
+    def interrupt(self) -> None:
+        """Stop current playback at the next chunk boundary (barge-in)."""
+        self._stop_flag.set()
+
     async def play_wav(self, wav_bytes: bytes) -> None:
         """Play WAV-format audio bytes asynchronously.
 
@@ -117,6 +123,7 @@ class AudioOutput:
         """Synchronous WAV playback (runs in executor)."""
         if self._pa is None:
             raise AudioOutputError("[C.Y.R.U.S] AudioOutput not opened")
+        self._stop_flag.clear()   # reset before each playback
         try:
             buf = io.BytesIO(wav_bytes)
             with wave.open(buf, "rb") as wf:
@@ -136,6 +143,9 @@ class AudioOutput:
                     chunk = self._chunk_size
                     data = wf.readframes(chunk)
                     while data:
+                        if self._stop_flag.is_set():
+                            logger.debug("[C.Y.R.U.S] AudioOutput: playback interrupted (barge-in)")
+                            break
                         data = self._apply_volume(data, sampwidth)
                         stream.write(data)
                         data = wf.readframes(chunk)

@@ -25,6 +25,9 @@ def clean_for_tts(text: str) -> str:
     Returns:
         Clean plain text suitable for speech.
     """
+    # System name: C.Y.R.U.S → CYRUS (prevent letter-by-letter pronunciation)
+    text = re.sub(r'\bC\.Y\.R\.U\.S\b', 'CYRUS', text, flags=re.IGNORECASE)
+
     # Bold / italic: **text** → text, *text* → text, __text__ → text
     text = re.sub(r'\*{1,3}([^*\n]+)\*{1,3}', r'\1', text)
     text = re.sub(r'_{1,3}([^_\n]+)_{1,3}', r'\1', text)

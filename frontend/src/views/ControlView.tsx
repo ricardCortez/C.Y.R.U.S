@@ -53,13 +53,14 @@ const Section = ({ children, delay = 0 }: { children: React.ReactNode; delay?: n
   </motion.div>
 )
 
-const SectionTitle = ({ label }: { label: string }) => (
-  <div className="flex items-center gap-3 mb-3">
-    <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, #00f0ff22, transparent)' }} />
-    <span className="font-mono" style={{ fontSize: 8, letterSpacing: '0.3em', color: '#00f0ff55' }}>
+const SectionTitle = ({ label, action }: { label: string; action?: React.ReactNode }) => (
+  <div className="flex items-center gap-2 mb-3">
+    <div style={{ width: 16, height: 1, background: 'linear-gradient(90deg, transparent, #00f0ff22)', flexShrink: 0 }} />
+    <span className="font-mono flex-shrink-0" style={{ fontSize: 8, letterSpacing: '0.3em', color: '#00f0ff44' }}>
       {label}
     </span>
-    <div style={{ flex: 1, height: 1, background: 'linear-gradient(270deg, #00f0ff22, transparent)' }} />
+    <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, #00f0ff22, transparent)' }} />
+    {action && <div className="flex-shrink-0">{action}</div>}
   </div>
 )
 
@@ -74,43 +75,40 @@ function AIStateBadge() {
   return (
     <Section delay={0.1}>
       <SectionTitle label="AI STATE" />
-      <div className="flex items-center gap-4">
-        <motion.div
-          key={systemState}
-          animate={{ scale: [1, 1.15, 1] }}
-          transition={{ duration: 0.4 }}
-          className="relative flex-shrink-0"
-        >
-          <div className="w-4 h-4 rounded-full"
-            style={{ background: color, boxShadow: `0 0 12px ${color}, 0 0 24px ${color}44` }} />
+      <div className="flex items-center gap-3">
+        {/* Status dot */}
+        <motion.div key={systemState} animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 0.35 }}
+          className="relative flex-shrink-0" style={{ width: 14, height: 14 }}>
+          <div className="w-full h-full rounded-full"
+            style={{ background: color, boxShadow: `0 0 10px ${color}, 0 0 20px ${color}55` }} />
           {wsConnected && (
             <div className="absolute inset-0 rounded-full animate-ping"
-              style={{ background: color, opacity: 0.3 }} />
+              style={{ background: color, opacity: 0.25 }} />
           )}
         </motion.div>
-        <div>
-          <div className="font-mono font-bold"
-            style={{ fontSize: 18, letterSpacing: '0.25em', color, textShadow: `0 0 16px ${color}66` }}>
+
+        {/* State label + message */}
+        <div className="flex-1 min-w-0">
+          <div className="font-mono font-bold truncate"
+            style={{ fontSize: 16, letterSpacing: '0.2em', color, textShadow: `0 0 14px ${color}55` }}>
             {STATE_LABEL[systemState]}
           </div>
           {statusMsg && (
-            <div className="font-mono mt-0.5" style={{ fontSize: 9, color: '#00f0ff55', letterSpacing: '0.1em' }}>
+            <div className="font-mono truncate" style={{ fontSize: 8, color: '#00f0ff44', letterSpacing: '0.1em', marginTop: 2 }}>
               {statusMsg}
             </div>
           )}
         </div>
-        <div className="ml-auto text-right">
-          <div className="font-mono" style={{ fontSize: 8, color: '#00f0ff33', letterSpacing: '0.15em' }}>
-            TTS
+
+        {/* Right info pills */}
+        <div className="flex flex-col gap-1 flex-shrink-0 text-right">
+          <div className="font-mono" style={{ fontSize: 8, color: '#00f0ff22', letterSpacing: '0.12em' }}>
+            TTS <span style={{ color: '#00ff8866' }}>{stats?.ttsBackend?.toUpperCase() ?? '—'}</span>
           </div>
-          <div className="font-mono" style={{ fontSize: 9, color: '#00ff8877', letterSpacing: '0.1em' }}>
-            {stats?.ttsBackend?.toUpperCase() ?? '—'}
-          </div>
-          <div className="font-mono mt-1" style={{ fontSize: 8, color: '#00f0ff33', letterSpacing: '0.15em' }}>
-            WEBSOCKET
-          </div>
-          <div className="font-mono" style={{ fontSize: 9, color: wsConnected ? '#00ff88' : '#ff3333', letterSpacing: '0.1em' }}>
-            {wsConnected ? 'CONNECTED' : 'OFFLINE'}
+          <div className="font-mono" style={{ fontSize: 8, letterSpacing: '0.12em' }}>
+            WS <span style={{ color: wsConnected ? '#00ff8866' : '#ff333366' }}>
+              {wsConnected ? 'ON' : 'OFF'}
+            </span>
           </div>
         </div>
       </div>
@@ -173,42 +171,31 @@ function SystemStats() {
   const uptime = stats?.uptime  ?? 0
   const isReal = !!stats
 
+  const liveLabel = (
+    <span className="font-mono" style={{ fontSize: 7, letterSpacing: '0.15em', color: isReal ? '#00ff8855' : '#30405066' }}>
+      {isReal ? '● LIVE' : '○ SIM'}
+    </span>
+  )
+
   return (
     <Section delay={0.2}>
-      <div className="flex items-center justify-between mb-3">
-        <SectionTitle label="SYSTEM METRICS" />
-        {!isReal && (
-          <span className="font-mono" style={{ fontSize: 7, color: '#304050', letterSpacing: '0.1em' }}>
-            SIM
-          </span>
-        )}
-      </div>
+      <SectionTitle label="SYSTEM METRICS" action={liveLabel} />
       <StatBar label="CPU" value={cpu} delay={0.3} />
-      <StatBar label={`GPU  ${gpu.replace('NVIDIA ', '').slice(0, 18)}`} value={vram} color="#a855f7" unit="% VRAM" delay={0.35} />
+      <StatBar label={`GPU  ${gpu.replace('NVIDIA GeForce ', '').replace('NVIDIA ', '').slice(0, 16)}`}
+        value={vram} color="#a855f7" unit="% VRAM" delay={0.35} />
       <StatBar label="RAM" value={ram} color="#00ff88" delay={0.4} />
-      <div className="flex gap-4 mt-3">
-        <div>
-          <div className="font-mono" style={{ fontSize: 8, color: '#203040', letterSpacing: '0.2em' }}>UPTIME</div>
-          <div className="font-mono" style={{ fontSize: 11, color: '#00f0ff77' }}>{uptimeStr(uptime)}</div>
-        </div>
-        <div>
-          <div className="font-mono" style={{ fontSize: 8, color: '#203040', letterSpacing: '0.2em' }}>LOCATION</div>
-          <div className="font-mono" style={{ fontSize: 11, color: '#00f0ff77' }}>LIMA, PE</div>
-        </div>
-        <div>
-          <div className="font-mono" style={{ fontSize: 8, color: '#203040', letterSpacing: '0.2em' }}>GPU TEMP</div>
-          <div className="font-mono"
-            style={{ fontSize: 11, color: temp > 80 ? '#ff3333' : temp > 70 ? '#ff8c00' : '#00f0ff77' }}>
-            {temp}°C
+      <div className="grid mt-3" style={{ gridTemplateColumns: 'repeat(4, 1fr)', gap: '0 8px' }}>
+        {[
+          { k: 'UPTIME',   v: uptimeStr(uptime),                      c: '#00f0ff77' },
+          { k: 'GPU TEMP', v: `${temp}°C`,                             c: temp > 80 ? '#ff3333' : temp > 70 ? '#ff8c00' : '#00f0ff77' },
+          { k: 'LOCATION', v: 'LIMA PE',                               c: '#00f0ff55' },
+          { k: 'MODE',     v: isReal ? 'LIVE' : 'SIM',                 c: isReal ? '#00ff8866' : '#304050' },
+        ].map(({ k, v, c }) => (
+          <div key={k}>
+            <div className="font-mono" style={{ fontSize: 7, color: '#1a2e40', letterSpacing: '0.15em' }}>{k}</div>
+            <div className="font-mono" style={{ fontSize: 10, color: c, marginTop: 2 }}>{v}</div>
           </div>
-        </div>
-        <div>
-          <div className="font-mono" style={{ fontSize: 8, color: '#203040', letterSpacing: '0.2em' }}>SOURCE</div>
-          <div className="font-mono"
-            style={{ fontSize: 11, color: isReal ? '#00ff8877' : '#304050' }}>
-            {isReal ? 'LIVE' : 'SIM'}
-          </div>
-        </div>
+        ))}
       </div>
     </Section>
   )
@@ -231,15 +218,16 @@ function SystemLog() {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [logs])
 
+  const clearBtn = (
+    <button onClick={clearLogs} className="font-mono"
+      style={{ fontSize: 7, color: '#00f0ff33', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.15em' }}>
+      CLEAR
+    </button>
+  )
+
   return (
     <Section delay={0.3}>
-      <div className="flex items-center justify-between mb-3">
-        <SectionTitle label="SYSTEM LOG" />
-        <button onClick={clearLogs} className="font-mono"
-          style={{ fontSize: 8, color: '#00f0ff33', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.15em' }}>
-          CLEAR
-        </button>
-      </div>
+      <SectionTitle label="SYSTEM LOG" action={clearBtn} />
       <div className="overflow-y-auto rounded"
         style={{ height: 180, background: 'rgba(0,10,20,0.6)', border: '1px solid #05151f', padding: '8px 10px' }}>
         <AnimatePresence initial={false}>
@@ -401,6 +389,9 @@ function Configuration({ sendCommand }: { sendCommand: (cmd: string, extra?: obj
       </div>
 
       {/* Visual sliders */}
+      <div className="mt-3 mb-1">
+        <span className="font-mono" style={{ fontSize: 7, color: '#1a3040', letterSpacing: '0.2em' }}>VISUALIZACIÓN</span>
+      </div>
       <Slider label="BLOOM INTENSITY" value={bloomIntensity} min={0.5} max={2.5} step={0.05} onChange={setBloomIntensity} />
       <Slider label="PARTICLE COUNT"  value={particleCount}  min={100} max={400} step={10}   onChange={setParticleCount} />
       <Slider label="NEURAL SPEED"    value={orbSpeed}       min={0.1} max={3.0} step={0.05} onChange={setOrbSpeed} />

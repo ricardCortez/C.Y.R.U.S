@@ -132,6 +132,60 @@ class AudioInput:
         """Signal the current recording to stop at the next chunk boundary."""
         self._stop_flag.set()
 
+    async def detect_speech_onset(self, timeout: float = 30.0) -> bool:
+        """Return True as soon as the user starts speaking (barge-in detection).
+
+        Opens a second mic stream concurrently with playback.  Designed to run
+        as an asyncio task while ``play_wav`` runs in another executor thread.
+
+        Args:
+            timeout: Maximum seconds to wait before giving up (default 30 s).
+
+        Returns:
+            True if speech onset detected; False on timeout or stop_flag.
+        """
+        loop = asyncio.get_event_loop()
+        try:
+            return await asyncio.wait_for(
+                loop.run_in_executor(None, self._detect_onset_sync),
+                timeout=timeout,
+            )
+        except asyncio.TimeoutError:
+            return False
+
+    def _detect_onset_sync(self) -> bool:
+        """Synchronous speech-onset detector (runs in thread-pool executor)."""
+        if self._pa is None:
+            return False
+        try:
+            stream = self._pa.open(
+                format=pyaudio.paInt16,
+                channels=self._channels,
+                rate=self._sample_rate,
+                input=True,
+                input_device_index=self._device_index,
+                frames_per_buffer=self._chunk_size,
+            )
+        except OSError as exc:
+            logger.warning(f"[C.Y.R.U.S] AudioInput: barge-in stream failed: {exc}")
+            return False
+
+        vad = VADDetector(sample_rate=self._sample_rate)
+        try:
+            while True:
+                if self._stop_flag.is_set():
+                    return False
+                data = stream.read(self._chunk_size, exception_on_overflow=False)
+                # Ignore during mute window (echo guard)
+                if time.monotonic() < self._muted_until:
+                    continue
+                if vad.feed(data) and self._rms(data) > self._silence_threshold:
+                    logger.debug("[C.Y.R.U.S] AudioInput: barge-in speech onset detected")
+                    return True
+        finally:
+            stream.stop_stream()
+            stream.close()
+
     def mute_for(self, seconds: float) -> None:
         """Suppress voice detection for *seconds* — prevents mic from picking up TTS output."""
         self._muted_until = time.monotonic() + seconds

@@ -232,6 +232,9 @@ class CYRUSEngine:
         self._audio_lock: asyncio.Lock | None = None   # created in async context
         self._last_greeting_at: float = 0.0
 
+        # ── Barge-in (speech interruption during TTS) ─────────────────────
+        self._barge_in_task: asyncio.Task | None = None
+
         # ── Conversation mode ──────────────────────────────────────────────
         # After the wake word is detected, the user can speak freely for
         # CONVERSATION_TIMEOUT seconds without repeating the wake word.
@@ -350,6 +353,20 @@ class CYRUSEngine:
     # ------------------------------------------------------------------
     # TTS helper (used by test_tts command and enrollment)
     # ------------------------------------------------------------------
+
+    async def _barge_in_watcher(self) -> None:
+        """Background task — monitors mic for speech while CYRUS is speaking.
+        If the user starts talking, interrupt playback immediately."""
+        try:
+            detected = await self._audio_in.detect_speech_onset(timeout=60.0)
+            if detected:
+                logger.info("[C.Y.R.U.S] Barge-in detected — interrupting playback")
+                self._audio_out.interrupt()
+                await self._bus.emit("debug", {"text": "⚡ Interrupción detectada", "level": "warn"})
+                # Clear the mute so the next record_utterance() hears the user
+                self._audio_in.mute_for(0.0)
+        except asyncio.CancelledError:
+            pass  # Normal: cancelled when CYRUS finishes speaking
 
     async def _speak_text(self, text: str) -> None:
         """Synthesise and play text without going through the full pipeline."""
@@ -748,13 +765,21 @@ class CYRUSEngine:
         try:
             audio_bytes, mime = await self._tts.synthesise(speech_text)
             if audio_bytes:
+                # Launch barge-in watcher — concurrently monitors mic for speech onset
+                self._barge_in_task = asyncio.create_task(self._barge_in_watcher())
                 async with self._audio_lock:
                     if mime == "audio/wav":
                         await self._audio_out.play_wav(audio_bytes)
                     else:
                         await self._play_mp3(audio_bytes)
+                # Cancel barge-in task if playback finished normally
+                if self._barge_in_task and not self._barge_in_task.done():
+                    self._barge_in_task.cancel()
+                    self._barge_in_task = None
                 # Mute mic briefly so CYRUS doesn't transcribe its own voice (echo)
-                self._audio_in.mute_for(1.2)
+                # If interrupted by barge-in, mute_for(0) was already set — skip
+                if not self._audio_out._stop_flag.is_set():
+                    self._audio_in.mute_for(0.8)
         except Exception as exc:
             logger.error(f"[C.Y.R.U.S] TTS/playback failed: {exc}")
 
