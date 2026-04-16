@@ -16,7 +16,7 @@ local:
     speed: 0.92             # speaking rate (0.5–2.0) — 0.92 is natural for CYRUS
     sample_rate: 24000
     lang_code: e            # kokoro language code (e=espanol)
-    piper_model: models/tts/piper/es_MX-claude-high.onnx
+    piper_model: models/tts/piper/es_MX-ald-medium.onnx
     piper_speaker: null
   translation:
     provider: ctranslate2
