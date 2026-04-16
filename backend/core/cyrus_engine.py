@@ -232,6 +232,13 @@ class CYRUSEngine:
         self._audio_lock: asyncio.Lock | None = None   # created in async context
         self._last_greeting_at: float = 0.0
 
+        # ── Conversation mode ──────────────────────────────────────────────
+        # After the wake word is detected, the user can speak freely for
+        # CONVERSATION_TIMEOUT seconds without repeating the wake word.
+        self._in_conversation: bool = False
+        self._last_interaction_at: float = 0.0
+        self._CONVERSATION_TIMEOUT: float = 45.0   # seconds of silence → back to standby
+
         # ── Enrollment mode ────────────────────────────────────────────────
         self._enrollment_active: bool = False   # pauses the pipeline loop
 
@@ -518,6 +525,8 @@ class CYRUSEngine:
         """Called when the last frontend client drops — interrupts any live recording."""
         logger.info("[C.Y.R.U.S] All clients disconnected — pausing mic")
         self._audio_in.request_stop()
+        # Reset conversation mode so next session starts fresh from wake-word standby
+        self._in_conversation = False
         await self._bus.emit("status", {"state": "idle", "message": "Esperando conexión…"})
 
     async def _on_frontend_command(self, payload: dict) -> None:
@@ -638,18 +647,53 @@ class CYRUSEngine:
         await self._bus.emit("debug", {"text": f"ASR [{lang}]: \"{transcript}\"", "level": "info"})
         await self._bus.emit("transcript", {"text": transcript, "language": lang})
 
-        # 3. Trigger detection ───────────────────────────────────────────
-        triggered, clean_input = self._trigger.detect(transcript)
-        if not triggered:
-            logger.debug(f"[C.Y.R.U.S] No wake word in: '{transcript}'")
-            await self._bus.emit("debug", {"text": f"⚠ Sin wake word en: \"{transcript}\"", "level": "warn"})
-            await self._state.set_status(SystemStatus.IDLE)
-            return
-        await self._bus.emit("debug", {"text": f"✓ Wake word detectado → \"{clean_input or '(sin consulta)'}\"", "level": "ok"})
+        # 3. Trigger detection / conversation-mode gate ──────────────────
+        now = time.monotonic()
 
-        if not clean_input.strip():
-            # Wake word only — prompt for intent
-            clean_input = "Please tell me how you'd like me to help."
+        # Check if conversation session has timed out
+        if self._in_conversation and (now - self._last_interaction_at) > self._CONVERSATION_TIMEOUT:
+            self._in_conversation = False
+            logger.info("[C.Y.R.U.S] Conversation timeout — back to wake-word mode")
+            await self._bus.emit("debug", {
+                "text": "💤 Sesión terminada por inactividad — di mi nombre para activarme",
+                "level": "warn",
+            })
+            await self._bus.emit("status", {"state": "idle", "message": "Esperando activación…"})
+
+        if self._in_conversation:
+            # Already in an active session — use full transcript directly
+            clean_input = transcript.strip()
+            self._last_interaction_at = now
+            await self._bus.emit("debug", {
+                "text": f"💬 Conversación activa → \"{clean_input}\"",
+                "level": "ok",
+            })
+            if not clean_input:
+                await self._state.set_status(SystemStatus.IDLE)
+                return
+        else:
+            # Standby mode — require wake word
+            triggered, clean_input = self._trigger.detect(transcript)
+            if not triggered:
+                logger.debug(f"[C.Y.R.U.S] No wake word in: '{transcript}'")
+                await self._bus.emit("debug", {
+                    "text": f"⚠ Sin wake word en: \"{transcript}\"",
+                    "level": "warn",
+                })
+                await self._state.set_status(SystemStatus.IDLE)
+                return
+
+            # Wake word heard — activate conversation mode
+            self._in_conversation = True
+            self._last_interaction_at = now
+            await self._bus.emit("debug", {
+                "text": f"✓ Wake word detectado — sesión iniciada → \"{clean_input or '(sin consulta)'}\"",
+                "level": "ok",
+            })
+
+            if not clean_input.strip():
+                # Only wake word, no query — let CYRUS acknowledge and wait
+                clean_input = "El usuario te acaba de llamar. Salúdalo brevemente y pregúntale en qué puedes ayudarle."
 
         # 4. LLM inference ───────────────────────────────────────────────
         await self._bus.emit("status", {"state": "thinking"})
@@ -713,6 +757,12 @@ class CYRUSEngine:
                 self._audio_in.mute_for(1.2)
         except Exception as exc:
             logger.error(f"[C.Y.R.U.S] TTS/playback failed: {exc}")
+
+        # Refresh conversation timestamp after each full exchange so the
+        # 45-second window starts from when CYRUS finished speaking, not when
+        # the user started talking.
+        if self._in_conversation:
+            self._last_interaction_at = time.monotonic()
 
         await self._state.set_status(SystemStatus.IDLE)
         await self._bus.emit("status", {"state": "idle"})
