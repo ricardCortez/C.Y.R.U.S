@@ -1,14 +1,8 @@
 /**
- * C.Y.R.U.S — Control Panel View (route "/control")
+ * C.Y.R.U.S — Control Panel  (route "/control")
  *
- * Improvements:
- *  - SystemStats: real CPU/RAM/VRAM/GPU from backend (via system_stats WS event)
- *  - Configuration: all controls wired to backend (set_tts_speed, set_llm_model, test_tts)
- *  - TTS dropdown includes "piper"
- *  - ConversationHistory: renders markdown with react-markdown
- *  - "Probar voz" button: sends test_tts command
- *  - TTS speed slider wired to backend
- *  - Uptime from real backend timestamp
+ * Layout: tabbed — SISTEMA | CONFIG | VOZ
+ * Each tab groups related controls to avoid the long single-column scroll.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -26,7 +20,7 @@ const STATE_COLOR: Record<SystemState, string> = {
   listening:    '#00ff88',
   transcribing: '#00d4ff',
   thinking:     '#ff8c00',
-  speaking:     '#00d4ff',
+  speaking:     '#a855f7',
   error:        '#ff3333',
 }
 const STATE_LABEL: Record<SystemState, string> = {
@@ -40,104 +34,135 @@ const STATE_LABEL: Record<SystemState, string> = {
   error:        'ERROR',
 }
 
-// ── Shared layout ───────────────────────────────────────────────────────────
-const Section = ({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.5, delay, ease: 'easeOut' }}
-    className="rounded-lg p-4 mb-3"
-    style={{ background: 'rgba(0,20,40,0.6)', border: '1px solid #0a2030', overflow: 'hidden', position: 'relative' }}
-  >
-    {children}
-  </motion.div>
-)
+// ── Primitives ───────────────────────────────────────────────────────────────
 
-const SectionTitle = ({ label, action }: { label: string; action?: React.ReactNode }) => (
-  <div className="flex items-center gap-2 mb-3">
-    <div style={{ width: 16, height: 1, background: 'linear-gradient(90deg, transparent, #00f0ff22)', flexShrink: 0 }} />
-    <span className="font-mono flex-shrink-0" style={{ fontSize: 8, letterSpacing: '0.3em', color: '#00f0ff44' }}>
-      {label}
-    </span>
-    <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, #00f0ff22, transparent)' }} />
-    {action && <div className="flex-shrink-0">{action}</div>}
-  </div>
-)
-
-// ── 1. AI State Badge ───────────────────────────────────────────────────────
-function AIStateBadge() {
-  const systemState = useCYRUSStore(s => s.systemState)
-  const wsConnected = useCYRUSStore(s => s.wsConnected)
-  const statusMsg   = useCYRUSStore(s => s.statusMessage)
-  const stats       = useCYRUSStore(s => s.systemStats)
-  const color = STATE_COLOR[systemState]
-
+function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <Section delay={0.1}>
-      <SectionTitle label="AI STATE" />
-      <div className="flex items-center gap-3">
-        {/* Status dot */}
-        <motion.div key={systemState} animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 0.35 }}
-          className="relative flex-shrink-0" style={{ width: 14, height: 14 }}>
-          <div className="w-full h-full rounded-full"
-            style={{ background: color, boxShadow: `0 0 10px ${color}, 0 0 20px ${color}55` }} />
-          {wsConnected && (
-            <div className="absolute inset-0 rounded-full animate-ping"
-              style={{ background: color, opacity: 0.25 }} />
-          )}
-        </motion.div>
-
-        {/* State label + message */}
-        <div className="flex-1 min-w-0">
-          <div className="font-mono font-bold truncate"
-            style={{ fontSize: 16, letterSpacing: '0.2em', color, textShadow: `0 0 14px ${color}55` }}>
-            {STATE_LABEL[systemState]}
-          </div>
-          {statusMsg && (
-            <div className="font-mono truncate" style={{ fontSize: 8, color: '#00f0ff44', letterSpacing: '0.1em', marginTop: 2 }}>
-              {statusMsg}
-            </div>
-          )}
-        </div>
-
-        {/* Right info pills */}
-        <div className="flex flex-col gap-1 flex-shrink-0 text-right">
-          <div className="font-mono" style={{ fontSize: 8, color: '#00f0ff22', letterSpacing: '0.12em' }}>
-            TTS <span style={{ color: '#00ff8866' }}>{stats?.ttsBackend?.toUpperCase() ?? '—'}</span>
-          </div>
-          <div className="font-mono" style={{ fontSize: 8, letterSpacing: '0.12em' }}>
-            WS <span style={{ color: wsConnected ? '#00ff8866' : '#ff333366' }}>
-              {wsConnected ? 'ON' : 'OFF'}
-            </span>
-          </div>
-        </div>
-      </div>
-    </Section>
+    <div style={{
+      background: 'rgba(0,16,32,0.7)',
+      border: '1px solid #0a2030',
+      borderRadius: 8,
+      padding: '12px 14px',
+      ...style,
+    }}>
+      {children}
+    </div>
   )
 }
 
-// ── 2. System Stats (real data from backend) ────────────────────────────────
-function StatBar({ label, value, color = '#00f0ff', unit = '%', delay = 0 }: {
-  label: string; value: number; color?: string; unit?: string; delay?: number
+function Label({ children, dim }: { children: React.ReactNode; dim?: boolean }) {
+  return (
+    <span className="font-mono" style={{
+      fontSize: 8,
+      letterSpacing: '0.25em',
+      color: dim ? '#152530' : '#1e3a4a',
+    }}>
+      {children}
+    </span>
+  )
+}
+
+function Row({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div className="flex items-center justify-between" style={{ minHeight: 36, ...style }}>
+      {children}
+    </div>
+  )
+}
+
+function Divider() {
+  return <div style={{ height: 1, background: '#081820', margin: '2px 0' }} />
+}
+
+// ── Stat bar ─────────────────────────────────────────────────────────────────
+
+function StatBar({ label, value, color = '#00f0ff', unit = '%' }: {
+  label: string; value: number; color?: string; unit?: string
 }) {
   return (
-    <div className="mb-2">
+    <div className="mb-3">
       <div className="flex justify-between mb-1">
-        <span className="font-mono" style={{ fontSize: 9, color: '#405060', letterSpacing: '0.15em' }}>{label}</span>
-        <span className="font-mono" style={{ fontSize: 9, color }}>{value.toFixed(1)}{unit}</span>
+        <span className="font-mono" style={{ fontSize: 9, color: '#2a4050', letterSpacing: '0.12em' }}>{label}</span>
+        <span className="font-mono" style={{ fontSize: 9, color }}>{value.toFixed(0)}{unit}</span>
       </div>
-      <div className="rounded-full overflow-hidden" style={{ height: 3, background: '#0a1a28' }}>
+      <div style={{ height: 3, background: '#071218', borderRadius: 2, overflow: 'hidden' }}>
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${Math.min(100, value)}%` }}
-          transition={{ duration: 0.8, ease: 'easeOut', delay }}
-          className="h-full rounded-full"
-          style={{ background: `linear-gradient(90deg, ${color}88, ${color})`, boxShadow: `0 0 6px ${color}44` }}
+          transition={{ duration: 0.9, ease: 'easeOut' }}
+          style={{ height: '100%', background: `linear-gradient(90deg, ${color}66, ${color})`, borderRadius: 2 }}
         />
       </div>
     </div>
   )
 }
+
+// ── Slider ───────────────────────────────────────────────────────────────────
+
+function Slider({ label, value, min, max, step = 0.05, unit = '', onChange, onCommit }: {
+  label: string; value: number; min: number; max: number
+  step?: number; unit?: string; onChange: (v: number) => void; onCommit?: (v: number) => void
+}) {
+  const pct = ((value - min) / (max - min)) * 100
+  return (
+    <div className="mb-4">
+      <div className="flex justify-between mb-2">
+        <Label>{label}</Label>
+        <span className="font-mono" style={{ fontSize: 9, color: '#00f0ff66' }}>{value.toFixed(2)}{unit}</span>
+      </div>
+      <div style={{ position: 'relative', height: 4, background: '#071218', borderRadius: 2 }}>
+        <div style={{
+          position: 'absolute', top: 0, left: 0, bottom: 0,
+          width: `${pct}%`,
+          background: 'linear-gradient(90deg, #00f0ff33, #00f0ff)',
+          borderRadius: 2,
+        }} />
+        <input type="range" min={min} max={max} step={step} value={value}
+          onChange={e => onChange(parseFloat(e.target.value))}
+          onMouseUp={e => onCommit?.(parseFloat((e.target as HTMLInputElement).value))}
+          onTouchEnd={e => onCommit?.(parseFloat((e.target as HTMLInputElement).value))}
+          style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', margin: 0 }}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ── Tab bar ──────────────────────────────────────────────────────────────────
+
+const TABS = ['SISTEMA', 'CONFIG', 'VOZ'] as const
+type Tab = typeof TABS[number]
+
+function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
+  return (
+    <div className="flex gap-1 mb-4" style={{
+      background: 'rgba(0,10,20,0.8)',
+      border: '1px solid #0a1e2a',
+      borderRadius: 8,
+      padding: 3,
+    }}>
+      {TABS.map(t => (
+        <button key={t} onClick={() => onChange(t)}
+          className="font-mono flex-1 rounded"
+          style={{
+            fontSize: 9,
+            letterSpacing: '0.2em',
+            padding: '6px 0',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            background:   active === t ? 'rgba(0,240,255,0.10)' : 'transparent',
+            border:       active === t ? '1px solid #00f0ff33'  : '1px solid transparent',
+            color:        active === t ? '#00f0ff'              : '#1e3a4a',
+          }}
+        >
+          {t}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ── Helper ───────────────────────────────────────────────────────────────────
 
 function uptimeStr(s: number) {
   const h = Math.floor(s / 3600)
@@ -146,62 +171,10 @@ function uptimeStr(s: number) {
   return [h, m, sec].map(n => String(n).padStart(2, '0')).join(':')
 }
 
-function SystemStats() {
-  const stats = useCYRUSStore(s => s.systemStats)
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 1 — SISTEMA
+// ═══════════════════════════════════════════════════════════════════════════
 
-  // Fake fluctuation while waiting for real data
-  const [fake, setFake] = useState({ cpu: 18, ram: 52, vram: 31 })
-  useEffect(() => {
-    if (stats) return
-    const id = setInterval(() => {
-      setFake(v => ({
-        cpu:  Math.max(5,  Math.min(85, v.cpu  + (Math.random() - 0.5) * 4)),
-        ram:  Math.max(30, Math.min(90, v.ram  + (Math.random() - 0.5) * 2)),
-        vram: Math.max(20, Math.min(65, v.vram + (Math.random() - 0.5) * 1.5)),
-      }))
-    }, 3000)
-    return () => clearInterval(id)
-  }, [stats])
-
-  const cpu    = stats?.cpu    ?? fake.cpu
-  const ram    = stats?.ram    ?? fake.ram
-  const vram   = stats?.vram   ?? fake.vram
-  const temp   = stats?.gpuTemp ?? 62
-  const gpu    = stats?.gpuName ?? 'RTX 2070S'
-  const uptime = stats?.uptime  ?? 0
-  const isReal = !!stats
-
-  const liveLabel = (
-    <span className="font-mono" style={{ fontSize: 7, letterSpacing: '0.15em', color: isReal ? '#00ff8855' : '#30405066' }}>
-      {isReal ? '● LIVE' : '○ SIM'}
-    </span>
-  )
-
-  return (
-    <Section delay={0.2}>
-      <SectionTitle label="SYSTEM METRICS" action={liveLabel} />
-      <StatBar label="CPU" value={cpu} delay={0.3} />
-      <StatBar label={`GPU  ${gpu.replace('NVIDIA GeForce ', '').replace('NVIDIA ', '').slice(0, 16)}`}
-        value={vram} color="#a855f7" unit="% VRAM" delay={0.35} />
-      <StatBar label="RAM" value={ram} color="#00ff88" delay={0.4} />
-      <div className="grid mt-3" style={{ gridTemplateColumns: 'repeat(4, 1fr)', gap: '0 8px' }}>
-        {[
-          { k: 'UPTIME',   v: uptimeStr(uptime),                      c: '#00f0ff77' },
-          { k: 'GPU TEMP', v: `${temp}°C`,                             c: temp > 80 ? '#ff3333' : temp > 70 ? '#ff8c00' : '#00f0ff77' },
-          { k: 'LOCATION', v: 'LIMA PE',                               c: '#00f0ff55' },
-          { k: 'MODE',     v: isReal ? 'LIVE' : 'SIM',                 c: isReal ? '#00ff8866' : '#304050' },
-        ].map(({ k, v, c }) => (
-          <div key={k}>
-            <div className="font-mono" style={{ fontSize: 7, color: '#1a2e40', letterSpacing: '0.15em' }}>{k}</div>
-            <div className="font-mono" style={{ fontSize: 10, color: c, marginTop: 2 }}>{v}</div>
-          </div>
-        ))}
-      </div>
-    </Section>
-  )
-}
-
-// ── 3. System Log ───────────────────────────────────────────────────────────
 const LOG_COLOR: Record<string, string> = {
   info:  '#00f0ff',
   warn:  '#ff8c00',
@@ -209,82 +182,151 @@ const LOG_COLOR: Record<string, string> = {
   ok:    '#00ff88',
 }
 
-function SystemLog() {
-  const logs     = useCYRUSStore(s => s.logs)
-  const clearLogs = useCYRUSStore(s => s.clearLogs)
-  const endRef   = useRef<HTMLDivElement>(null)
+function TabSistema() {
+  const systemState = useCYRUSStore(s => s.systemState)
+  const wsConnected = useCYRUSStore(s => s.wsConnected)
+  const statusMsg   = useCYRUSStore(s => s.statusMessage)
+  const stats       = useCYRUSStore(s => s.systemStats)
+  const logs        = useCYRUSStore(s => s.logs)
+  const clearLogs   = useCYRUSStore(s => s.clearLogs)
+  const endRef      = useRef<HTMLDivElement>(null)
 
+  const [fake, setFake] = useState({ cpu: 18, ram: 52, vram: 31 })
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [logs])
+    if (stats) return
+    const id = setInterval(() => setFake(v => ({
+      cpu:  Math.max(5,  Math.min(85, v.cpu  + (Math.random() - 0.5) * 4)),
+      ram:  Math.max(30, Math.min(90, v.ram  + (Math.random() - 0.5) * 2)),
+      vram: Math.max(20, Math.min(65, v.vram + (Math.random() - 0.5) * 1.5)),
+    })), 3000)
+    return () => clearInterval(id)
+  }, [stats])
 
-  const clearBtn = (
-    <button onClick={clearLogs} className="font-mono"
-      style={{ fontSize: 7, color: '#00f0ff33', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.15em' }}>
-      CLEAR
-    </button>
-  )
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [logs])
+
+  const color   = STATE_COLOR[systemState]
+  const cpu     = stats?.cpu     ?? fake.cpu
+  const ram     = stats?.ram     ?? fake.ram
+  const vram    = stats?.vram    ?? fake.vram
+  const temp    = stats?.gpuTemp ?? 62
+  const gpu     = (stats?.gpuName ?? 'RTX 2070S').replace('NVIDIA GeForce ', '').replace('NVIDIA ', '')
+  const uptime  = stats?.uptime  ?? 0
+  const tts     = stats?.ttsBackend?.toUpperCase() ?? '—'
+  const isReal  = !!stats
 
   return (
-    <Section delay={0.3}>
-      <SectionTitle label="SYSTEM LOG" action={clearBtn} />
-      <div style={{ height: 180, overflowY: 'auto', overflowX: 'hidden', background: 'rgba(0,10,20,0.6)', border: '1px solid #05151f', padding: '8px 10px', borderRadius: 4 }}>
-        <AnimatePresence initial={false}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
+
+      {/* ── Status row ── */}
+      <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: '1fr auto' }}>
+
+        {/* State card */}
+        <Card>
+          <div className="flex items-center gap-3">
+            <div style={{ position: 'relative', width: 12, height: 12, flexShrink: 0 }}>
+              <div style={{
+                width: '100%', height: '100%', borderRadius: '50%',
+                background: color, boxShadow: `0 0 8px ${color}`,
+              }} />
+              {wsConnected && (
+                <div className="absolute inset-0 rounded-full animate-ping"
+                  style={{ background: color, opacity: 0.2 }} />
+              )}
+            </div>
+            <div className="min-w-0">
+              <div className="font-mono font-bold truncate"
+                style={{ fontSize: 14, letterSpacing: '0.18em', color, textShadow: `0 0 12px ${color}44` }}>
+                {STATE_LABEL[systemState]}
+              </div>
+              {statusMsg && (
+                <div className="font-mono truncate"
+                  style={{ fontSize: 8, color: '#1e3a4a', letterSpacing: '0.1em', marginTop: 1 }}>
+                  {statusMsg}
+                </div>
+              )}
+            </div>
+          </div>
+        </Card>
+
+        {/* Quick pills */}
+        <Card style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6, minWidth: 80 }}>
+          <div className="font-mono text-right" style={{ fontSize: 8, letterSpacing: '0.1em', color: '#1e3a4a' }}>
+            WS&nbsp;<span style={{ color: wsConnected ? '#00ff88' : '#ff3333' }}>{wsConnected ? 'ON' : 'OFF'}</span>
+          </div>
+          <div className="font-mono text-right" style={{ fontSize: 8, letterSpacing: '0.1em', color: '#1e3a4a' }}>
+            TTS&nbsp;<span style={{ color: '#00f0ff66' }}>{tts}</span>
+          </div>
+          <div className="font-mono text-right" style={{ fontSize: 8, letterSpacing: '0.1em', color: '#1e3a4a' }}>
+            {isReal ? <span style={{ color: '#00ff8866' }}>● LIVE</span> : <span>○ SIM</span>}
+          </div>
+        </Card>
+      </div>
+
+      {/* ── Metrics ── */}
+      <Card style={{ marginBottom: 8 }}>
+        <div className="flex items-center justify-between mb-3">
+          <Label>MÉTRICAS DEL SISTEMA</Label>
+          <span className="font-mono" style={{ fontSize: 8, color: '#1e3a4a' }}>{uptimeStr(uptime)}</span>
+        </div>
+
+        <StatBar label="CPU" value={cpu} />
+        <StatBar label={`GPU  ${gpu.slice(0, 14)}`} value={vram} color="#a855f7" unit="% VRAM" />
+        <StatBar label="RAM" value={ram} color="#00ff88" />
+
+        {/* Meta row */}
+        <div className="grid mt-3" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '0 8px' }}>
+          {[
+            { k: 'GPU TEMP', v: `${temp}°C`,  c: temp > 80 ? '#ff3333' : temp > 70 ? '#ff8c00' : '#00f0ff66' },
+            { k: 'LOCATION', v: 'LIMA, PE',   c: '#1e3a4a' },
+            { k: 'MODE',     v: isReal ? 'LIVE' : 'SIM', c: isReal ? '#00ff8866' : '#1e3a4a' },
+          ].map(({ k, v, c }) => (
+            <div key={k}>
+              <div className="font-mono" style={{ fontSize: 7, color: '#0e1e28', letterSpacing: '0.15em' }}>{k}</div>
+              <div className="font-mono" style={{ fontSize: 10, color: c, marginTop: 2 }}>{v}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* ── System log ── */}
+      <Card>
+        <div className="flex items-center justify-between mb-2">
+          <Label>LOG DEL SISTEMA</Label>
+          <button onClick={clearLogs} className="font-mono"
+            style={{ fontSize: 7, color: '#1e3a4a', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.15em' }}>
+            LIMPIAR
+          </button>
+        </div>
+        <div style={{
+          height: 220, overflowY: 'auto', overflowX: 'hidden',
+          background: 'rgba(0,6,12,0.8)', borderRadius: 4,
+          border: '1px solid #071218', padding: '6px 8px',
+        }}>
           {logs.length === 0 ? (
-            <p className="font-mono" style={{ fontSize: 9, color: '#0a2030', letterSpacing: '0.1em' }}>
-              Awaiting events…
+            <p className="font-mono" style={{ fontSize: 9, color: '#0a1e2a', letterSpacing: '0.1em' }}>
+              Esperando eventos…
             </p>
-          ) : (
-            logs.map((entry: LogEntry) => (
-              <motion.div
-                key={entry.id}
-                initial={{ opacity: 0, x: -6 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.2 }}
-                className="flex gap-2 font-mono leading-relaxed"
-                style={{ fontSize: 9 }}
-              >
-                <span style={{ color: '#203040', flexShrink: 0 }}>{entry.timestamp}</span>
-                <span style={{ color: LOG_COLOR[entry.level] ?? '#00f0ff', opacity: 0.8, wordBreak: 'break-word' }}>
-                  {entry.message}
-                </span>
-              </motion.div>
-            ))
-          )}
-        </AnimatePresence>
-        <div ref={endRef} />
-      </div>
-    </Section>
+          ) : logs.map((entry: LogEntry) => (
+            <div key={entry.id} className="flex gap-2 font-mono" style={{ fontSize: 9, lineHeight: 1.6 }}>
+              <span style={{ color: '#152530', flexShrink: 0 }}>{entry.timestamp}</span>
+              <span style={{ color: LOG_COLOR[entry.level] ?? '#00f0ff', opacity: 0.75, wordBreak: 'break-word' }}>
+                {entry.message}
+              </span>
+            </div>
+          ))}
+          <div ref={endRef} />
+        </div>
+      </Card>
+
+    </motion.div>
   )
 }
 
-// ── 4. Configuration (wired to backend) ─────────────────────────────────────
-function Slider({ label, value, min, max, step = 0.1, onChange, onCommit }: {
-  label: string; value: number; min: number; max: number
-  step?: number; onChange: (v: number) => void; onCommit?: (v: number) => void
-}) {
-  const pct = ((value - min) / (max - min)) * 100
-  return (
-    <div className="py-2" style={{ borderBottom: '1px solid #0a1e2a' }}>
-      <div className="flex justify-between mb-1.5">
-        <span className="font-mono" style={{ fontSize: 10, color: '#305060', letterSpacing: '0.1em' }}>{label}</span>
-        <span className="font-mono" style={{ fontSize: 10, color: '#00f0ff77' }}>{value.toFixed(2)}</span>
-      </div>
-      <div className="relative" style={{ height: 4, background: '#0a1a28', borderRadius: 2 }}>
-        <div className="absolute inset-y-0 left-0 rounded"
-          style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #00f0ff44, #00f0ff)', borderRadius: 2 }} />
-        <input type="range" min={min} max={max} step={step} value={value}
-          onChange={e => onChange(parseFloat(e.target.value))}
-          onMouseUp={e => onCommit?.(parseFloat((e.target as HTMLInputElement).value))}
-          onTouchEnd={e => onCommit?.(parseFloat((e.target as HTMLInputElement).value))}
-          className="absolute inset-0 opacity-0 cursor-pointer w-full" style={{ margin: 0 }}
-        />
-      </div>
-    </div>
-  )
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 2 — CONFIG
+// ═══════════════════════════════════════════════════════════════════════════
 
-function Configuration({ sendCommand }: { sendCommand: (cmd: string, extra?: object) => void }) {
+function TabConfig({ sendCommand }: { sendCommand: (cmd: string, extra?: object) => void }) {
   const ttsSpeed       = useCYRUSStore(s => s.ttsSpeed)
   const setTtsSpeed    = useCYRUSStore(s => s.setTtsSpeed)
   const particleCount  = useCYRUSStore(s => s.particleCount)
@@ -294,195 +336,155 @@ function Configuration({ sendCommand }: { sendCommand: (cmd: string, extra?: obj
   const setBloomIntensity = useCYRUSStore(s => s.setBloomIntensity)
   const setOrbSpeed       = useCYRUSStore(s => s.setOrbSpeed)
 
-  const [llmModel, setLlmModel]       = useState('phi3:latest')
-  const [ttsEngine, setTtsEngine]     = useState('piper')
+  const [llmModel, setLlmModel]         = useState('phi3:latest')
+  const [ttsEngine, setTtsEngine]       = useState('piper')
   const [editingModel, setEditingModel] = useState(false)
-  const [testText, setTestText]       = useState('')
-  const [testing, setTesting]         = useState(false)
+  const [testText, setTestText]         = useState('')
+  const [testing, setTesting]           = useState(false)
 
-  const handleTtsSpeedCommit = (v: number) => {
-    sendCommand('set_tts_speed', { speed: v })
-  }
+  const commitLlm = (m: string) => { if (m.trim()) sendCommand('set_llm_model', { model: m.trim() }) }
+  const commitSpeed = (v: number) => sendCommand('set_tts_speed', { speed: v })
 
-  const handleLlmModelCommit = (model: string) => {
-    if (model.trim()) sendCommand('set_llm_model', { model: model.trim() })
-  }
-
-  const handleTestTts = () => {
-    const text = testText.trim() || 'Sistema de voz C.Y.R.U.S operativo.'
+  const testTts = () => {
+    const text = testText.trim() || 'Sistema de voz CYRUS operativo.'
     setTesting(true)
     sendCommand('test_tts', { text })
     setTimeout(() => setTesting(false), 3000)
   }
 
+  const selectStyle: React.CSSProperties = {
+    fontSize: 10, fontFamily: 'monospace',
+    background: '#040c14', border: '1px solid #0a2030',
+    color: '#00f0ff77', borderRadius: 4,
+    padding: '4px 8px', cursor: 'pointer', outline: 'none',
+  }
+
   return (
-    <Section delay={0.4}>
-      <SectionTitle label="CONFIGURATION" />
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
 
-      {/* LLM Model */}
-      <div className="flex items-center justify-between py-2" style={{ borderBottom: '1px solid #0a1e2a' }}>
-        <span className="font-mono" style={{ fontSize: 10, color: '#305060', letterSpacing: '0.1em' }}>LLM MODEL</span>
-        {editingModel ? (
-          <input autoFocus value={llmModel}
-            onChange={e => setLlmModel(e.target.value)}
-            onBlur={() => { setEditingModel(false); handleLlmModelCommit(llmModel) }}
-            onKeyDown={e => { if (e.key === 'Enter') { setEditingModel(false); handleLlmModelCommit(llmModel) } }}
-            className="font-mono rounded px-2 py-0.5 outline-none"
-            style={{ fontSize: 10, background: '#0a1e2a', border: '1px solid #00f0ff44', color: '#00f0ff', width: 130 }}
-          />
-        ) : (
-          <button onClick={() => setEditingModel(true)} className="font-mono px-2 py-0.5 rounded"
-            style={{ fontSize: 10, background: '#00f0ff11', border: '1px solid #00f0ff33', color: '#00f0ffaa', cursor: 'pointer' }}>
-            {llmModel}
-          </button>
-        )}
-      </div>
+      {/* ── Inteligencia ── */}
+      <Card style={{ marginBottom: 8 }}>
+        <Label>INTELIGENCIA</Label>
 
-      {/* TTS Engine */}
-      <div className="flex items-center justify-between py-2" style={{ borderBottom: '1px solid #0a1e2a' }}>
-        <span className="font-mono" style={{ fontSize: 10, color: '#305060', letterSpacing: '0.1em' }}>TTS ENGINE</span>
-        <select value={ttsEngine} onChange={e => setTtsEngine(e.target.value)}
-          className="font-mono rounded px-2 py-0.5 outline-none"
-          style={{ fontSize: 10, background: '#0a1e2a', border: '1px solid #00f0ff33', color: '#00f0ffaa', cursor: 'pointer' }}>
-          <option value="piper">piper (activo)</option>
-          <option value="kokoro">kokoro</option>
-          <option value="edge-tts">edge-tts</option>
-        </select>
-      </div>
+        <Row style={{ marginTop: 10 }}>
+          <span className="font-mono" style={{ fontSize: 10, color: '#2a4050', letterSpacing: '0.1em' }}>MODELO LLM</span>
+          {editingModel ? (
+            <input autoFocus value={llmModel}
+              onChange={e => setLlmModel(e.target.value)}
+              onBlur={() => { setEditingModel(false); commitLlm(llmModel) }}
+              onKeyDown={e => { if (e.key === 'Enter') { setEditingModel(false); commitLlm(llmModel) } }}
+              className="font-mono rounded px-2 py-1 outline-none"
+              style={{ fontSize: 10, background: '#040c14', border: '1px solid #00f0ff55', color: '#00f0ff', width: 140 }}
+            />
+          ) : (
+            <button onClick={() => setEditingModel(true)} className="font-mono px-2 py-1 rounded"
+              style={{ fontSize: 10, background: '#00f0ff0d', border: '1px solid #00f0ff22', color: '#00f0ff88', cursor: 'pointer' }}>
+              {llmModel}
+            </button>
+          )}
+        </Row>
+      </Card>
 
-      {/* TTS Speed */}
-      <Slider
-        label="TTS SPEED"
-        value={ttsSpeed} min={0.5} max={2.0} step={0.05}
-        onChange={setTtsSpeed}
-        onCommit={handleTtsSpeedCommit}
-      />
+      {/* ── Síntesis de voz ── */}
+      <Card style={{ marginBottom: 8 }}>
+        <Label>SÍNTESIS DE VOZ</Label>
 
-      {/* Test TTS */}
-      <div className="py-3" style={{ borderBottom: '1px solid #0a1e2a' }}>
-        <p className="font-mono mb-2" style={{ fontSize: 9, color: '#304050', letterSpacing: '0.15em' }}>PROBAR VOZ</p>
-        <div className="flex gap-2">
-          <input
-            value={testText}
-            onChange={e => setTestText(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleTestTts()}
-            placeholder="texto de prueba…"
-            className="font-mono flex-1 rounded px-2 py-1 outline-none"
-            style={{ fontSize: 10, background: '#040c14', border: '1px solid #00f0ff22', color: '#00f0ff88' }}
-          />
-          <button
-            onClick={handleTestTts}
-            disabled={testing}
-            className="font-mono rounded px-3"
-            style={{
-              fontSize: 9, letterSpacing: '0.15em',
-              background: testing ? '#001810' : '#00f0ff11',
-              border: `1px solid ${testing ? '#00f0ff22' : '#00f0ff44'}`,
-              color: testing ? '#00f0ff44' : '#00f0ff88',
-              cursor: testing ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {testing ? '▶▶' : '▶ SPEAK'}
-          </button>
+        {/* Engine + speed in 2-col */}
+        <div className="grid gap-3 mt-3 mb-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <div>
+            <Label dim>MOTOR</Label>
+            <div style={{ marginTop: 6 }}>
+              <select value={ttsEngine} onChange={e => setTtsEngine(e.target.value)} style={{ ...selectStyle, width: '100%' }}>
+                <option value="piper">piper</option>
+                <option value="kokoro">kokoro</option>
+                <option value="edge-tts">edge-tts</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <Label dim>VELOCIDAD</Label>
+            <div style={{ marginTop: 6, padding: '4px 0' }}>
+              <Slider
+                label="" value={ttsSpeed} min={0.5} max={2.0} step={0.05}
+                onChange={setTtsSpeed} onCommit={commitSpeed}
+              />
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* Visual sliders */}
-      <div className="mt-3 mb-1">
-        <span className="font-mono" style={{ fontSize: 7, color: '#1a3040', letterSpacing: '0.2em' }}>VISUALIZACIÓN</span>
-      </div>
-      <Slider label="BLOOM INTENSITY" value={bloomIntensity} min={0.5} max={2.5} step={0.05} onChange={setBloomIntensity} />
-      <Slider label="PARTICLE COUNT"  value={particleCount}  min={100} max={400} step={10}   onChange={setParticleCount} />
-      <Slider label="NEURAL SPEED"    value={orbSpeed}       min={0.1} max={3.0} step={0.05} onChange={setOrbSpeed} />
-    </Section>
+        <Divider />
+
+        {/* Test row */}
+        <div style={{ marginTop: 10 }}>
+          <Label dim>PRUEBA DE VOZ</Label>
+          <div className="flex gap-2 mt-2">
+            <input
+              value={testText}
+              onChange={e => setTestText(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && testTts()}
+              placeholder="escribe un texto para probar…"
+              className="font-mono flex-1 rounded px-2 py-1.5 outline-none"
+              style={{ fontSize: 10, background: '#040c14', border: '1px solid #0a2030', color: '#00f0ff77' }}
+            />
+            <button onClick={testTts} disabled={testing} className="font-mono rounded px-3"
+              style={{
+                fontSize: 9, letterSpacing: '0.12em', whiteSpace: 'nowrap',
+                background: testing ? 'transparent' : '#00f0ff0d',
+                border: `1px solid ${testing ? '#0a2030' : '#00f0ff33'}`,
+                color: testing ? '#1e3a4a' : '#00f0ff77',
+                cursor: testing ? 'not-allowed' : 'pointer',
+              }}>
+              {testing ? '▶▶' : '▶ SPEAK'}
+            </button>
+          </div>
+        </div>
+      </Card>
+
+      {/* ── Visualización ── */}
+      <Card>
+        <Label>VISUALIZACIÓN DEL HOLOGRAMA</Label>
+        <div style={{ marginTop: 14 }}>
+          <Slider label="BLOOM"      value={bloomIntensity} min={0.5} max={2.5} step={0.05} onChange={setBloomIntensity} />
+          <Slider label="PARTÍCULAS" value={particleCount}  min={100} max={400} step={10}   onChange={setParticleCount} />
+          <Slider label="VELOCIDAD"  value={orbSpeed}       min={0.1} max={3.0} step={0.05} onChange={setOrbSpeed} />
+        </div>
+      </Card>
+
+    </motion.div>
   )
 }
 
-// ── 5. Conversation History (with markdown) ─────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 3 — VOZ
+// ═══════════════════════════════════════════════════════════════════════════
 
-// Minimal markdown prose styles injected inline
 const mdComponents = {
   p:      ({ children }: any) => <p style={{ margin: '2px 0', lineHeight: 1.5 }}>{children}</p>,
   strong: ({ children }: any) => <strong style={{ color: '#00f0ffcc' }}>{children}</strong>,
   em:     ({ children }: any) => <em style={{ color: '#00f0ff99' }}>{children}</em>,
   code:   ({ children }: any) => (
-    <code style={{
-      fontFamily: 'inherit', fontSize: '0.9em',
-      background: 'rgba(0,100,160,0.2)', borderRadius: 2,
-      padding: '0 3px', color: '#80d4ff',
-    }}>{children}</code>
+    <code style={{ fontFamily: 'inherit', fontSize: '0.9em', background: 'rgba(0,100,160,0.2)', borderRadius: 2, padding: '0 3px', color: '#80d4ff' }}>
+      {children}
+    </code>
   ),
-  pre:    ({ children }: any) => (
-    <pre style={{
-      background: 'rgba(0,10,20,0.8)', border: '1px solid #0a2030',
-      borderRadius: 4, padding: '6px 8px', margin: '4px 0',
-      overflowX: 'auto', fontSize: '0.85em',
-    }}>{children}</pre>
-  ),
-  ul:     ({ children }: any) => <ul style={{ margin: '2px 0', paddingLeft: 14 }}>{children}</ul>,
-  ol:     ({ children }: any) => <ol style={{ margin: '2px 0', paddingLeft: 14 }}>{children}</ol>,
-  li:     ({ children }: any) => <li style={{ margin: '1px 0' }}>{children}</li>,
+  ul: ({ children }: any) => <ul style={{ margin: '2px 0', paddingLeft: 14 }}>{children}</ul>,
+  li: ({ children }: any) => <li style={{ margin: '1px 0' }}>{children}</li>,
 }
 
-function ConversationHistory() {
-  const transcript = useCYRUSStore(s => s.transcript)
-  const endRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [transcript])
-
-  if (transcript.length === 0) return null
-
-  return (
-    <Section delay={0.35}>
-      <SectionTitle label="CONVERSATION" />
-      <div className="overflow-y-auto flex flex-col gap-2" style={{ maxHeight: 260 }}>
-        {transcript.map(entry => (
-          <div key={entry.id} className={`flex flex-col ${entry.role === 'user' ? 'items-end' : 'items-start'}`}>
-            <span className="font-mono mb-0.5" style={{ fontSize: 8, color: '#203040', letterSpacing: '0.2em' }}>
-              {entry.role === 'user' ? 'YOU' : 'C.Y.R.U.S'}{' '}
-              {entry.timestamp.toLocaleTimeString('en-GB', { hour12: false })}
-            </span>
-            <div
-              className="px-3 py-1.5 rounded font-mono"
-              style={{
-                fontSize: 10, maxWidth: '90%', lineHeight: 1.5,
-                ...(entry.role === 'user'
-                  ? { background: 'rgba(0,100,160,0.2)', border: '1px solid #0a4060', color: '#80c8e8' }
-                  : { background: 'rgba(0,40,80,0.4)', border: '1px solid #004060', color: '#b0e8ff' }),
-              }}
-            >
-              {entry.role === 'cyrus' ? (
-                <ReactMarkdown components={mdComponents}>{entry.text}</ReactMarkdown>
-              ) : (
-                entry.text
-              )}
-            </div>
-          </div>
-        ))}
-        <div ref={endRef} />
-      </div>
-    </Section>
-  )
-}
-
-// ── Voice Enrollment (unchanged structure) ──────────────────────────────────
-function VoiceCalibration({ sendCommand }: { sendCommand: (cmd: string, extra?: object) => void }) {
+function TabVoz({ sendCommand }: { sendCommand: (cmd: string, extra?: object) => void }) {
   const wakeWords     = useCYRUSStore(s => s.wakeWords)
   const logs          = useCYRUSStore(s => s.logs)
+  const transcript    = useCYRUSStore(s => s.transcript)
   const enrollStep    = useCYRUSStore(s => s.enrollmentStep)
   const enrollSample  = useCYRUSStore(s => s.enrollmentSample)
   const enrollTotal   = useCYRUSStore(s => s.enrollmentTotal)
   const enrollResults = useCYRUSStore(s => s.enrollmentResults)
   const [newWord, setNewWord] = useState('')
+  const endRef = useRef<HTMLDivElement>(null)
 
   const isEnrolling = enrollStep !== 'idle' && enrollStep !== 'done'
 
-  const asrLines = logs
-    .filter(l => l.message.startsWith('ASR '))
-    .slice(-6)
-    .reverse()
+  const asrLines = logs.filter(l => l.message.startsWith('ASR ')).slice(-5).reverse()
 
   const addWord = () => {
     const w = newWord.trim().toLowerCase()
@@ -491,22 +493,29 @@ function VoiceCalibration({ sendCommand }: { sendCommand: (cmd: string, extra?: 
     setNewWord('')
   }
 
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [transcript])
+
   return (
-    <Section delay={0.45}>
-      <SectionTitle label="RECONOCIMIENTO DE VOZ" />
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
 
-      {/* Enrollment wizard */}
-      <div className="mb-4 rounded p-3" style={{ background: 'rgba(0,255,136,0.04)', border: '1px solid #00ff8820' }}>
-        <p className="font-mono mb-2" style={{ fontSize: 9, color: '#00ff8877', letterSpacing: '0.15em' }}>
-          ENROLLAR MI VOZ
-        </p>
-        <p className="font-mono mb-3" style={{ fontSize: 9, color: '#304050', lineHeight: 1.6 }}>
-          CYRUS grabará {enrollTotal} muestras de cómo pronuncias su nombre.
+      {/* ── Enrollamiento ── */}
+      <Card style={{ marginBottom: 8, border: '1px solid #00ff881a' }}>
+        <div className="flex items-center justify-between mb-3">
+          <Label>PERFIL DE VOZ</Label>
+          {enrollStep === 'done' && (
+            <span className="font-mono" style={{ fontSize: 8, color: '#00ff8877', letterSpacing: '0.15em' }}>✓ ACTIVO</span>
+          )}
+        </div>
+
+        <p className="font-mono mb-3" style={{ fontSize: 9, color: '#1e3a4a', lineHeight: 1.6 }}>
+          Graba {enrollTotal} muestras de tu voz para que CYRUS solo responda a ti
+          y el barge-in no se active con otros sonidos.
         </p>
 
+        {/* Progress */}
         {isEnrolling && (
           <div className="mb-3">
-            <div className="flex justify-between mb-1">
+            <div className="flex justify-between mb-1.5">
               <span className="font-mono" style={{ fontSize: 9, color: '#00ff88' }}>
                 {enrollStep === 'prompt' ? `Escuchando muestra ${enrollSample}…` : 'Procesando…'}
               </span>
@@ -514,14 +523,18 @@ function VoiceCalibration({ sendCommand }: { sendCommand: (cmd: string, extra?: 
                 {enrollSample}/{enrollTotal}
               </span>
             </div>
-            <div className="rounded-full overflow-hidden" style={{ height: 3, background: '#0a1a20' }}>
-              <div className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${(enrollSample / enrollTotal) * 100}%`, background: 'linear-gradient(90deg, #00ff8844, #00ff88)' }} />
+            <div style={{ height: 3, background: '#071218', borderRadius: 2, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', borderRadius: 2,
+                width: `${(enrollSample / enrollTotal) * 100}%`,
+                background: 'linear-gradient(90deg, #00ff8844, #00ff88)',
+                transition: 'width 0.4s ease',
+              }} />
             </div>
-            <div className="mt-2 flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1 mt-2">
               {enrollResults.map((r, i) => (
                 <span key={i} className="font-mono rounded px-1.5 py-0.5"
-                  style={{ fontSize: 8, background: '#001810', border: '1px solid #00ff8830', color: '#00ff8877' }}>
+                  style={{ fontSize: 8, background: '#001810', border: '1px solid #00ff8820', color: '#00ff8866' }}>
                   {r || '(silencio)'}
                 </span>
               ))}
@@ -530,16 +543,8 @@ function VoiceCalibration({ sendCommand }: { sendCommand: (cmd: string, extra?: 
         )}
 
         {enrollStep === 'done' && (
-          <div className="mb-3 rounded p-2" style={{ background: '#001810', border: '1px solid #00ff8830' }}>
-            <p className="font-mono" style={{ fontSize: 9, color: '#00ff88' }}>Enrollamiento completado</p>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {enrollResults.map((r, i) => r && (
-                <span key={i} className="font-mono rounded px-1.5"
-                  style={{ fontSize: 8, background: '#002818', border: '1px solid #00ff8830', color: '#00ff8866' }}>
-                  {r}
-                </span>
-              ))}
-            </div>
+          <div className="mb-3 rounded p-2" style={{ background: '#001810', border: '1px solid #00ff8825' }}>
+            <p className="font-mono" style={{ fontSize: 9, color: '#00ff8899' }}>Perfil guardado — barge-in personalizado activo</p>
           </div>
         )}
 
@@ -548,83 +553,119 @@ function VoiceCalibration({ sendCommand }: { sendCommand: (cmd: string, extra?: 
           onClick={() => sendCommand('start_enrollment', { samples: 5 })}
           className="font-mono w-full rounded py-2"
           style={{
-            fontSize: 10, letterSpacing: '0.2em',
-            background: isEnrolling ? '#001810' : '#00ff8822',
-            border: `1px solid ${isEnrolling ? '#00ff8820' : '#00ff8866'}`,
-            color: isEnrolling ? '#00ff8844' : '#00ff88',
+            fontSize: 10, letterSpacing: '0.18em',
+            background: isEnrolling ? 'transparent' : '#00ff8815',
+            border: `1px solid ${isEnrolling ? '#00ff8815' : '#00ff8855'}`,
+            color: isEnrolling ? '#00ff8833' : '#00ff88',
             cursor: isEnrolling ? 'not-allowed' : 'pointer',
           }}
         >
-          {isEnrolling ? `GRABANDO ${enrollSample}/${enrollTotal}…` : 'INICIAR ENROLLAMIENTO DE VOZ'}
+          {isEnrolling ? `GRABANDO ${enrollSample}/${enrollTotal}…` : 'INICIAR ENROLLAMIENTO'}
         </button>
-      </div>
+      </Card>
 
-      {/* Recent ASR */}
-      <div className="mb-3">
-        <p className="font-mono mb-1.5" style={{ fontSize: 8, color: '#304050', letterSpacing: '0.2em' }}>
-          LO QUE CYRUS ESCUCHO — clic para agregar
-        </p>
-        <div className="rounded" style={{ background: 'rgba(0,8,16,0.7)', border: '1px solid #0a1e2a', padding: '6px 8px', minHeight: 40 }}>
-          {asrLines.length === 0
-            ? <p className="font-mono" style={{ fontSize: 9, color: '#0a2030' }}>Habla para ver transcripciones…</p>
-            : asrLines.map(l => {
-                const m = l.message.match(/"([^"]+)"/)
-                const word = m?.[1] ?? ''
-                return (
-                  <div key={l.id} className="flex gap-2 font-mono leading-relaxed"
-                    onClick={() => word && setNewWord(word)}
-                    style={{ cursor: word ? 'pointer' : 'default', fontSize: 9 }}>
-                    <span style={{ color: '#203040', flexShrink: 0 }}>{l.timestamp}</span>
-                    <span style={{ color: '#00ff8877', wordBreak: 'break-word' }}>{l.message}</span>
-                  </div>
-                )
-              })
-          }
-        </div>
-      </div>
+      {/* ── Palabras activas + ASR ── */}
+      <Card style={{ marginBottom: 8 }}>
+        <Label>PALABRAS ACTIVAS</Label>
 
-      {/* Manual add */}
-      <div className="flex gap-2 mb-4">
-        <input value={newWord} onChange={e => setNewWord(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && addWord()}
-          placeholder="agregar variante manual…"
-          className="font-mono flex-1 rounded px-2 py-1 outline-none"
-          style={{ fontSize: 10, background: '#040c14', border: '1px solid #00f0ff22', color: '#00f0ff88' }}
-        />
-        <button onClick={addWord} className="font-mono rounded px-3"
-          style={{ fontSize: 9, background: '#00f0ff11', border: '1px solid #00f0ff33', color: '#00f0ff77', cursor: 'pointer' }}>
-          + ADD
-        </button>
-      </div>
-
-      {/* Wake words chips */}
-      <div>
-        <p className="font-mono mb-1.5" style={{ fontSize: 8, color: '#304050', letterSpacing: '0.2em' }}>
-          PALABRAS ACTIVAS — clic para eliminar
-        </p>
-        <div className="flex flex-wrap gap-1.5">
+        {/* Wake words chips */}
+        <div className="flex flex-wrap gap-1.5 mt-3 mb-4" style={{ minHeight: 28 }}>
           {wakeWords.length === 0
-            ? <span className="font-mono" style={{ fontSize: 9, color: '#102030' }}>Cargando…</span>
+            ? <span className="font-mono" style={{ fontSize: 9, color: '#0e1e28' }}>Cargando…</span>
             : wakeWords.map(w => (
-              <span key={w} className="font-mono rounded px-2 py-0.5 cursor-pointer"
-                style={{ fontSize: 9, background: '#001828', border: '1px solid #00f0ff22', color: '#00f0ff55' }}
+              <span key={w} className="font-mono rounded px-2 py-1 cursor-pointer"
+                style={{
+                  fontSize: 9, background: '#001828',
+                  border: '1px solid #00f0ff1a', color: '#00f0ff55',
+                  transition: 'border-color 0.15s, color 0.15s',
+                }}
                 onClick={() => sendCommand('remove_wake_word', { word: w })}>
                 {w} ×
               </span>
             ))
           }
         </div>
-      </div>
-    </Section>
+
+        <Divider />
+
+        {/* Manual add */}
+        <div className="flex gap-2 mt-3 mb-3">
+          <input value={newWord} onChange={e => setNewWord(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addWord()}
+            placeholder="agregar variante…"
+            className="font-mono flex-1 rounded px-2 py-1 outline-none"
+            style={{ fontSize: 10, background: '#040c14', border: '1px solid #0a2030', color: '#00f0ff77' }}
+          />
+          <button onClick={addWord} className="font-mono rounded px-3"
+            style={{ fontSize: 9, background: '#00f0ff0d', border: '1px solid #00f0ff22', color: '#00f0ff66', cursor: 'pointer' }}>
+            + ADD
+          </button>
+        </div>
+
+        {/* Recent ASR */}
+        {asrLines.length > 0 && (
+          <>
+            <Label dim>TRANSCRIPCIONES RECIENTES — clic para agregar</Label>
+            <div style={{ marginTop: 6, background: '#040c14', borderRadius: 4, border: '1px solid #071218', padding: '6px 8px' }}>
+              {asrLines.map(l => {
+                const m = l.message.match(/"([^"]+)"/)
+                const word = m?.[1] ?? ''
+                return (
+                  <div key={l.id} className="flex gap-2 font-mono"
+                    onClick={() => word && setNewWord(word)}
+                    style={{ fontSize: 9, lineHeight: 1.6, cursor: word ? 'pointer' : 'default' }}>
+                    <span style={{ color: '#152530', flexShrink: 0 }}>{l.timestamp}</span>
+                    <span style={{ color: '#00ff8866' }}>{l.message}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
+      </Card>
+
+      {/* ── Historial ── */}
+      {transcript.length > 0 && (
+        <Card>
+          <Label>HISTORIAL DE CONVERSACIÓN</Label>
+          <div style={{ marginTop: 10, maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {transcript.map(entry => (
+              <div key={entry.id} style={{ display: 'flex', flexDirection: 'column', alignItems: entry.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                <span className="font-mono" style={{ fontSize: 8, color: '#152530', letterSpacing: '0.18em', marginBottom: 3 }}>
+                  {entry.role === 'user' ? 'TÚ' : 'CYRUS'}{' '}
+                  {entry.timestamp.toLocaleTimeString('es-PE', { hour12: false })}
+                </span>
+                <div className="font-mono rounded px-3 py-1.5"
+                  style={{
+                    fontSize: 10, maxWidth: '90%', lineHeight: 1.5,
+                    ...(entry.role === 'user'
+                      ? { background: 'rgba(0,80,130,0.25)', border: '1px solid #0a3a55', color: '#70b8d8' }
+                      : { background: 'rgba(0,30,60,0.5)',  border: '1px solid #0a2840', color: '#a0d8f0' }),
+                  }}>
+                  {entry.role === 'cyrus'
+                    ? <ReactMarkdown components={mdComponents}>{entry.text}</ReactMarkdown>
+                    : entry.text}
+                </div>
+              </div>
+            ))}
+            <div ref={endRef} />
+          </div>
+        </Card>
+      )}
+
+    </motion.div>
   )
 }
 
-// ── Main ───────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// ROOT
+// ═══════════════════════════════════════════════════════════════════════════
+
 export function ControlView() {
   const navigate = useNavigate()
   const { sendCommand } = useWebSocket()
+  const [tab, setTab] = useState<Tab>('SISTEMA')
 
-  // ESC or Backspace navigates back to AgentView
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.preventDefault(); navigate('/') }
@@ -637,48 +678,47 @@ export function ControlView() {
     <motion.div
       initial={{ opacity: 0, filter: 'blur(8px)' }}
       animate={{ opacity: 1, filter: 'blur(0px)' }}
-      transition={{ duration: 0.6, ease: 'easeOut' }}
+      transition={{ duration: 0.5, ease: 'easeOut' }}
       className="page-scroll"
-      style={{ background: '#05070d', minHeight: '100vh' }}
+      style={{ background: '#03050a', minHeight: '100vh' }}
     >
-      <div className="mx-auto px-4 pb-12" style={{ maxWidth: 480 }}>
+      <div className="mx-auto px-4 pb-12" style={{ maxWidth: 520 }}>
 
-        {/* Header */}
-        <div className="flex items-center justify-between py-5 mb-1 sticky top-0"
-          style={{ background: '#05070d', zIndex: 10, borderBottom: '1px solid #0a1e2a' }}>
-          <div className="flex items-center gap-2">
-            <button onClick={() => navigate('/')} className="font-mono cursor-pointer"
-              style={{ fontSize: 10, color: '#00f0ff55', background: 'none', border: 'none', letterSpacing: '0.2em' }}>
-              ← BACK
-            </button>
-            <span className="font-mono" style={{ fontSize: 7, color: '#00f0ff1a', letterSpacing: '0.15em' }}>ESC</span>
-          </div>
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between py-4 mb-3 sticky top-0"
+          style={{ background: '#03050a', zIndex: 10, borderBottom: '1px solid #081820' }}>
+          <button onClick={() => navigate('/')} className="font-mono"
+            style={{ fontSize: 10, color: '#00f0ff44', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.2em' }}>
+            ← BACK
+            <span style={{ fontSize: 7, color: '#00f0ff1a', marginLeft: 6 }}>ESC</span>
+          </button>
           <div className="flex items-center gap-2">
             <span className="font-mono font-bold"
-              style={{ fontSize: 14, letterSpacing: '0.4em', color: '#00f0ff', textShadow: '0 0 16px #00f0ff44' }}>
+              style={{ fontSize: 13, letterSpacing: '0.4em', color: '#00f0ff', textShadow: '0 0 14px #00f0ff33' }}>
               C.Y.R.U.S
             </span>
-            <span className="font-mono" style={{ fontSize: 8, color: '#00f0ff33', letterSpacing: '0.15em' }}>CONTROL</span>
+            <span className="font-mono" style={{ fontSize: 8, color: '#00f0ff22', letterSpacing: '0.12em' }}>CONTROL</span>
           </div>
-          <div style={{ width: 60 }} />
+          <div style={{ width: 70 }} />
         </div>
 
-        {/* Sections */}
-        <div className="pt-4">
-          <AIStateBadge />
-          <SystemStats />
-          <SystemLog />
-          <Configuration sendCommand={sendCommand} />
-          <ConversationHistory />
-          <VoiceCalibration sendCommand={sendCommand} />
-        </div>
+        {/* ── Tabs ── */}
+        <TabBar active={tab} onChange={setTab} />
 
-        {/* Footer */}
-        <div className="text-center mt-4">
-          <span className="font-mono" style={{ fontSize: 7, color: '#05101a', letterSpacing: '0.2em' }}>
+        {/* ── Content ── */}
+        <AnimatePresence mode="wait">
+          {tab === 'SISTEMA' && <TabSistema key="sistema" />}
+          {tab === 'CONFIG'  && <TabConfig  key="config"  sendCommand={sendCommand} />}
+          {tab === 'VOZ'     && <TabVoz     key="voz"     sendCommand={sendCommand} />}
+        </AnimatePresence>
+
+        {/* ── Footer ── */}
+        <div className="text-center mt-6">
+          <span className="font-mono" style={{ fontSize: 7, color: '#06101a', letterSpacing: '0.2em' }}>
             C.Y.R.U.S v1.0 — COGNITIVE SYSTEM FOR REAL-TIME UTILITY & SERVICES
           </span>
         </div>
+
       </div>
     </motion.div>
   )
