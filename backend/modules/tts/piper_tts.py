@@ -166,17 +166,42 @@ class PiperTTS:
         return self._via_subprocess(text)
 
     def _via_package(self, text: str) -> bytes:
-        """Synthesise using the piper-tts Python package."""
-        buf = io.BytesIO()
-        kwargs: dict = {}
-        if self._speaker_id is not None:
-            kwargs["speaker_id"] = self._speaker_id
-        # length_scale is inverse of speed: speed=0.9 → length_scale≈1.11
+        """Synthesise using the piper-tts Python package (v1.4+ API).
+
+        piper-tts ≥1.4 returns Iterable[AudioChunk] from synthesize().
+        Each chunk carries sample_rate, sample_width, sample_channels,
+        and audio_int16_bytes.
+        """
+        from piper.voice import SynthesisConfig  # available in 1.4+
+
         length_scale = round(1.0 / self._speed, 3)
-        with wave.open(buf, "wb") as wav_file:
-            self._voice.synthesize(text, wav_file, length_scale=length_scale, **kwargs)  # type: ignore[union-attr]
+        syn_cfg = SynthesisConfig(length_scale=length_scale)
+
+        pcm_parts: list[bytes] = []
+        sample_rate = self._sample_rate
+        sample_width = 2
+        channels = 1
+
+        for chunk in self._voice.synthesize(text, syn_cfg):  # type: ignore[union-attr]
+            pcm_parts.append(chunk.audio_int16_bytes)
+            # Read actual params from first chunk
+            sample_rate = chunk.sample_rate
+            sample_width = chunk.sample_width
+            channels = chunk.sample_channels
+
+        if not pcm_parts:
+            logger.warning("[C.Y.R.U.S] TTS Piper: no audio chunks produced")
+            return self._silence_wav(0.5)
+
+        pcm_all = b"".join(pcm_parts)
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as wf:
+            wf.setnchannels(channels)
+            wf.setsampwidth(sample_width)
+            wf.setframerate(sample_rate)
+            wf.writeframes(pcm_all)
         wav_bytes = buf.getvalue()
-        logger.debug(f"[C.Y.R.U.S] TTS Piper (pkg): synthesised {len(wav_bytes)} bytes")
+        logger.debug(f"[C.Y.R.U.S] TTS Piper (pkg): synthesised {len(wav_bytes)} bytes @ {sample_rate}Hz")
         return wav_bytes
 
     def _via_subprocess(self, text: str) -> bytes:

@@ -11,12 +11,12 @@ local:
     timeout: 120
     stream: true
   tts:
-    provider: kokoro        # kokoro | piper  (piper requires model download — see docs/voice-plan.md)
-    voice: ef_dora          # kokoro voice ID
-    speed: 0.9              # speaking rate (0.5–2.0)
+    provider: piper         # kokoro | piper
+    voice: ef_dora          # kokoro voice ID (unused when provider=piper)
+    speed: 0.92             # speaking rate (0.5–2.0) — 0.92 is natural for CYRUS
     sample_rate: 24000
-    lang_code: e            # kokoro language code (e=español)
-    piper_model: models/tts/piper/es_MX-claude-high.onnx  # set provider: piper to activate
+    lang_code: e            # kokoro language code (e=espanol)
+    piper_model: models/tts/piper/es_MX-claude-high.onnx
     piper_speaker: null
   translation:
     provider: ctranslate2

@@ -53,3 +53,9 @@ htmlcov/
 # Claude Code local settings
 .claude/
 .ruff_cache/
+
+# TTS model files (large binaries — download separately)
+models/tts/piper/*.onnx
+models/tts/piper/*.onnx.json
+test_piper.wav
+test_*.wav
