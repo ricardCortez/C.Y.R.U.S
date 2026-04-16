@@ -26,6 +26,8 @@ export function useWebSocket(): { connected: boolean; sendCommand: (cmd: string,
     setWakeWords,
     setEnrollment,
     setSystemStats,
+    setAvailableModels,
+    setCurrentModel,
   } = useCYRUSStore()
 
   useEffect(() => {
@@ -83,6 +85,11 @@ export function useWebSocket(): { connected: boolean; sendCommand: (cmd: string,
 
         case 'enrollment':
           setEnrollment(evt.data)
+          break
+
+        case 'available_models':
+          setAvailableModels(evt.data.models)
+          setCurrentModel(evt.data.current)
           break
 
         case 'system_stats': {

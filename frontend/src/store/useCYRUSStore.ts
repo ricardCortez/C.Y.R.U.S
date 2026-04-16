@@ -23,6 +23,12 @@ export interface TranscriptEntry {
   language?: string
 }
 
+export interface ModelInfo {
+  name: string
+  compatible: boolean
+  compatibility: string
+}
+
 export interface SystemStats {
   cpu:        number
   ram:        number
@@ -66,6 +72,10 @@ interface CYRUSStore {
   // TTS speed (local copy — synced to backend)
   ttsSpeed: number
 
+  // Available local models from Ollama
+  availableModels: ModelInfo[]
+  currentModel:  string
+
   // Visual params
   particleCount:  number
   bloomIntensity: number
@@ -87,6 +97,8 @@ interface CYRUSStore {
   setEnrollment:        (data: { step?: string; sample?: number; total?: number; heard?: string; added?: string[] }) => void
   setSystemStats:       (s: SystemStats) => void
   setTtsSpeed:          (v: number) => void
+  setAvailableModels:   (models: ModelInfo[]) => void
+  setCurrentModel:      (model: string) => void
   setParticleCount:     (n: number) => void
   setBloomIntensity:    (v: number) => void
   setOrbSpeed:          (v: number) => void
@@ -126,6 +138,10 @@ export const useCYRUSStore = create<CYRUSStore>((set) => ({
 
   // TTS speed
   ttsSpeed: 0.92,
+
+  // Available local models
+  availableModels: [],
+  currentModel: '',
 
   // Visual params
   particleCount:  200,
@@ -174,7 +190,7 @@ export const useCYRUSStore = create<CYRUSStore>((set) => ({
 
   clearLogs:    () => set({ logs: [] }),
   setWakeWords: (words) => set({ wakeWords: words }),
-
+  setCurrentModel: (model: string) => set({ currentModel: model }),
   setEnrollment: (data) => set((st) => {
     const next: Partial<typeof st> = {}
     if (data.step   !== undefined) next.enrollmentStep   = data.step
@@ -188,6 +204,7 @@ export const useCYRUSStore = create<CYRUSStore>((set) => ({
 
   setSystemStats: (s) => set({ systemStats: s }),
   setTtsSpeed:    (v) => set({ ttsSpeed: Math.min(2.0, Math.max(0.5, v)) }),
+  setAvailableModels: (models) => set({ availableModels: models }),
 
   setParticleCount:  (n) => set({ particleCount: Math.min(400, Math.max(100, n)) }),
   setBloomIntensity: (v) => set({ bloomIntensity: Math.min(2.5, Math.max(0.5, v)) }),

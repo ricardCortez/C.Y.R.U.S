@@ -13,6 +13,7 @@ export type WSEvent =
   | { event: 'debug';       data: { text: string; level?: 'info' | 'warn' | 'ok' } }
   | { event: 'wake_words';  data: { words: string[] } }
   | { event: 'enrollment';   data: { step: string; sample?: number; total?: number; heard?: string; added?: string[] } }
+  | { event: 'available_models'; data: { models: { name: string; compatible: boolean; compatibility: string }[]; current: string } }
   | { event: 'system_stats'; data: { cpu: number; ram: number; vram: number; gpu_temp: number; gpu_name: string; uptime: number; tts_backend: string } }
 
 export type WSEventHandler = (evt: WSEvent) => void
@@ -26,6 +27,7 @@ export class CYRUSWebSocketClient {
   private reconnectAttempts = 0
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private shouldReconnect = true
+  private queue: object[] = []
 
   constructor(private readonly url: string = 'ws://localhost:8765') {}
 
@@ -39,6 +41,7 @@ export class CYRUSWebSocketClient {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer)
     this.ws?.close()
     this.ws = null
+    this.queue = []
   }
 
   onMessage(handler: WSEventHandler): () => void {
@@ -55,6 +58,16 @@ export class CYRUSWebSocketClient {
   send(payload: object): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(payload))
+    } else {
+      this.queue.push(payload)
+      console.info('[C.Y.R.U.S] WS not open yet, queued command', payload)
+    }
+  }
+
+  private _flushQueue(): void {
+    while (this.queue.length && this.ws?.readyState === WebSocket.OPEN) {
+      const payload = this.queue.shift()!
+      this.ws.send(JSON.stringify(payload))
     }
   }
 
@@ -65,6 +78,7 @@ export class CYRUSWebSocketClient {
       this.ws.onopen = () => {
         console.info('[C.Y.R.U.S] WebSocket connected')
         this.reconnectAttempts = 0
+        this._flushQueue()
       }
 
       this.ws.onmessage = (ev: MessageEvent) => {

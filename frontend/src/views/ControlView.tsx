@@ -481,6 +481,7 @@ function TabConfig({ sendCommand }: { sendCommand: (cmd: string, extra?: object)
             <Label dim>MOTOR</Label>
             <select value={ttsEngine} onChange={e => commitTtsEngine(e.target.value)} style={{ ...selectStyle, width: '100%' }}>
               <option value="piper">Piper</option>
+              <option value="xtts">XTTS v2</option>
               <option value="kokoro">Kokoro</option>
               <option value="edge-tts">Edge TTS</option>
             </select>
