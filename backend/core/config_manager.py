@@ -153,6 +153,50 @@ class SystemConfig:
     log_level: str = "INFO"
 
 
+# ---------------------------------------------------------------------------
+# Services — external microservice endpoints
+# ---------------------------------------------------------------------------
+
+@dataclass
+class ServiceTTSConfig:
+    enabled: bool = False
+    host: str = "http://localhost:8020"
+    language: str = "es"
+    speaker: str = ""
+    timeout: float = 60.0
+
+
+@dataclass
+class ServiceASRConfig:
+    enabled: bool = False
+    host: str = "http://localhost:8000"
+    model: str = "large-v3"
+    language: str = "es"
+    timeout: float = 30.0
+
+
+@dataclass
+class ServiceVisionConfig:
+    enabled: bool = False
+    host: str = "http://localhost:8001"
+    timeout: float = 10.0
+
+
+@dataclass
+class ServiceEmbedderConfig:
+    enabled: bool = False
+    host: str = "http://localhost:8002"
+    timeout: float = 10.0
+
+
+@dataclass
+class ServicesConfig:
+    tts: ServiceTTSConfig = field(default_factory=ServiceTTSConfig)
+    asr: ServiceASRConfig = field(default_factory=ServiceASRConfig)
+    vision: ServiceVisionConfig = field(default_factory=ServiceVisionConfig)
+    embedder: ServiceEmbedderConfig = field(default_factory=ServiceEmbedderConfig)
+
+
 @dataclass
 class CYRUSConfig:
     """Top-level config object — use this everywhere in the app."""
@@ -166,6 +210,7 @@ class CYRUSConfig:
     conversation: ConversationConfig = field(default_factory=ConversationConfig)
     websocket: WebSocketConfig = field(default_factory=WebSocketConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
+    services: ServicesConfig = field(default_factory=ServicesConfig)
 
     # Resolved paths (set after load)
     project_root: Path = field(default_factory=Path.cwd)
@@ -301,6 +346,18 @@ def load_config(config_path: Optional[Path] = None) -> CYRUSConfig:
     # ── logging ───────────────────────────────────────────────────────────────
     if log := raw.get("logging"):
         cfg.logging = LoggingConfig(**{k: v for k, v in log.items() if hasattr(LoggingConfig, k)})
+
+    # ── services — external microservice endpoints ────────────────────────────
+    if svc := raw.get("services"):
+        def _svc(cls, key):
+            d = svc.get(key) or {}
+            return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
+        cfg.services = ServicesConfig(
+            tts=_svc(ServiceTTSConfig, "tts"),
+            asr=_svc(ServiceASRConfig, "asr"),
+            vision=_svc(ServiceVisionConfig, "vision"),
+            embedder=_svc(ServiceEmbedderConfig, "embedder"),
+        )
 
     # ── Resolve soul.md ───────────────────────────────────────────────────────
     soul_path = project_root / cfg.conversation.system_prompt_file

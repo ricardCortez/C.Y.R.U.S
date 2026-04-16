@@ -21,6 +21,7 @@ from typing import Optional
 
 from backend.modules.tts.kokoro_tts import KokoroTTS
 from backend.modules.tts.piper_tts import PiperTTS
+from backend.modules.tts.remote_tts import RemoteTTS
 from backend.modules.tts.voiceforge_tts import VoiceforgeTTS
 from backend.modules.tts.xtts_tts import XTTTS
 from backend.utils.exceptions import KokoroUnavailableError, TTSAPIError, TTSError
@@ -33,16 +34,20 @@ class TTSManager:
     """Unified TTS interface with backend fallback chain.
 
     Backend priority (first available wins):
-      1. Piper   — offline, highest quality, best Spanish naturalness
-      2. Kokoro  — offline, good quality
-      3. Edge-TTS — online, always-available fallback
+      1. Piper      — offline subprocess, highest quality, best Spanish naturalness
+      2. RemoteTTS  — external TTS server (xtts-api-server or OpenAI-compat)
+      3. XTTS v2    — offline in-process, high quality (optional, heavy)
+      4. Kokoro     — offline in-process, good quality
+      5. Edge-TTS   — online, always-available fallback
 
     Args:
-        kokoro: Pre-configured :class:`KokoroTTS` instance.
+        kokoro:    Pre-configured :class:`KokoroTTS` instance.
         voiceforge: Pre-configured :class:`VoiceforgeTTS` instance (Edge-TTS).
-        mode: ``"LOCAL"`` uses only offline backends; ``"HYBRID"`` also
-            allows the Edge-TTS API fallback.
-        piper: Optional :class:`PiperTTS` instance (preferred backend).
+        mode:      ``"LOCAL"`` uses only offline backends; ``"HYBRID"`` also
+                   allows the Edge-TTS API fallback.
+        piper:     Optional :class:`PiperTTS` instance (preferred backend).
+        xtts:      Optional :class:`XTTTS` instance (in-process XTTS v2).
+        remote:    Optional :class:`RemoteTTS` instance (external TTS server).
     """
 
     def __init__(
@@ -52,8 +57,10 @@ class TTSManager:
         mode: str = "LOCAL",
         piper: Optional[PiperTTS] = None,
         xtts: Optional[XTTTS] = None,
+        remote: Optional[RemoteTTS] = None,
     ) -> None:
         self._piper = piper
+        self._remote = remote
         self._xtts = xtts
         self._kokoro = kokoro
         self._voiceforge = voiceforge
@@ -83,16 +90,31 @@ class TTSManager:
 
         forced = getattr(self, "_forced_backend", None)
 
-        # ── 1. Piper (best quality) ────────────────────────────────────
+        # ── 1. Piper (best quality, offline subprocess) ───────────────
         if (forced == "piper" or forced is None) and self._piper and self._piper.available:
             try:
                 wav = self._piper.synthesise(text)
                 logger.info(f"[C.Y.R.U.S] TTS: Piper → {len(wav)} bytes")
                 return wav, "audio/wav"
             except TTSError as exc:
-                logger.warning(f"[C.Y.R.U.S] TTS: Piper failed ({exc}); trying Kokoro…")
+                logger.warning(f"[C.Y.R.U.S] TTS: Piper failed ({exc}); trying RemoteTTS…")
 
-        # ── 2. XTTS v2 (high-quality offline, optional) ───────────────
+        if forced == "piper":
+            raise TTSError("[C.Y.R.U.S] TTS: Piper forced but unavailable")
+
+        # ── 2. RemoteTTS (external server — xtts-api-server etc.) ─────
+        if (forced == "remote-tts" or forced is None) and self._remote and self._remote.available:
+            try:
+                wav = await self._remote.synthesise(text)
+                logger.info(f"[C.Y.R.U.S] TTS: RemoteTTS → {len(wav)} bytes")
+                return wav, "audio/wav"
+            except TTSError as exc:
+                logger.warning(f"[C.Y.R.U.S] TTS: RemoteTTS failed ({exc}); trying XTTS…")
+
+        if forced == "remote-tts":
+            raise TTSError("[C.Y.R.U.S] TTS: RemoteTTS forced but unavailable")
+
+        # ── 3. XTTS v2 (high-quality offline, optional) ───────────────
         if (forced == "xtts" or forced is None) and self._xtts and self._xtts.available:
             try:
                 wav = self._xtts.synthesise(text)
@@ -101,8 +123,6 @@ class TTSManager:
             except TTSError as exc:
                 logger.warning(f"[C.Y.R.U.S] TTS: XTTS failed ({exc}); trying Kokoro…")
 
-        if forced == "piper":
-            raise TTSError("[C.Y.R.U.S] TTS: Piper forced but unavailable")
         if forced == "xtts":
             raise TTSError("[C.Y.R.U.S] TTS: XTTS forced but unavailable")
 
@@ -183,10 +203,11 @@ class TTSManager:
             return forced
         if self._piper and self._piper.available:
             return "piper"
+        if self._remote and self._remote.available:
+            return "remote-tts"
         if self._xtts and self._xtts.available:
             return "xtts-v2"
         try:
-            # Kokoro is loaded if its pipeline is not None
             if self._kokoro._pipeline is not None:
                 return "kokoro"
         except AttributeError:

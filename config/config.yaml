@@ -116,3 +116,24 @@ logging:
   log_dir: logs
   max_bytes: 10485760
   backup_count: 5
+services:
+  tts:
+    enabled: false
+    host: http://localhost:8020   # xtts-api-server: pip install xtts-api-server
+    language: es
+    speaker: ""                   # speaker name or path to reference .wav for cloning
+    timeout: 60
+  asr:
+    enabled: false
+    host: http://localhost:8000   # faster-whisper-server (OpenAI-compat)
+    model: large-v3
+    language: es
+    timeout: 30
+  vision:
+    enabled: false
+    host: http://localhost:8001
+    timeout: 10
+  embedder:
+    enabled: false
+    host: http://localhost:8002
+    timeout: 10

@@ -53,6 +53,7 @@ from backend.modules.vision.face_detector import FaceDetector
 from backend.modules.vision.frigate_client import FrigateClient
 from backend.modules.vision.vision_manager import VisionManager
 from backend.modules.vision.yolo_detector import YOLODetector
+from backend.modules.tts.remote_tts import RemoteTTS
 from backend.modules.tts.tts_manager import TTSManager
 from backend.modules.tts.voiceforge_tts import VoiceforgeTTS
 from backend.modules.tts.xtts_tts import XTTTS
@@ -166,12 +167,22 @@ class CYRUSEngine:
             speaker=getattr(xtts_cfg, "speaker", "Tammie Ema") if xtts_cfg else "Tammie Ema",
             speed=tts_local_cfg.speed,
         )
+        # RemoteTTS — external TTS server (xtts-api-server or OpenAI-compat)
+        svc_tts = self._cfg.services.tts
+        self._remote_tts = RemoteTTS(
+            host=svc_tts.host,
+            language=svc_tts.language,
+            speaker=svc_tts.speaker,
+            timeout=svc_tts.timeout,
+        ) if svc_tts.enabled else None
+
         self._tts = TTSManager(
             kokoro=self._kokoro,
             voiceforge=self._voiceforge,
             mode=self._cfg.system.mode,
             piper=self._piper,
             xtts=self._xtts,
+            remote=self._remote_tts,
         )
 
         # ── Vision ─────────────────────────────────────────────────────
@@ -289,6 +300,15 @@ class CYRUSEngine:
             await loop.run_in_executor(None, self._kokoro.load)
         except Exception as exc:
             logger.warning(f"[C.Y.R.U.S] Kokoro unavailable ({exc}); will use Edge-TTS fallback")
+
+        # RemoteTTS — probe the external server if enabled
+        if self._remote_tts is not None:
+            logger.info(f"[C.Y.R.U.S] Probing RemoteTTS server at {self._cfg.services.tts.host}…")
+            ok = await self._remote_tts.check_health()
+            if ok:
+                logger.info("[C.Y.R.U.S] RemoteTTS server ready — active backend: remote-tts")
+            else:
+                logger.warning("[C.Y.R.U.S] RemoteTTS server not reachable — will fall through to next backend")
 
         # XTTS v2 — only load if explicitly enabled in config
         xtts_cfg = getattr(self._cfg.local.tts, "xtts", None)
@@ -702,7 +722,7 @@ class CYRUSEngine:
 
         elif cmd == "set_tts_engine":
             engine = str(payload.get("engine", "")).strip().lower()
-            valid = {"piper", "xtts", "kokoro", "edge-tts"}
+            valid = {"piper", "remote-tts", "xtts", "kokoro", "edge-tts"}
             if engine in valid:
                 self._tts.set_forced_backend(engine)
                 await self._bus.emit("debug", {"text": f"Motor TTS fijado a: {engine}", "level": "ok"})
