@@ -55,6 +55,7 @@ from backend.modules.vision.vision_manager import VisionManager
 from backend.modules.vision.yolo_detector import YOLODetector
 from backend.modules.tts.tts_manager import TTSManager
 from backend.modules.tts.voiceforge_tts import VoiceforgeTTS
+from backend.modules.tts.xtts_tts import XTTTS
 from backend.modules.memory.embedder import Embedder
 from backend.modules.memory.qdrant_store import QdrantStore
 from backend.modules.memory.conversation_db import ConversationDB
@@ -158,11 +159,19 @@ class CYRUSEngine:
             speed=tts_local_cfg.speed,
             speaker_id=getattr(tts_local_cfg, "piper_speaker", None),
         )
+        # XTTS v2 — optional high-quality offline TTS; loaded only if enabled in config
+        xtts_cfg = getattr(tts_local_cfg, "xtts", None)
+        self._xtts = XTTTS(
+            language=getattr(xtts_cfg, "language", "es") if xtts_cfg else "es",
+            speaker=getattr(xtts_cfg, "speaker", "Tammie Ema") if xtts_cfg else "Tammie Ema",
+            speed=tts_local_cfg.speed,
+        )
         self._tts = TTSManager(
             kokoro=self._kokoro,
             voiceforge=self._voiceforge,
             mode=self._cfg.system.mode,
             piper=self._piper,
+            xtts=self._xtts,
         )
 
         # ── Vision ─────────────────────────────────────────────────────
@@ -280,6 +289,16 @@ class CYRUSEngine:
             await loop.run_in_executor(None, self._kokoro.load)
         except Exception as exc:
             logger.warning(f"[C.Y.R.U.S] Kokoro unavailable ({exc}); will use Edge-TTS fallback")
+
+        # XTTS v2 — only load if explicitly enabled in config
+        xtts_cfg = getattr(self._cfg.local.tts, "xtts", None)
+        if xtts_cfg and getattr(xtts_cfg, "enabled", False):
+            logger.info("[C.Y.R.U.S] Loading XTTS v2 model…")
+            try:
+                await loop.run_in_executor(None, self._xtts.load)
+                logger.info("[C.Y.R.U.S] XTTS v2 ready")
+            except Exception as exc:
+                logger.warning(f"[C.Y.R.U.S] XTTS v2 unavailable ({exc})")
 
         logger.info("[C.Y.R.U.S] Checking Ollama availability…")
         if not await self._ollama.is_available():
@@ -683,7 +702,7 @@ class CYRUSEngine:
 
         elif cmd == "set_tts_engine":
             engine = str(payload.get("engine", "")).strip().lower()
-            valid = {"piper", "kokoro", "edge-tts"}
+            valid = {"piper", "xtts", "kokoro", "edge-tts"}
             if engine in valid:
                 self._tts.set_forced_backend(engine)
                 await self._bus.emit("debug", {"text": f"Motor TTS fijado a: {engine}", "level": "ok"})

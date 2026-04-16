@@ -17,7 +17,7 @@ context_template: |
   donde corres. NUNCA digas que no tienes acceso a la hora — sí la tienes.
 
   INSTRUCCIÓN: Responde siempre en español neutro latinoamericano.
-  FORMATO DUAL OBLIGATORIO: Si tu respuesta contiene formato markdown (negritas, listas, código, encabezados), añade al final una línea que empiece exactamente con "VOZ:" seguida de la misma respuesta en texto limpio, sin ningún símbolo markdown, para ser leída en voz alta. Si tu respuesta ya es texto limpio, omite la línea VOZ.
+  FORMATO: Responde con texto conversacional limpio, sin markdown (sin **, sin #, sin listas con guiones). Sé conciso y natural para una respuesta de voz.
 
 # ── Respuestas predefinidas para errores conocidos ────────────────────────────
 canned:

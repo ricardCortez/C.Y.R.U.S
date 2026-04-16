@@ -145,26 +145,36 @@ class LLMManager:
     def _split_response(raw: str) -> tuple[str, str]:
         """Parse LLM output into (display_text, speech_text).
 
-        If the model included a ``VOZ:`` line, everything before it is the
-        display text (markdown-safe) and everything after ``VOZ:`` is used
-        verbatim as speech text.  If no ``VOZ:`` marker is found, the full
-        response is used as display text and :func:`clean_for_tts` is applied
-        to produce the speech version.
+        VOZ: markers are legacy — the prompt no longer requests them, but phi3
+        sometimes generates them anyway.  Strip any VOZ: suffix so it never
+        appears in the display text.
+
+        If the marker is found, display = text before it; speech = text after it.
+        If not found, both display and speech come from the cleaned raw text.
         """
         import re
         from backend.utils.text_cleaner import prepare_speech
 
-        # Look for "VOZ:" at the start of any line (case-insensitive)
-        match = re.search(r'(?im)^VOZ:\s*(.+?)$', raw)
+        # Match "VOZ:" (optional bold markers, optional space before colon)
+        # anywhere in the text — search from the right to catch trailing suffixes
+        voz_pattern = re.compile(
+            r'\*{0,2}VOZ\*{0,2}\s*:',
+            re.IGNORECASE,
+        )
+        match = None
+        for m in voz_pattern.finditer(raw):
+            match = m   # keep the last match
+
         if match:
-            # Display = everything before the VOZ line (strip trailing blank lines)
-            display = raw[: match.start()].rstrip()
-            # Speech = the VOZ line content — run through full prepare_speech pipeline
-            speech = prepare_speech(match.group(1).strip())
-            logger.debug(f"[C.Y.R.U.S] LLM: VOZ marker found — display {len(display)}ch, speech {len(speech)}ch")
+            display = raw[:match.start()].rstrip()
+            speech_raw = raw[match.end():].lstrip()
+            speech = prepare_speech(speech_raw) if speech_raw else prepare_speech(display)
+            if not display:
+                display = speech_raw or raw
+            logger.debug(f"[C.Y.R.U.S] LLM: VOZ marker stripped — display {len(display)}ch, speech {len(speech)}ch")
             return display, speech
 
-        # No explicit VOZ marker — apply full speech preparation pipeline
+        # No VOZ marker — use raw as display, clean version for speech
         speech = prepare_speech(raw)
         return raw, speech
 

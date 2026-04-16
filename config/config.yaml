@@ -11,13 +11,17 @@ local:
     timeout: 120
     stream: true
   tts:
-    provider: piper         # kokoro | piper
-    voice: ef_dora          # kokoro voice ID (unused when provider=piper)
-    speed: 0.92             # speaking rate (0.5–2.0) — 0.92 is natural for CYRUS
+    provider: piper
+    voice: ef_dora
+    speed: 0.92
     sample_rate: 24000
-    lang_code: e            # kokoro language code (e=espanol)
+    lang_code: e
     piper_model: models/tts/piper/es_MX-ald-medium.onnx
     piper_speaker: null
+    xtts:
+      enabled: false          # set to true to enable XTTS v2 (downloads ~1.8 GB on first run)
+      language: es
+      speaker: Tammie Ema     # built-in speaker OR path to a reference .wav for voice cloning
   translation:
     provider: ctranslate2
     model: mt5-small
@@ -54,12 +58,6 @@ trigger:
   - hola cyrus
   - oye cyrus
   - hey cyrus
-  - cyrus
-  - ¡las eros!
-  - hola, sirus.
-  - hola, sirius.
-  - hola círus
-  - ¡hey, sedios!
   fuzzy_matching: true
   threshold: 78
 asr:

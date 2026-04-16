@@ -166,4 +166,10 @@ def prepare_speech(text: str) -> str:
     Returns:
         Clean, natural text ready for TTS synthesis.
     """
-    return normalize_for_speech(clean_for_tts(text))
+    # As a final safety measure, strip any leading "VOZ:" markers that
+    # could have slipped through the LLM output to avoid double-reading.
+    cleaned = clean_for_tts(text)
+    # Remove any standalone or inline "VOZ:" markers (case-insensitive)
+    cleaned = re.sub(r'(?im)^\s*voz:\s*', '', cleaned)
+    cleaned = re.sub(r'(?i)\bvoz:\s*', '', cleaned)
+    return normalize_for_speech(cleaned)

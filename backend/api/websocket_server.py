@@ -21,7 +21,7 @@ from backend.utils.logger import get_logger
 logger = get_logger("cyrus.api.websocket")
 
 # Event names that the server forwards to frontend clients
-_BROADCAST_EVENTS = {"transcript", "response", "status", "error", "metrics", "debug", "wake_words", "enrollment", "system_stats"}
+_BROADCAST_EVENTS = {"transcript", "response", "status", "error", "metrics", "debug", "wake_words", "enrollment", "system_stats", "available_models"}
 
 
 class WebSocketServer:
@@ -74,7 +74,7 @@ class WebSocketServer:
     # Client handler
     # ------------------------------------------------------------------
 
-    async def _handle_client(self, ws: ServerConnection) -> None:
+    async def _handle_client(self, ws: ServerConnection, *args) -> None:
         """Called for each new frontend connection."""
         self._clients.add(ws)
         addr = ws.remote_address

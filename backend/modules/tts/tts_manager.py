@@ -22,6 +22,7 @@ from typing import Optional
 from backend.modules.tts.kokoro_tts import KokoroTTS
 from backend.modules.tts.piper_tts import PiperTTS
 from backend.modules.tts.voiceforge_tts import VoiceforgeTTS
+from backend.modules.tts.xtts_tts import XTTTS
 from backend.utils.exceptions import KokoroUnavailableError, TTSAPIError, TTSError
 from backend.utils.logger import get_logger
 
@@ -50,8 +51,10 @@ class TTSManager:
         voiceforge: VoiceforgeTTS,
         mode: str = "LOCAL",
         piper: Optional[PiperTTS] = None,
+        xtts: Optional[XTTTS] = None,
     ) -> None:
         self._piper = piper
+        self._xtts = xtts
         self._kokoro = kokoro
         self._voiceforge = voiceforge
         self._mode = mode.upper()
@@ -89,9 +92,21 @@ class TTSManager:
             except TTSError as exc:
                 logger.warning(f"[C.Y.R.U.S] TTS: Piper failed ({exc}); trying Kokoro…")
 
-        # ── 2. Kokoro (offline fallback) ───────────────────────────────
+        # ── 2. XTTS v2 (high-quality offline, optional) ───────────────
+        if (forced == "xtts" or forced is None) and self._xtts and self._xtts.available:
+            try:
+                wav = self._xtts.synthesise(text)
+                logger.info(f"[C.Y.R.U.S] TTS: XTTS v2 → {len(wav)} bytes")
+                return wav, "audio/wav"
+            except TTSError as exc:
+                logger.warning(f"[C.Y.R.U.S] TTS: XTTS failed ({exc}); trying Kokoro…")
+
         if forced == "piper":
             raise TTSError("[C.Y.R.U.S] TTS: Piper forced but unavailable")
+        if forced == "xtts":
+            raise TTSError("[C.Y.R.U.S] TTS: XTTS forced but unavailable")
+
+        # ── 3. Kokoro (offline fallback) ───────────────────────────────
         try:
             wav = self._kokoro.synthesise(text)
             logger.info(f"[C.Y.R.U.S] TTS: Kokoro → {len(wav)} bytes")
@@ -168,6 +183,8 @@ class TTSManager:
             return forced
         if self._piper and self._piper.available:
             return "piper"
+        if self._xtts and self._xtts.available:
+            return "xtts-v2"
         try:
             # Kokoro is loaded if its pipeline is not None
             if self._kokoro._pipeline is not None:

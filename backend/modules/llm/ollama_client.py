@@ -57,6 +57,25 @@ class OllamaClient:
         except Exception:
             return False
 
+    async def list_models(self) -> list[dict]:
+        """Return the list of installed Ollama models.
+
+        Returns:
+            A list of model metadata dictionaries.
+        """
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                resp = await client.get(f"{self._host}/api/tags")
+                resp.raise_for_status()
+                data = resp.json()
+                if isinstance(data, list):
+                    return [item for item in data if isinstance(item, dict)]
+                if isinstance(data, dict) and "models" in data and isinstance(data["models"], list):
+                    return [item for item in data["models"] if isinstance(item, dict)]
+                return []
+        except Exception as exc:
+            raise OllamaUnavailableError(f"[C.Y.R.U.S] Could not list Ollama models: {exc}") from exc
+
     # ------------------------------------------------------------------
     # Chat
     # ------------------------------------------------------------------
