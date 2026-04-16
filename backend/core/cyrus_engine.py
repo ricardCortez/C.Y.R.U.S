@@ -40,6 +40,7 @@ from backend.core.event_bus import EventBus
 from backend.core.state_manager import StateManager, SystemStatus
 from backend.modules.audio.audio_input import AudioInput
 from backend.modules.audio.audio_output import AudioOutput
+from backend.modules.audio.speaker_profile import SpeakerProfile
 from backend.modules.audio.whisper_asr import WhisperASR
 from backend.modules.llm.claude_client import ClaudeClient
 from backend.modules.llm.llm_manager import LLMManager
@@ -300,6 +301,17 @@ class CYRUSEngine:
             self._conv_db.init()
             logger.info(f"[C.Y.R.U.S] Memory session: {self._memory.session_id}")
 
+        # ── Voice profile (speaker verification for barge-in) ─────────────
+        profile_path = self._cfg.project_root / "config" / "voice_profile.npy"
+        if profile_path.exists():
+            try:
+                profile = SpeakerProfile.load(profile_path, sample_rate=self._cfg.audio.input.sample_rate)
+                self._audio_in.set_voice_profile(profile)
+            except Exception as exc:
+                logger.warning(f"[C.Y.R.U.S] Could not load voice profile: {exc}")
+        else:
+            logger.info("[C.Y.R.U.S] No voice profile found — barge-in accepts any voice (run enrollment to set up)")
+
         logger.info("[C.Y.R.U.S] All models initialised")
 
     # ------------------------------------------------------------------
@@ -407,7 +419,7 @@ class CYRUSEngine:
             logger.error(f"[C.Y.R.U.S] Failed to save wake words: {exc}")
 
     async def _run_enrollment(self, samples: int = 5) -> None:
-        """Record N samples, transcribe each, and register all heard variants as wake words."""
+        """Record N samples, transcribe each, register wake-word variants, and build voice profile."""
         self._enrollment_active = True
         # Interrupt any currently-blocked recording
         self._audio_in.request_stop()
@@ -415,6 +427,7 @@ class CYRUSEngine:
 
         collected: list[str] = []
         added: list[str] = []
+        pcm_samples: list[bytes] = []  # raw audio kept for voice profile
 
         intro = (
             f"Modo de enrollamiento activado. "
@@ -459,6 +472,8 @@ class CYRUSEngine:
                 await self._bus.emit("enrollment", {"step": "result", "sample": i, "heard": "(silencio)"})
                 continue
 
+            pcm_samples.append(pcm)  # keep for voice profile
+
             # Transcribe with no initial_prompt so we capture raw perception
             orig_prompt = self._asr._initial_prompt
             self._asr._initial_prompt = None
@@ -484,9 +499,26 @@ class CYRUSEngine:
             await self._save_wake_words()
             await self._bus.emit("wake_words", {"words": self._trigger.wake_words})
 
+        # Build and save voice profile from enrollment audio
+        if pcm_samples:
+            try:
+                loop = asyncio.get_event_loop()
+                sample_rate = self._cfg.audio.input.sample_rate
+                profile = await loop.run_in_executor(
+                    None,
+                    lambda: SpeakerProfile.from_pcm_samples(pcm_samples, sample_rate=sample_rate),
+                )
+                profile_path = self._cfg.project_root / "config" / "voice_profile.npy"
+                profile.save(profile_path)
+                self._audio_in.set_voice_profile(profile)
+                logger.info("[C.Y.R.U.S] Voice profile built and activated for barge-in")
+                await self._bus.emit("debug", {"text": "✓ Perfil de voz guardado — barge-in personalizado activo", "level": "ok"})
+            except Exception as exc:
+                logger.warning(f"[C.Y.R.U.S] Voice profile build failed: {exc}")
+
         # Summary
         if added:
-            summary = f"Enrollamiento completado. Registré {len(added)} variante{'s' if len(added) != 1 else ''}: {', '.join(added)}."
+            summary = f"Enrollamiento completado. Registré {len(added)} variante{'s' if len(added) != 1 else ''}: {', '.join(added)}. Tu voz quedó registrada para el sistema de interrupción."
         else:
             summary = "No detecté audio claro. Intenta de nuevo en un ambiente más silencioso."
 

@@ -47,7 +47,7 @@ const Section = ({ children, delay = 0 }: { children: React.ReactNode; delay?: n
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.5, delay, ease: 'easeOut' }}
     className="rounded-lg p-4 mb-3"
-    style={{ background: 'rgba(0,20,40,0.6)', border: '1px solid #0a2030' }}
+    style={{ background: 'rgba(0,20,40,0.6)', border: '1px solid #0a2030', overflow: 'hidden', position: 'relative' }}
   >
     {children}
   </motion.div>
@@ -228,8 +228,7 @@ function SystemLog() {
   return (
     <Section delay={0.3}>
       <SectionTitle label="SYSTEM LOG" action={clearBtn} />
-      <div className="overflow-y-auto rounded"
-        style={{ height: 180, background: 'rgba(0,10,20,0.6)', border: '1px solid #05151f', padding: '8px 10px' }}>
+      <div style={{ height: 180, overflowY: 'auto', overflowX: 'hidden', background: 'rgba(0,10,20,0.6)', border: '1px solid #05151f', padding: '8px 10px', borderRadius: 4 }}>
         <AnimatePresence initial={false}>
           {logs.length === 0 ? (
             <p className="font-mono" style={{ fontSize: 9, color: '#0a2030', letterSpacing: '0.1em' }}>

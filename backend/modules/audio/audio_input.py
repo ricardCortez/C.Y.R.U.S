@@ -23,6 +23,9 @@ from backend.modules.audio.vad_detector import VADDetector
 from backend.utils.exceptions import AudioInputError
 from backend.utils.logger import get_logger
 
+# Imported lazily to avoid circular imports at module level
+_SpeakerProfile = None  # type: ignore[assignment]
+
 logger = get_logger("cyrus.audio.input")
 
 # PyAudio format map
@@ -63,6 +66,7 @@ class AudioInput:
         self._vad = VADDetector(sample_rate=sample_rate)
         self._stop_flag = threading.Event()    # set to interrupt a live recording
         self._muted_until: float = 0.0         # monotonic timestamp — ignore input before this
+        self._voice_profile = None             # SpeakerProfile | None — set via set_voice_profile()
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -154,7 +158,15 @@ class AudioInput:
             return False
 
     def _detect_onset_sync(self) -> bool:
-        """Synchronous speech-onset detector (runs in thread-pool executor)."""
+        """Synchronous speech-onset detector (runs in thread-pool executor).
+
+        Uses stricter thresholds than the main recording loop so that ambient
+        sounds, TV audio, and background noise do not trigger barge-in.
+
+        Requires CONSECUTIVE_REQUIRED chunks in a row to pass both the VAD
+        and RMS gate before declaring onset.  If a SpeakerProfile is attached,
+        the accumulated audio is also verified against the enrolled voice.
+        """
         if self._pa is None:
             return False
         try:
@@ -170,7 +182,15 @@ class AudioInput:
             logger.warning(f"[C.Y.R.U.S] AudioInput: barge-in stream failed: {exc}")
             return False
 
-        vad = VADDetector(sample_rate=self._sample_rate)
+        # Aggressiveness=3 (most selective) + higher speech_ratio → far fewer noise false-positives
+        vad = VADDetector(sample_rate=self._sample_rate, aggressiveness=3, speech_ratio=0.85)
+        # Barge-in RMS bar is 2× the main recording threshold
+        barge_rms = self._silence_threshold * 2.0
+        # Require N consecutive speech-positive chunks before declaring onset
+        CONSECUTIVE_REQUIRED = 4
+        consecutive = 0
+        collected: list[bytes] = []
+
         try:
             while True:
                 if self._stop_flag.is_set():
@@ -178,10 +198,34 @@ class AudioInput:
                 data = stream.read(self._chunk_size, exception_on_overflow=False)
                 # Ignore during mute window (echo guard)
                 if time.monotonic() < self._muted_until:
+                    consecutive = 0
+                    collected.clear()
                     continue
-                if vad.feed(data) and self._rms(data) > self._silence_threshold:
-                    logger.debug("[C.Y.R.U.S] AudioInput: barge-in speech onset detected")
-                    return True
+
+                is_speech = vad.feed(data)
+                rms = self._rms(data)
+
+                if is_speech and rms > barge_rms:
+                    consecutive += 1
+                    collected.append(data)
+                    if consecutive >= CONSECUTIVE_REQUIRED:
+                        # Optional speaker verification
+                        if self._voice_profile is not None:
+                            pcm_sample = b"".join(collected)
+                            if not self._voice_profile.is_match(pcm_sample):
+                                logger.debug("[C.Y.R.U.S] AudioInput: barge-in voice mismatch — ignoring")
+                                consecutive = 0
+                                collected.clear()
+                                vad.reset()
+                                continue
+                        logger.debug("[C.Y.R.U.S] AudioInput: barge-in speech onset confirmed")
+                        return True
+                else:
+                    # Gradual decay so a brief gap doesn't reset the whole counter
+                    if consecutive > 0:
+                        consecutive -= 1
+                    if consecutive == 0:
+                        collected.clear()
         finally:
             stream.stop_stream()
             stream.close()
@@ -190,6 +234,11 @@ class AudioInput:
         """Suppress voice detection for *seconds* — prevents mic from picking up TTS output."""
         self._muted_until = time.monotonic() + seconds
         logger.debug(f"[C.Y.R.U.S] AudioInput: muted for {seconds:.1f}s (echo prevention)")
+
+    def set_voice_profile(self, profile: object) -> None:
+        """Attach an enrolled SpeakerProfile to gate barge-in on the user's voice only."""
+        self._voice_profile = profile
+        logger.info("[C.Y.R.U.S] AudioInput: voice profile attached")
 
     async def record_utterance(self) -> bytes:
         """Block until a full voice utterance is captured.
