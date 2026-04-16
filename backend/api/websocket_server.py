@@ -101,10 +101,18 @@ class WebSocketServer:
         finally:
             self._clients.discard(ws)
             logger.info(f"[C.Y.R.U.S] WebSocket: client disconnected ({len(self._clients)} remaining)")
+            # Notify engine when the last client drops so it can pause the mic
+            if not self._clients:
+                await self._bus.emit("all_clients_disconnected", {})
 
     # ------------------------------------------------------------------
     # Broadcasting
     # ------------------------------------------------------------------
+
+    @property
+    def has_clients(self) -> bool:
+        """Return True when at least one frontend client is connected."""
+        return bool(self._clients)
 
     async def broadcast(self, event: str, payload: dict) -> None:
         """Send *payload* to all connected clients.

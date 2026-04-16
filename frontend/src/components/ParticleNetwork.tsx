@@ -298,6 +298,52 @@ export function ParticleNetwork({ analyser }: Props) {
     })
     const synPoints = new THREE.Points(synGeo, synMat)
 
+    // ── Orbital scan rings (JARVIS-style halo) ─────────────────────────
+    // Three thin rings just outside the neural sphere, each at a different tilt
+    // and rotation speed. Opacity reacts to system state.
+    const RING_DEFS = [
+      { r: 114, tiltX: Math.PI / 2,        tiltZ: 0,              dZ:  0.00090 },
+      { r: 119, tiltX: Math.PI / 2.8,      tiltZ: Math.PI / 5,    dZ: -0.00065 },
+      { r: 124, tiltX: Math.PI / 1.6,      tiltZ: Math.PI / 3.2,  dZ:  0.00045 },
+    ]
+
+    const RING_SEGS = 160
+    const ringLoops: THREE.LineLoop[] = []
+    const ringMats:  THREE.LineBasicMaterial[] = []
+
+    for (const def of RING_DEFS) {
+      const pts = new Float32Array((RING_SEGS + 1) * 3)
+      for (let i = 0; i <= RING_SEGS; i++) {
+        const a = (i / RING_SEGS) * Math.PI * 2
+        pts[i * 3]     = Math.cos(a) * def.r
+        pts[i * 3 + 1] = Math.sin(a) * def.r
+        pts[i * 3 + 2] = 0
+      }
+      const geo = new THREE.BufferGeometry()
+      geo.setAttribute('position', new THREE.BufferAttribute(pts, 3))
+
+      const mat = new THREE.LineBasicMaterial({
+        color:       new THREE.Color(0.00, 0.82, 1.00),
+        transparent: true,
+        opacity:     0.0,
+        blending:    THREE.AdditiveBlending,
+        depthWrite:  false,
+      })
+
+      const loop = new THREE.LineLoop(geo, mat)
+      loop.rotation.x = def.tiltX
+      loop.rotation.z = def.tiltZ
+      ringMats.push(mat)
+      ringLoops.push(loop)
+    }
+
+    // Rings live outside the main group so they don't co-rotate with the sphere
+    const ringGroup = new THREE.Group()
+    ringLoops.forEach(l => ringGroup.add(l))
+    scene.add(ringGroup)
+
+    let lRingOpacity = 0.0
+
     // ── Scene group ────────────────────────────────────────────────────
     const group = new THREE.Group()
     group.add(points)
@@ -569,6 +615,26 @@ export function ParticleNetwork({ analyser }: Props) {
       synMat.uniforms.uColor.value.copy(col)
       synMat.uniforms.uWarm.value  = warm
 
+      // ── Orbital rings ─────────────────────────────────────────────
+      const ringTarget =
+        state === 'thinking'     ? 0.28 :
+        state === 'speaking'     ? 0.20 :
+        state === 'listening'    ? 0.18 :
+        state === 'transcribing' ? 0.14 :
+        state === 'idle'         ? 0.08 :
+        state === 'connected'    ? 0.05 :
+        0.0
+      lRingOpacity = lerp(lRingOpacity, ringTarget, 0.04)
+
+      for (let ri = 0; ri < ringLoops.length; ri++) {
+        ringLoops[ri].rotation.z += RING_DEFS[ri].dZ * speedRef.current
+        ringMats[ri].opacity = lRingOpacity
+        ringMats[ri].color.copy(lColor)
+      }
+      // Ring group follows the sphere's Y-axis rotation at a slower rate
+      ringGroup.rotation.y = rotY * 0.25
+      ringGroup.rotation.x = group.rotation.x * 0.4
+
       renderer.render(scene, camera)
     }
 
@@ -583,6 +649,8 @@ export function ParticleNetwork({ analyser }: Props) {
       ptGeo.dispose();   ptMat.dispose()
       lineGeo.dispose(); lineMat.dispose()
       synGeo.dispose();  synMat.dispose()
+      ringLoops.forEach(l => l.geometry.dispose())
+      ringMats.forEach(m => m.dispose())
       if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

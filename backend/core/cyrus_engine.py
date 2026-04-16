@@ -514,6 +514,12 @@ class CYRUSEngine:
             return
         asyncio.create_task(self._greet())
 
+    async def _on_all_clients_disconnected(self, _payload: dict) -> None:
+        """Called when the last frontend client drops — interrupts any live recording."""
+        logger.info("[C.Y.R.U.S] All clients disconnected — pausing mic")
+        self._audio_in.request_stop()
+        await self._bus.emit("status", {"state": "idle", "message": "Esperando conexión…"})
+
     async def _on_frontend_command(self, payload: dict) -> None:
         """Handle commands sent from the frontend UI."""
         cmd = payload.get("cmd")
@@ -561,6 +567,8 @@ class CYRUSEngine:
 
         # Subscribe to client-connected events so we greet on every new session
         self._bus.subscribe("client_connected", self._on_client_connected)
+        # Pause mic when all clients disconnect
+        self._bus.subscribe("all_clients_disconnected", self._on_all_clients_disconnected)
         # Handle commands sent by the frontend
         self._bus.subscribe("frontend_command", self._on_frontend_command)
 
@@ -590,6 +598,11 @@ class CYRUSEngine:
         # Yield to enrollment if active
         if self._enrollment_active:
             await asyncio.sleep(0.1)
+            return
+
+        # ── Client gate: mic is silent until at least one UI client is connected ──
+        if not self._ws.has_clients:
+            await asyncio.sleep(0.5)
             return
 
         # 1. Capture audio ───────────────────────────────────────────────

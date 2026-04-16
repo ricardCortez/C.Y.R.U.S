@@ -634,6 +634,15 @@ export function ControlView() {
   const navigate = useNavigate()
   const { sendCommand } = useWebSocket()
 
+  // ESC or Backspace navigates back to AgentView
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.preventDefault(); navigate('/') }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [navigate])
+
   return (
     <motion.div
       initial={{ opacity: 0, filter: 'blur(8px)' }}
@@ -647,10 +656,13 @@ export function ControlView() {
         {/* Header */}
         <div className="flex items-center justify-between py-5 mb-1 sticky top-0"
           style={{ background: '#05070d', zIndex: 10, borderBottom: '1px solid #0a1e2a' }}>
-          <button onClick={() => navigate('/')} className="font-mono flex items-center gap-2 cursor-pointer"
-            style={{ fontSize: 10, color: '#00f0ff55', background: 'none', border: 'none', letterSpacing: '0.2em' }}>
-            BACK
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate('/')} className="font-mono cursor-pointer"
+              style={{ fontSize: 10, color: '#00f0ff55', background: 'none', border: 'none', letterSpacing: '0.2em' }}>
+              ← BACK
+            </button>
+            <span className="font-mono" style={{ fontSize: 7, color: '#00f0ff1a', letterSpacing: '0.15em' }}>ESC</span>
+          </div>
           <div className="flex items-center gap-2">
             <span className="font-mono font-bold"
               style={{ fontSize: 14, letterSpacing: '0.4em', color: '#00f0ff', textShadow: '0 0 16px #00f0ff44' }}>
@@ -666,9 +678,9 @@ export function ControlView() {
           <AIStateBadge />
           <SystemStats />
           <SystemLog />
-          <VoiceCalibration sendCommand={sendCommand} />
-          <ConversationHistory />
           <Configuration sendCommand={sendCommand} />
+          <ConversationHistory />
+          <VoiceCalibration sendCommand={sendCommand} />
         </div>
 
         {/* Footer */}
