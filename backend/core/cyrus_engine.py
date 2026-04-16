@@ -123,6 +123,7 @@ class CYRUSEngine:
             timeout=llm_local_cfg.timeout,
             stream=llm_local_cfg.stream,
         )
+        self._local_ai_detector = 'ollama'
         self._claude = ClaudeClient(
             api_key=llm_api_cfg.api_key,
             model=llm_api_cfg.model,
@@ -418,6 +419,23 @@ class CYRUSEngine:
         except Exception as exc:
             logger.error(f"[C.Y.R.U.S] Failed to save wake words: {exc}")
 
+    async def _save_llm_model(self) -> None:
+        """Persist the currently selected local LLM model to config.yaml."""
+        import yaml as _yaml
+        config_path = self._cfg.project_root / "config" / "config.yaml"
+        try:
+            raw = _yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+            local_section = raw.setdefault("local", {})
+            llm_section = local_section.setdefault("llm", {})
+            llm_section["model"] = self._ollama._model
+            config_path.write_text(
+                _yaml.dump(raw, allow_unicode=True, default_flow_style=False, sort_keys=False),
+                encoding="utf-8",
+            )
+            logger.info(f"[C.Y.R.U.S] Local LLM model saved to config: {self._ollama._model}")
+        except Exception as exc:
+            logger.error(f"[C.Y.R.U.S] Failed to save local LLM model: {exc}")
+
     async def _run_enrollment(self, samples: int = 5) -> None:
         """Record N samples, transcribe each, register wake-word variants, and build voice profile."""
         self._enrollment_active = True
@@ -610,12 +628,113 @@ class CYRUSEngine:
             if text and not self._enrollment_active:
                 asyncio.create_task(self._speak_text(text))
 
+        elif cmd == "set_local_ai_detector":
+            detector = str(payload.get("detector", "ollama")).strip().lower()
+            if detector == "ollama":
+                self._local_ai_detector = "ollama"
+                logger.info("[C.Y.R.U.S] Local AI detector set to Ollama")
+                await self._bus.emit("debug", {"text": "Detector local: Ollama", "level": "ok"})
+            else:
+                logger.warning(f"[C.Y.R.U.S] Unsupported local AI detector: {detector}")
+                await self._bus.emit("debug", {"text": f"Detector local no soportado: {detector}", "level": "warn"})
+
+        elif cmd == "probe_local_ai_detector":
+            detector = str(payload.get("detector", "ollama")).strip().lower()
+            await self._bus.emit("debug", {"text": "Comprobando detector local...", "level": "info"})
+            if detector == "ollama":
+                try:
+                    available = await self._ollama.is_available()
+                    if available:
+                        self._local_ai_detector = "ollama"
+                        await self._bus.emit("debug", {"text": "Ollama local disponible.", "level": "ok"})
+                    else:
+                        await self._bus.emit("debug", {"text": "Ollama local no disponible.", "level": "warn"})
+                except Exception as exc:
+                    logger.warning(f"[C.Y.R.U.S] Ollama probe failed: {exc}")
+                    await self._bus.emit("debug", {"text": "No se pudo conectar a Ollama local.", "level": "warn"})
+            else:
+                await self._bus.emit("debug", {"text": f"Detector local no reconocido: {detector}", "level": "warn"})
+
+        elif cmd == "list_ollama_models":
+            try:
+                models = await self._ollama.list_models()
+                results = []
+                for model_info in models:
+                    name = str(model_info.get("name") or model_info.get("model") or "unknown")
+                    compatible = True
+                    compatibility = "Compatible"
+                    if not _NVML_OK:
+                        low_cost = any(k in name.lower() for k in ["tiny", "mini", "micro", "nano"])
+                        if not low_cost:
+                            compatible = False
+                            compatibility = "Requiere GPU"
+                        else:
+                            compatibility = "OK en CPU"
+                    results.append({
+                        "name": name,
+                        "compatible": compatible,
+                        "compatibility": compatibility,
+                    })
+                await self._bus.emit("available_models", {"models": results, "current": self._ollama._model})
+                await self._bus.emit("debug", {"text": f"Modelos locales listados: {len(results)}", "level": "ok"})
+            except Exception as exc:
+                logger.warning(f"[C.Y.R.U.S] Could not list Ollama models: {exc}")
+                await self._bus.emit("debug", {"text": "No se pudieron obtener los modelos de Ollama.", "level": "warn"})
+
+        elif cmd == "set_tts_engine":
+            engine = str(payload.get("engine", "")).strip().lower()
+            valid = {"piper", "kokoro", "edge-tts"}
+            if engine in valid:
+                self._tts.set_forced_backend(engine)
+                await self._bus.emit("debug", {"text": f"Motor TTS fijado a: {engine}", "level": "ok"})
+            elif engine == "auto":
+                self._tts.set_forced_backend(None)
+                await self._bus.emit("debug", {"text": "Motor TTS: prioridad automática restaurada", "level": "ok"})
+            else:
+                await self._bus.emit("debug", {"text": f"Motor TTS desconocido: {engine}", "level": "warn"})
+
+        elif cmd == "set_voice_preset":
+            preset = str(payload.get("preset", "natural")).strip().lower()
+            self._tts.set_voice_preset(preset)
+            await self._bus.emit("debug", {"text": f"Preset de voz: {preset}", "level": "ok"})
+
         elif cmd == "set_llm_model":
             model = str(payload.get("model", "")).strip()
             if model:
                 self._ollama._model = model
                 logger.info(f"[C.Y.R.U.S] LLM model → {model}")
                 await self._bus.emit("debug", {"text": f"Modelo LLM cambiado a {model}", "level": "ok"})
+                await self._save_llm_model()
+                try:
+                    models = await self._ollama.list_models()
+                    results = []
+                    for model_info in models:
+                        name = str(model_info.get("name") or model_info.get("model") or "unknown")
+                        size_bytes = model_info.get("size", 0)
+                        size_gb = size_bytes / (1024 ** 3) if size_bytes else 0
+                        compatible = True
+                        compatibility = f"Compatible ({size_gb:.1f} GB)"
+                        if not _NVML_OK:
+                            # Estimar RAM requerida: aproximadamente 2x el tamaño del modelo para inferencia
+                            estimated_ram_gb = size_gb * 2
+                            import psutil
+                            available_ram_gb = psutil.virtual_memory().available / (1024 ** 3)
+                            low_cost = any(k in name.lower() for k in ["tiny", "mini", "micro", "nano"]) or estimated_ram_gb < 4
+                            if not low_cost and estimated_ram_gb > available_ram_gb:
+                                compatible = False
+                                compatibility = f"Requiere más RAM ({estimated_ram_gb:.1f} GB needed, {available_ram_gb:.1f} GB available)"
+                            elif not low_cost:
+                                compatibility = f"Requiere GPU ({size_gb:.1f} GB)"
+                            else:
+                                compatibility = f"OK en CPU ({size_gb:.1f} GB)"
+                        results.append({
+                            "name": name,
+                            "compatible": compatible,
+                            "compatibility": compatibility,
+                        })
+                    await self._bus.emit("available_models", {"models": results, "current": self._ollama._model})
+                except Exception:
+                    pass
 
     async def _pipeline_loop(self) -> None:
         """Continuous voice pipeline loop."""
@@ -664,8 +783,11 @@ class CYRUSEngine:
             return
 
         # 1. Capture audio ───────────────────────────────────────────────
-        await self._state.set_status(SystemStatus.LISTENING)
-        await self._bus.emit("status", {"state": "listening"})
+        # Only broadcast the state change when transitioning INTO listening;
+        # avoids LISTENING → TRANSCRIBING → LISTENING flicker on noise frames.
+        if self._state.status != SystemStatus.LISTENING:
+            await self._state.set_status(SystemStatus.LISTENING)
+            await self._bus.emit("status", {"state": "listening"})
         try:
             pcm = await self._audio_in.record_utterance()
         except Exception as exc:
@@ -676,6 +798,14 @@ class CYRUSEngine:
         if not pcm:
             return
 
+        # Gate: discard utterances shorter than 300 ms — almost certainly noise.
+        # 16 kHz × 2 bytes × 0.3 s = 9 600 bytes
+        _MIN_PCM = int(self._cfg.audio.input.sample_rate * 2 * 0.30)
+        if len(pcm) < _MIN_PCM:
+            logger.debug(f"[C.Y.R.U.S] PCM too short ({len(pcm)} B < {_MIN_PCM} B) — discarded")
+            await asyncio.sleep(0.05)
+            return
+
         # 2. Transcribe ──────────────────────────────────────────────────
         await self._state.set_status(SystemStatus.PROCESSING)
         await self._bus.emit("status", {"state": "transcribing"})
@@ -684,11 +814,15 @@ class CYRUSEngine:
         except Exception as exc:
             logger.error(f"[C.Y.R.U.S] ASR failed: {exc}")
             await self._bus.emit("error", {"message": "Transcription failed — please repeat"})
+            await self._state.set_status(SystemStatus.LISTENING)
+            await self._bus.emit("status", {"state": "listening"})
             return
 
         if not transcript.strip():
             logger.debug("[C.Y.R.U.S] Empty transcript — ignoring")
-            await self._state.set_status(SystemStatus.IDLE)
+            # Return to LISTENING without emitting state (no visible flicker)
+            await self._state.set_status(SystemStatus.LISTENING)
+            await asyncio.sleep(0.05)
             return
 
         logger.info(f"[C.Y.R.U.S] Transcript: '{transcript}' [{lang}]")
@@ -729,7 +863,10 @@ class CYRUSEngine:
                     "text": f"⚠ Sin wake word en: \"{transcript}\"",
                     "level": "warn",
                 })
-                await self._state.set_status(SystemStatus.IDLE)
+                # Transition back to LISTENING (not IDLE) so the status bar stays
+                # consistent and the next iteration won't re-broadcast the change.
+                await self._state.set_status(SystemStatus.LISTENING)
+                await self._bus.emit("status", {"state": "listening"})
                 return
 
             # Wake word heard — activate conversation mode

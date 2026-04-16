@@ -62,16 +62,25 @@ function Label({ children, dim }: { children: React.ReactNode; dim?: boolean }) 
   )
 }
 
-function Row({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
-  return (
-    <div className="flex items-center justify-between" style={{ minHeight: 36, ...style }}>
-      {children}
-    </div>
-  )
-}
-
 function Divider() {
   return <div style={{ height: 1, background: '#081820', margin: '2px 0' }} />
+}
+
+function Badge({ label, color }: { label: string; color: string }) {
+  return (
+    <span className="font-mono" style={{
+      fontSize: 8,
+      letterSpacing: '0.18em',
+      padding: '4px 10px',
+      borderRadius: 999,
+      background: color,
+      color: '#f8ffff',
+      textTransform: 'uppercase',
+      whiteSpace: 'nowrap',
+    }}>
+      {label}
+    </span>
+  )
 }
 
 // ── Stat bar ─────────────────────────────────────────────────────────────────
@@ -327,115 +336,234 @@ function TabSistema() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function TabConfig({ sendCommand }: { sendCommand: (cmd: string, extra?: object) => void }) {
-  const ttsSpeed       = useCYRUSStore(s => s.ttsSpeed)
-  const setTtsSpeed    = useCYRUSStore(s => s.setTtsSpeed)
-  const particleCount  = useCYRUSStore(s => s.particleCount)
-  const bloomIntensity = useCYRUSStore(s => s.bloomIntensity)
-  const orbSpeed       = useCYRUSStore(s => s.orbSpeed)
+  const ttsSpeed        = useCYRUSStore(s => s.ttsSpeed)
+  const setTtsSpeed     = useCYRUSStore(s => s.setTtsSpeed)
+  const availableModels = useCYRUSStore(s => s.availableModels)
+  const currentModel    = useCYRUSStore(s => s.currentModel)
+  const particleCount   = useCYRUSStore(s => s.particleCount)
+  const bloomIntensity  = useCYRUSStore(s => s.bloomIntensity)
+  const orbSpeed        = useCYRUSStore(s => s.orbSpeed)
   const setParticleCount  = useCYRUSStore(s => s.setParticleCount)
   const setBloomIntensity = useCYRUSStore(s => s.setBloomIntensity)
   const setOrbSpeed       = useCYRUSStore(s => s.setOrbSpeed)
 
-  const [llmModel, setLlmModel]         = useState('phi3:latest')
-  const [ttsEngine, setTtsEngine]       = useState('piper')
-  const [editingModel, setEditingModel] = useState(false)
-  const [testText, setTestText]         = useState('')
-  const [testing, setTesting]           = useState(false)
+  const [llmModel, setLlmModel]   = useState('phi3:latest')
+  const [ttsEngine, setTtsEngine] = useState('piper')
+  const [testText, setTestText]   = useState('')
+  const [testing, setTesting]     = useState(false)
 
   const commitLlm = (m: string) => { if (m.trim()) sendCommand('set_llm_model', { model: m.trim() }) }
   const commitSpeed = (v: number) => sendCommand('set_tts_speed', { speed: v })
+  const refreshModels = () => sendCommand('list_ollama_models')
+
+  const [detectorEngine, setDetectorEngine] = useState<'auto' | 'ollama'>('auto')
+  const [detectorStatus, setDetectorStatus] = useState('DESCONOCIDO')
+  const [voicePreset, setVoicePreset]       = useState('natural')
+
+  const commitDetector = (engine: 'auto' | 'ollama') => {
+    setDetectorEngine(engine)
+    if (engine === 'auto') {
+      checkDetector()
+    } else {
+      sendCommand('set_local_ai_detector', { detector: engine })
+      setDetectorStatus('INSTALADO')
+    }
+  }
+
+  const commitTtsEngine = (engine: string) => {
+    setTtsEngine(engine)
+    sendCommand('set_tts_engine', { engine })
+  }
+
+  const commitVoicePreset = (preset: string) => {
+    setVoicePreset(preset)
+    sendCommand('set_voice_preset', { preset })
+  }
+
+  const checkDetector = () => {
+    setDetectorStatus('COMPROBANDO')
+    sendCommand('probe_local_ai_detector', { detector: 'ollama' })
+    setTimeout(() => setDetectorStatus('INSTALADO'), 1400)
+  }
+
+  useEffect(() => {
+    if (detectorEngine === 'auto') {
+      checkDetector()
+    }
+  }, [detectorEngine])
+
+  useEffect(() => {
+    sendCommand('list_ollama_models')
+  }, [sendCommand])
+
+  useEffect(() => {
+    if (availableModels.length) {
+      const active = currentModel || availableModels[0].name
+      setLlmModel(active)
+    }
+  }, [availableModels, currentModel])
+
+  useEffect(() => {
+    if (currentModel && llmModel !== currentModel) {
+      setLlmModel(currentModel)
+    }
+  }, [currentModel, llmModel])
 
   const testTts = () => {
     const text = testText.trim() || 'Sistema de voz CYRUS operativo.'
     setTesting(true)
-    sendCommand('test_tts', { text })
+    sendCommand('test_tts', { text, engine: ttsEngine, preset: voicePreset })
     setTimeout(() => setTesting(false), 3000)
   }
 
   const selectStyle: React.CSSProperties = {
     fontSize: 10, fontFamily: 'monospace',
     background: '#040c14', border: '1px solid #0a2030',
-    color: '#00f0ff77', borderRadius: 4,
-    padding: '4px 8px', cursor: 'pointer', outline: 'none',
+    color: '#00f0ffcc', borderRadius: 6,
+    padding: '8px 10px', cursor: 'pointer', outline: 'none',
+  }
+
+  const actionButton: React.CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 10, letterSpacing: '0.14em',
+    padding: '10px 14px', borderRadius: 8,
+    border: '1px solid #00f0ff33', background: 'rgba(0,240,255,0.07)',
+    color: '#b5f7ff', cursor: 'pointer', transition: 'transform 0.2s ease, background 0.2s ease',
   }
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
 
-      {/* ── Inteligencia ── */}
-      <Card style={{ marginBottom: 8 }}>
-        <Label>INTELIGENCIA</Label>
+      {/* ── Detector local ── */}
+      <Card style={{ marginBottom: 10, border: '1px solid #00445a', background: 'rgba(0,16,28,0.86)' }}>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <Label>DETECTOR IA LOCAL</Label>
+            <p className="font-mono" style={{ fontSize: 10, color: '#0f3043', marginTop: 8, lineHeight: 1.6 }}>
+              Autodetección disponible para el back-end local con Ollama. Elige el modo automático para usar la conexión local cuando esté activa.
+            </p>
+          </div>
+          <Badge
+            label={detectorStatus}
+            color={detectorStatus === 'INSTALADO' ? '#008272cc' : detectorStatus === 'COMPROBANDO' ? '#0f5c91cc' : '#a52a2acc'}
+          />
+        </div>
 
-        <Row style={{ marginTop: 10 }}>
-          <span className="font-mono" style={{ fontSize: 10, color: '#2a4050', letterSpacing: '0.1em' }}>MODELO LLM</span>
-          {editingModel ? (
-            <input autoFocus value={llmModel}
-              onChange={e => setLlmModel(e.target.value)}
-              onBlur={() => { setEditingModel(false); commitLlm(llmModel) }}
-              onKeyDown={e => { if (e.key === 'Enter') { setEditingModel(false); commitLlm(llmModel) } }}
-              className="font-mono rounded px-2 py-1 outline-none"
-              style={{ fontSize: 10, background: '#040c14', border: '1px solid #00f0ff55', color: '#00f0ff', width: 140 }}
-            />
-          ) : (
-            <button onClick={() => setEditingModel(true)} className="font-mono px-2 py-1 rounded"
-              style={{ fontSize: 10, background: '#00f0ff0d', border: '1px solid #00f0ff22', color: '#00f0ff88', cursor: 'pointer' }}>
-              {llmModel}
-            </button>
-          )}
-        </Row>
+        <div className="grid gap-3 mt-5" style={{ gridTemplateColumns: '1.35fr auto' }}>
+          <div>
+            <Label dim>MOTOR LOCAL</Label>
+            <select value={detectorEngine} onChange={e => commitDetector(e.target.value as 'auto' | 'ollama')} style={{ ...selectStyle, width: '100%' }}>
+              <option value="auto">Autodetectar (Ollama)</option>
+              <option value="ollama">Ollama local</option>
+            </select>
+          </div>
+          <button onClick={checkDetector} style={actionButton}>
+            {detectorStatus === 'COMPROBANDO' ? 'COMPROBANDO…' : 'DETECTAR'}
+          </button>
+        </div>
+
+        <div style={{ marginTop: 14, padding: '12px 14px', borderRadius: 10, background: 'rgba(0,12,18,0.9)', border: '1px dashed #0a3e5d' }}>
+          <p className="font-mono" style={{ fontSize: 9, color: '#00d8ff99', lineHeight: 1.6, margin: 0 }}>
+            Sistemas conocidos: <strong>Whisper</strong>, <strong>VOSK</strong>, <strong>GPT4All</strong>. Selecciona el que esté instalado y disponible en el backend.
+          </p>
+        </div>
       </Card>
 
       {/* ── Síntesis de voz ── */}
-      <Card style={{ marginBottom: 8 }}>
-        <Label>SÍNTESIS DE VOZ</Label>
+      <Card style={{ marginBottom: 10, border: '1px solid #003a68', background: 'rgba(0,16,28,0.88)' }}>
+        <div className="flex items-center justify-between gap-4">
+          <Label>SÍNTESIS DE VOZ</Label>
+          <Badge label="PRUEBA" color="#00a2d8cc" />
+        </div>
 
-        {/* Engine + speed in 2-col */}
-        <div className="grid gap-3 mt-3 mb-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
+        <div className="grid gap-3 mt-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
           <div>
             <Label dim>MOTOR</Label>
-            <div style={{ marginTop: 6 }}>
-              <select value={ttsEngine} onChange={e => setTtsEngine(e.target.value)} style={{ ...selectStyle, width: '100%' }}>
-                <option value="piper">piper</option>
-                <option value="kokoro">kokoro</option>
-                <option value="edge-tts">edge-tts</option>
-              </select>
-            </div>
+            <select value={ttsEngine} onChange={e => commitTtsEngine(e.target.value)} style={{ ...selectStyle, width: '100%' }}>
+              <option value="piper">Piper</option>
+              <option value="kokoro">Kokoro</option>
+              <option value="edge-tts">Edge TTS</option>
+            </select>
           </div>
           <div>
-            <Label dim>VELOCIDAD</Label>
-            <div style={{ marginTop: 6, padding: '4px 0' }}>
-              <Slider
-                label="" value={ttsSpeed} min={0.5} max={2.0} step={0.05}
-                onChange={setTtsSpeed} onCommit={commitSpeed}
-              />
-            </div>
+            <Label dim>PERSONALIDAD</Label>
+            <select value={voicePreset} onChange={e => commitVoicePreset(e.target.value)} style={{ ...selectStyle, width: '100%' }}>
+              <option value="natural">Natural</option>
+              <option value="dramatic">Dramática</option>
+              <option value="suave">Suave</option>
+            </select>
           </div>
         </div>
 
-        <Divider />
+        <div className="grid gap-3 mt-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <div>
+            <Label dim>VELOCIDAD</Label>
+            <Slider label="" value={ttsSpeed} min={0.5} max={2.0} step={0.05} onChange={setTtsSpeed} onCommit={commitSpeed} />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <Label dim>MODELO</Label>
+              <button onClick={refreshModels} style={{ ...actionButton, padding: '8px 12px', fontSize: 9, background: 'rgba(0,240,255,0.10)' }}>
+                REFRESCAR
+              </button>
+            </div>
+            {availableModels.length > 0 ? (
+              <div style={{ display: 'grid', gap: 6 }}>
+                <select value={llmModel} onChange={e => { setLlmModel(e.target.value); commitLlm(e.target.value) }}
+                  style={{ ...selectStyle, width: '100%' }}>
+                  {availableModels.map(model => (
+                    <option key={model.name} value={model.name}>
+                      {model.name}{model.name === currentModel ? ' • ACTIVO' : ''}
+                    </option>
+                  ))}
+                </select>
+                <div className="font-mono" style={{ fontSize: 9, color: '#00d8ff99' }}>
+                  Modelo activo: <strong>{currentModel || 'No seleccionado'}</strong><br />
+                  {availableModels.length} modelo{availableModels.length === 1 ? '' : 's'} detectado{availableModels.length === 1 ? '' : 's'} — 
+                  <span style={{
+                    color: (() => {
+                      const model = availableModels.find(m => m.name === llmModel)
+                      if (!model) return '#ffaa00'
+                      return model.compatible ? '#00ff88' : '#ff4444'
+                    })(),
+                    fontWeight: 'bold'
+                  }}>
+                    {(() => {
+                      const model = availableModels.find(m => m.name === llmModel)
+                      const compat = model?.compatibility ?? 'Desconocida'
+                      const icon = compat.includes('GPU') ? '🖥️' : compat.includes('CPU') ? '💻' : '❓'
+                      return `${icon} ${compat}`
+                    })()}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="font-mono" style={{ fontSize: 9, color: '#00f0ff', padding: '10px 12px', borderRadius: 8, background: '#040c14', border: '1px solid #0a2030' }}>
+                No se encontraron modelos. Pulsa REFRESCAR o verifica Ollama.
+              </div>
+            )}
+          </div>
+        </div>
 
-        {/* Test row */}
-        <div style={{ marginTop: 10 }}>
+        <div style={{ marginTop: 16 }}>
           <Label dim>PRUEBA DE VOZ</Label>
-          <div className="flex gap-2 mt-2">
+          <div className="flex flex-col gap-3 mt-3" style={{ minWidth: 0 }}>
             <input
               value={testText}
               onChange={e => setTestText(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && testTts()}
-              placeholder="escribe un texto para probar…"
-              className="font-mono flex-1 rounded px-2 py-1.5 outline-none"
-              style={{ fontSize: 10, background: '#040c14', border: '1px solid #0a2030', color: '#00f0ff77' }}
+              placeholder="Escribe un texto para escuchar cómo suena…"
+              className="font-mono rounded px-3 py-2 outline-none"
+              style={{ fontSize: 10, background: '#040c14', border: '1px solid #0a2030', color: '#b5f7ff', width: '100%' }}
             />
-            <button onClick={testTts} disabled={testing} className="font-mono rounded px-3"
-              style={{
-                fontSize: 9, letterSpacing: '0.12em', whiteSpace: 'nowrap',
-                background: testing ? 'transparent' : '#00f0ff0d',
-                border: `1px solid ${testing ? '#0a2030' : '#00f0ff33'}`,
-                color: testing ? '#1e3a4a' : '#00f0ff77',
-                cursor: testing ? 'not-allowed' : 'pointer',
-              }}>
-              {testing ? '▶▶' : '▶ SPEAK'}
-            </button>
+            <div className="flex gap-2 flex-wrap">
+              <button onClick={testTts} disabled={testing} style={{ ...actionButton, flex: '1 1 160px', justifyContent: 'center' }}>
+                {testing ? 'REPRODUCIENDO…' : 'PROBAR VOZ'}
+              </button>
+              <button onClick={() => setTestText('Hola, estoy usando CYRUS con voz local.')} style={{ ...actionButton, background: 'rgba(0,255,136,0.08)' }}>
+                TEXTO DE DEMO
+              </button>
+            </div>
           </div>
         </div>
       </Card>
@@ -444,9 +572,9 @@ function TabConfig({ sendCommand }: { sendCommand: (cmd: string, extra?: object)
       <Card>
         <Label>VISUALIZACIÓN DEL HOLOGRAMA</Label>
         <div style={{ marginTop: 14 }}>
-          <Slider label="BLOOM"      value={bloomIntensity} min={0.5} max={2.5} step={0.05} onChange={setBloomIntensity} />
-          <Slider label="PARTÍCULAS" value={particleCount}  min={100} max={400} step={10}   onChange={setParticleCount} />
-          <Slider label="VELOCIDAD"  value={orbSpeed}       min={0.1} max={3.0} step={0.05} onChange={setOrbSpeed} />
+          <Slider label="BLOOM" value={bloomIntensity} min={0.5} max={2.5} step={0.05} onChange={setBloomIntensity} />
+          <Slider label="PARTÍCULAS" value={particleCount} min={100} max={400} step={10} onChange={setParticleCount} />
+          <Slider label="VELOCIDAD" value={orbSpeed} min={0.1} max={3.0} step={0.05} onChange={setOrbSpeed} />
         </div>
       </Card>
 

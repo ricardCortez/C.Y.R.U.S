@@ -78,8 +78,10 @@ class TTSManager:
             logger.warning("[C.Y.R.U.S] TTS: empty text — returning silence")
             return b"", "audio/wav"
 
+        forced = getattr(self, "_forced_backend", None)
+
         # ── 1. Piper (best quality) ────────────────────────────────────
-        if self._piper and self._piper.available:
+        if (forced == "piper" or forced is None) and self._piper and self._piper.available:
             try:
                 wav = self._piper.synthesise(text)
                 logger.info(f"[C.Y.R.U.S] TTS: Piper → {len(wav)} bytes")
@@ -88,6 +90,8 @@ class TTSManager:
                 logger.warning(f"[C.Y.R.U.S] TTS: Piper failed ({exc}); trying Kokoro…")
 
         # ── 2. Kokoro (offline fallback) ───────────────────────────────
+        if forced == "piper":
+            raise TTSError("[C.Y.R.U.S] TTS: Piper forced but unavailable")
         try:
             wav = self._kokoro.synthesise(text)
             logger.info(f"[C.Y.R.U.S] TTS: Kokoro → {len(wav)} bytes")
@@ -98,6 +102,8 @@ class TTSManager:
             logger.warning(f"[C.Y.R.U.S] TTS: Kokoro error ({exc}); trying Edge-TTS…")
 
         # ── 3. Edge-TTS (API — available in LOCAL and HYBRID) ─────────
+        if forced == "kokoro":
+            raise TTSError("[C.Y.R.U.S] TTS: Kokoro forced but unavailable")
         try:
             logger.info("[C.Y.R.U.S] TTS: falling back to Edge-TTS…")
             mp3 = await self._voiceforge.synthesise(text)
@@ -126,9 +132,40 @@ class TTSManager:
         self._kokoro._voice = voice
         logger.info(f"[C.Y.R.U.S] TTS: Kokoro voice set to '{voice}'")
 
+    def set_forced_backend(self, backend: str | None) -> None:
+        """Pin synthesis to a specific backend, or None to restore auto priority.
+
+        Args:
+            backend: ``"piper"``, ``"kokoro"``, ``"edge-tts"``, or ``None``.
+        """
+        self._forced_backend = backend
+        logger.info(f"[C.Y.R.U.S] TTS: forced backend → {backend or 'auto'}")
+
+    def set_voice_preset(self, preset: str) -> None:
+        """Apply a named voice preset (adjusts speed and Kokoro voice).
+
+        Presets:
+          ``"natural"``  — default speed (0.92), neutral voice
+          ``"dramatic"`` — slower (0.82), more deliberate delivery
+          ``"suave"``    — gentle (0.78), softer pace
+        """
+        presets = {
+            "natural":  {"speed": 0.92, "voice": None},
+            "dramatic": {"speed": 0.82, "voice": None},
+            "suave":    {"speed": 0.78, "voice": None},
+        }
+        cfg = presets.get(preset, presets["natural"])
+        self.set_speed(cfg["speed"])
+        if cfg["voice"]:
+            self.set_voice(cfg["voice"])
+        logger.info(f"[C.Y.R.U.S] TTS: preset '{preset}' → speed={cfg['speed']}")
+
     @property
     def active_backend(self) -> str:
         """Return the name of the first available backend."""
+        forced = getattr(self, "_forced_backend", None)
+        if forced:
+            return forced
         if self._piper and self._piper.available:
             return "piper"
         try:
