@@ -183,9 +183,18 @@ class LLMManager:
         override = self._prompts.get("system_prompt_override")
         base = override if override else self._soul_text
 
+        now = datetime.now()
+        _DAYS_ES   = ["lunes","martes","miércoles","jueves","viernes","sábado","domingo"]
+        _MONTHS_ES = ["enero","febrero","marzo","abril","mayo","junio",
+                      "julio","agosto","septiembre","octubre","noviembre","diciembre"]
+        readable = (
+            f"{now.strftime('%H:%M')} hrs  —  "
+            f"{_DAYS_ES[now.weekday()]} {now.day} de "
+            f"{_MONTHS_ES[now.month - 1]} de {now.year}"
+        )
         context_tpl: str = self._prompts.get("context_template", "")
         context = context_tpl.format(
-            current_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            current_time=readable,
             language=language,
             turn_count=turn_count,
             system_mode=self._mode,
