@@ -64,7 +64,7 @@ class LLMManager:
         turn_count: int = 0,
         vision_context: Optional[VisionContext] = None,
         memory_context: str = "",
-    ) -> str:
+    ) -> tuple[str, str]:
         """Generate a response to *user_input*.
 
         Args:
@@ -76,7 +76,9 @@ class LLMManager:
             memory_context: Relevant past turns from semantic memory search.
 
         Returns:
-            C.Y.R.U.S response string.
+            Tuple of ``(display_text, speech_text)`` where *display_text* is
+            the full markdown-formatted response for the UI and *speech_text*
+            is the clean version for TTS synthesis.
 
         Raises:
             LLMError: If both local and API backends fail.
@@ -88,15 +90,15 @@ class LLMManager:
         # Try local Ollama first
         try:
             logger.info("[C.Y.R.U.S] LLM: attempting local Ollama inference…")
-            response = await self._ollama.chat(
+            raw = await self._ollama.chat(
                 messages,
                 system_prompt=system_prompt,
                 temperature=self._temperature,
                 max_tokens=self._max_tokens,
             )
-            if response.strip():
-                logger.info(f"[C.Y.R.U.S] LLM: Ollama responded ({len(response)} chars)")
-                return response.strip()
+            if raw.strip():
+                logger.info(f"[C.Y.R.U.S] LLM: Ollama responded ({len(raw)} chars)")
+                return self._split_response(raw.strip())
             logger.warning("[C.Y.R.U.S] LLM: Ollama returned empty response")
         except OllamaUnavailableError as exc:
             logger.warning(f"[C.Y.R.U.S] LLM: Ollama unavailable — {exc}")
@@ -110,29 +112,63 @@ class LLMManager:
         # Graceful degradation
         canned = self._prompts.get("canned", {}).get(
             "llm_unavailable",
-            "I'm sorry, I'm currently unable to process your request. "
-            "My reasoning engine appears to be offline.",
+            "Lo siento, en este momento no puedo procesar tu solicitud. "
+            "Mi motor de razonamiento parece estar fuera de línea.",
         )
         logger.error("[C.Y.R.U.S] LLM: all backends failed; returning canned response")
-        return canned
+        return canned, canned
 
-    async def _claude_fallback(self, messages: List[dict], system_prompt: str) -> str:
+    async def _claude_fallback(self, messages: List[dict], system_prompt: str) -> tuple[str, str]:
         """Attempt Claude API with retry."""
         try:
             logger.info("[C.Y.R.U.S] LLM: falling back to Claude API…")
-            response = await self._claude.chat(
+            raw = await self._claude.chat(
                 messages,
                 system_prompt=system_prompt,
                 temperature=self._temperature,
             )
             logger.info("[C.Y.R.U.S] LLM: Claude API responded")
-            return response.strip()
+            return self._split_response(raw.strip())
         except Exception as exc:
             logger.error(f"[C.Y.R.U.S] LLM: Claude API also failed — {exc}")
-            return (
-                "I'm sorry, I'm experiencing difficulties with both my local and cloud "
-                "reasoning engines. Please try again shortly."
+            msg = (
+                "Lo siento, tengo dificultades con mis motores de razonamiento. "
+                "Por favor intenta de nuevo en un momento."
             )
+            return msg, msg
+
+    # ------------------------------------------------------------------
+    # Response splitting
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _split_response(raw: str) -> tuple[str, str]:
+        """Parse LLM output into (display_text, speech_text).
+
+        If the model included a ``VOZ:`` line, everything before it is the
+        display text (markdown-safe) and everything after ``VOZ:`` is used
+        verbatim as speech text.  If no ``VOZ:`` marker is found, the full
+        response is used as display text and :func:`clean_for_tts` is applied
+        to produce the speech version.
+        """
+        from backend.utils.text_cleaner import clean_for_tts
+
+        # Look for "VOZ:" at the start of any line (case-insensitive)
+        import re
+        match = re.search(r'(?im)^VOZ:\s*(.+?)$', raw)
+        if match:
+            # Display = everything before the VOZ line (strip trailing blank lines)
+            display = raw[: match.start()].rstrip()
+            # Speech = the content on the VOZ line
+            speech = match.group(1).strip()
+            # Edge-case: VOZ line might itself contain residual markdown
+            speech = clean_for_tts(speech)
+            logger.debug(f"[C.Y.R.U.S] LLM: dual-output split — display {len(display)}ch, speech {len(speech)}ch")
+            return display, speech
+
+        # No explicit VOZ marker — fall back to clean_for_tts
+        speech = clean_for_tts(raw)
+        return raw, speech
 
     # ------------------------------------------------------------------
     # Prompt construction

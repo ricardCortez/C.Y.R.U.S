@@ -45,7 +45,6 @@ from backend.modules.memory.conversation_db import ConversationDB
 from backend.modules.memory.memory_manager import MemoryManager
 from backend.utils.helpers import current_time_str
 from backend.utils.logger import configure_file_logging, get_logger
-from backend.utils.text_cleaner import clean_for_tts
 
 logger = get_logger("cyrus.engine")
 
@@ -527,7 +526,7 @@ class CYRUSEngine:
                 logger.warning(f"[C.Y.R.U.S] Memory retrieval failed: {exc}")
 
         try:
-            response = await self._llm.generate(
+            display_text, speech_text = await self._llm.generate(
                 clean_input,
                 history=self._state.get_history_for_llm()[:-1],  # exclude the turn we just added
                 language=lang,
@@ -537,25 +536,27 @@ class CYRUSEngine:
             )
         except Exception as exc:
             logger.error(f"[C.Y.R.U.S] LLM failed: {exc}")
-            response = "I'm having trouble thinking right now. Please try again."
+            display_text = "Tengo problemas para procesar tu solicitud. Por favor intenta de nuevo."
+            speech_text = display_text
 
-        await self._state.add_turn("assistant", response, lang)
+        # Store display text in history (markdown-safe version for context)
+        await self._state.add_turn("assistant", display_text, lang)
 
         # 4b. Persist both turns to memory
         if self._memory:
             try:
                 await self._memory.store_turn("user", clean_input, lang)
-                await self._memory.store_turn("assistant", response, lang)
+                await self._memory.store_turn("assistant", display_text, lang)
             except Exception as exc:
                 logger.warning(f"[C.Y.R.U.S] Memory storage failed: {exc}")
-        logger.info(f"[C.Y.R.U.S] Response: '{response}'")
-        await self._bus.emit("response", {"text": response, "language": lang})
+        logger.info(f"[C.Y.R.U.S] Display: '{display_text[:80]}…' | Speech: '{speech_text[:80]}…'")
+        # Emit display text to frontend (markdown rendered in UI)
+        await self._bus.emit("response", {"text": display_text, "language": lang})
 
         # 5. TTS synthesis & playback ────────────────────────────────────
         await self._state.set_status(SystemStatus.SPEAKING)
         await self._bus.emit("status", {"state": "speaking"})
         try:
-            speech_text = clean_for_tts(response)
             audio_bytes, mime = await self._tts.synthesise(speech_text)
             if audio_bytes:
                 async with self._audio_lock:
