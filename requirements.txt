@@ -11,9 +11,15 @@ numpy==1.26.4
 faster-whisper==1.0.3
 ctranslate2==4.3.1
 
+# ── Noise Reduction ───────────────────────────────────────────────────────────
+noisereduce>=3.0.0
+
 # ── Voice Activity Detection ──────────────────────────────────────────────────
 webrtcvad==2.0.10
 librosa==0.10.2
+
+# ── Speaker Recognition ───────────────────────────────────────────────────────
+speechbrain>=1.0.0
 
 # ── Wake-word / fuzzy matching ────────────────────────────────────────────────
 fuzzywuzzy==0.18.0
@@ -23,6 +29,7 @@ python-Levenshtein==0.25.1
 kokoro==0.9.4
 # espeak-ng must be installed via system package manager
 edge-tts==6.1.12          # TTS of last resort (no API key needed)
+TTS>=0.22.0                # Coqui XTTS v2 voice cloning
 
 # ── LLM clients ───────────────────────────────────────────────────────────────
 anthropic==0.28.1
