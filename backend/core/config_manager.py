@@ -98,6 +98,14 @@ class AudioOutputConfig:
 
 
 @dataclass
+class SpeakerConfig:
+    threshold: float = 0.82
+    adaptive_lr: float = 0.05          # online learning rate for embedding update
+    data_dir: str = "data/speakers"    # where .npz fingerprints are stored
+    model_dir: str = "models/speaker/ecapa"  # local SpeechBrain model cache
+
+
+@dataclass
 class AudioConfig:
     input: AudioInputConfig = field(default_factory=AudioInputConfig)
     output: AudioOutputConfig = field(default_factory=AudioOutputConfig)
@@ -214,6 +222,7 @@ class CYRUSConfig:
     websocket: WebSocketConfig = field(default_factory=WebSocketConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     services: ServicesConfig = field(default_factory=ServicesConfig)
+    speaker: SpeakerConfig = field(default_factory=SpeakerConfig)
 
     # Resolved paths (set after load)
     project_root: Path = field(default_factory=Path.cwd)
@@ -361,6 +370,10 @@ def load_config(config_path: Optional[Path] = None) -> CYRUSConfig:
             vision=_svc(ServiceVisionConfig, "vision"),
             embedder=_svc(ServiceEmbedderConfig, "embedder"),
         )
+
+    # ── speaker recognition ───────────────────────────────────────────────────
+    if spk := raw.get("speaker"):
+        cfg.speaker = SpeakerConfig(**{k: v for k, v in spk.items() if k in SpeakerConfig.__dataclass_fields__})
 
     # ── Resolve soul.md ───────────────────────────────────────────────────────
     soul_path = project_root / cfg.conversation.system_prompt_file

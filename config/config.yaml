@@ -22,6 +22,8 @@ local:
       enabled: true
       language: es
       speaker: Tammie Ema
+      reference_voice: data/tts/reference_voice.wav
+      idle_unload_secs: 120
   translation:
     provider: ctranslate2
     model: mt5-small
@@ -71,13 +73,13 @@ trigger:
   fuzzy_matching: true
   threshold: 65
 asr:
-  model: base
-  device: cpu
-  compute_type: int8
+  model: small
+  device: cuda
+  compute_type: float16
   language: es
   beam_size: 5
   vad_filter: false
-  initial_prompt: CYRUS, Hola CYRUS, oye CYRUS
+  initial_prompt: "Habla en español. C.Y.R.U.S es un asistente de IA personal."
 conversation:
   max_history_turns: 10
   system_prompt_file: config/soul.md
@@ -126,6 +128,11 @@ logging:
   log_dir: logs
   max_bytes: 10485760
   backup_count: 5
+speaker:
+  threshold: 0.82
+  adaptive_lr: 0.05
+  data_dir: data/speakers
+  model_dir: models/speaker/ecapa
 services:
   tts:
     enabled: true
