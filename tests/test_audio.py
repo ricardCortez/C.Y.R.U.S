@@ -76,3 +76,34 @@ class TestAudioInputDeviceList:
             assert isinstance(devices, list)
         except Exception:
             pytest.skip("PyAudio not available in this environment")
+
+
+class TestDenoiser:
+    """Unit tests for Denoiser — spectral noise reduction."""
+
+    def test_denoiser_returns_same_length(self):
+        from backend.modules.audio.denoiser import Denoiser
+        import numpy as np
+        d = Denoiser(sample_rate=16000)
+        pcm = (np.random.randn(16000) * 100).astype(np.int16).tobytes()
+        result = d.process(pcm)
+        assert len(result) == len(pcm)
+
+    def test_denoiser_handles_empty(self):
+        from backend.modules.audio.denoiser import Denoiser
+        d = Denoiser(sample_rate=16000)
+        result = d.process(b"")
+        assert result == b""
+
+    def test_denoiser_reduces_noise(self):
+        from backend.modules.audio.denoiser import Denoiser
+        import numpy as np
+        d = Denoiser(sample_rate=16000)
+        # Create pure noise signal
+        noise = (np.random.randn(16000) * 500).astype(np.int16)
+        pcm = noise.tobytes()
+        result = d.process(pcm)
+        result_arr = np.frombuffer(result, dtype=np.int16).astype(np.float32)
+        noise_arr = noise.astype(np.float32)
+        # RMS of result should be lower than input noise RMS
+        assert np.sqrt(np.mean(result_arr**2)) < np.sqrt(np.mean(noise_arr**2))
