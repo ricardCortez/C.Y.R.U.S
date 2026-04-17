@@ -91,6 +91,9 @@ class CYRUSEngine:
             silence_duration=ai_cfg.silence_duration,
             silence_threshold=ai_cfg.silence_threshold,
             device_name=ai_cfg.device,
+            noise_gate_factor=getattr(ai_cfg, "noise_gate_factor", 3.5),
+            noise_calibration_secs=getattr(ai_cfg, "noise_calibration_secs", 2.0),
+            speaker_gate_enabled=getattr(ai_cfg, "speaker_gate_enabled", True),
         )
         ao_cfg = self._cfg.audio.output
         self._audio_out = AudioOutput(
@@ -946,6 +949,13 @@ class CYRUSEngine:
         _MIN_PCM = int(self._cfg.audio.input.sample_rate * 2 * 0.60)
         if len(pcm) < _MIN_PCM:
             logger.debug(f"[C.Y.R.U.S] PCM too short ({len(pcm)} B < {_MIN_PCM} B) — discarded")
+            await asyncio.sleep(0.05)
+            return
+
+        # Speaker gate — discard if voice doesn't match enrolled profile
+        if not self._audio_in.verify_speaker(pcm):
+            logger.debug("[C.Y.R.U.S] Speaker gate: voice mismatch — discarding utterance")
+            await self._state.set_status(SystemStatus.LISTENING)
             await asyncio.sleep(0.05)
             return
 
