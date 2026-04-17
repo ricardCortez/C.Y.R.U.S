@@ -11,6 +11,7 @@ import { motion, AnimatePresence }      from 'framer-motion'
 import ReactMarkdown                    from 'react-markdown'
 import { useCYRUSStore, SystemState, LogEntry, ServiceStatus } from '../store/useCYRUSStore'
 import { useWebSocket } from '../hooks/useWebSocket'
+import { PRESETS, VisualPresetId } from '../types/presets'
 
 // ── Color maps ──────────────────────────────────────────────────────────────
 const STATE_COLOR: Record<SystemState, string> = {
@@ -331,6 +332,66 @@ function TabSistema() {
   )
 }
 
+// ── Preset selector ──────────────────────────────────────────────────────────
+
+function PresetSelector() {
+  const visualPreset    = useCYRUSStore(s => s.visualPreset)
+  const setVisualPreset = useCYRUSStore(s => s.setVisualPreset)
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(5, 1fr)',
+        gap: 6,
+        marginTop: 6,
+      }}>
+        {(Object.values(PRESETS) as typeof PRESETS[VisualPresetId][]).map((p) => {
+          const active = visualPreset === p.id
+          const [r, g, b] = p.palette.node
+          const hex = `rgb(${Math.round(r*255)},${Math.round(g*255)},${Math.round(b*255)})`
+          return (
+            <button
+              key={p.id}
+              onClick={() => setVisualPreset(p.id as VisualPresetId)}
+              style={{
+                background: active
+                  ? `rgba(${Math.round(r*255)},${Math.round(g*255)},${Math.round(b*255)},0.18)`
+                  : 'rgba(0,16,32,0.6)',
+                border: `1px solid ${active ? hex : '#0a2030'}`,
+                borderRadius: 6,
+                padding: '8px 4px',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 4,
+                transition: 'all 0.2s',
+              }}
+            >
+              <div style={{
+                width: 28, height: 28,
+                borderRadius: '50%',
+                background: `radial-gradient(circle, ${hex} 0%, transparent 70%)`,
+                boxShadow: active ? `0 0 10px ${hex}` : 'none',
+              }} />
+              <span style={{
+                fontFamily: 'monospace',
+                fontSize: 7,
+                letterSpacing: '0.15em',
+                color: active ? hex : '#1e3a4a',
+                textTransform: 'uppercase',
+              }}>
+                {p.name}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // TAB 2 — CONFIG
 // ═══════════════════════════════════════════════════════════════════════════
@@ -585,6 +646,10 @@ function TabConfig({ sendCommand }: { sendCommand: (cmd: string, extra?: object)
           <Slider label="BLOOM" value={bloomIntensity} min={0.5} max={2.5} step={0.05} onChange={setBloomIntensity} />
           <Slider label="PARTÍCULAS" value={particleCount} min={100} max={400} step={10} onChange={setParticleCount} />
           <Slider label="VELOCIDAD" value={orbSpeed} min={0.1} max={3.0} step={0.05} onChange={setOrbSpeed} />
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <Label>PRESET</Label>
+          <PresetSelector />
         </div>
       </Card>
 
