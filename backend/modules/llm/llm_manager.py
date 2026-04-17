@@ -8,6 +8,7 @@ context template from ``prompts.yaml``.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from typing import List, Optional
 
@@ -87,23 +88,38 @@ class LLMManager:
         messages = list(history or [])
         messages.append({"role": "user", "content": user_input})
 
-        # Try local Ollama first
-        try:
-            logger.info("[C.Y.R.U.S] LLM: attempting local Ollama inference…")
-            raw = await self._ollama.chat(
-                messages,
-                system_prompt=system_prompt,
-                temperature=self._temperature,
-                max_tokens=self._max_tokens,
-            )
-            if raw.strip():
-                logger.info(f"[C.Y.R.U.S] LLM: Ollama responded ({len(raw)} chars)")
-                return self._split_response(raw.strip())
-            logger.warning("[C.Y.R.U.S] LLM: Ollama returned empty response")
-        except OllamaUnavailableError as exc:
-            logger.warning(f"[C.Y.R.U.S] LLM: Ollama unavailable — {exc}")
-        except LLMError as exc:
-            logger.warning(f"[C.Y.R.U.S] LLM: Ollama error — {exc}")
+        # Try local Ollama first — retry up to 2 times on transient errors (e.g.
+        # HTTP 500 during cold model load which can take 30+ seconds).
+        _MAX_ATTEMPTS = 3
+        _RETRY_DELAY  = 5.0   # seconds between retries
+        for _attempt in range(1, _MAX_ATTEMPTS + 1):
+            try:
+                logger.info(
+                    f"[C.Y.R.U.S] LLM: attempting local Ollama inference"
+                    f"{f' (attempt {_attempt}/{_MAX_ATTEMPTS})' if _attempt > 1 else ''}…"
+                )
+                raw = await self._ollama.chat(
+                    messages,
+                    system_prompt=system_prompt,
+                    temperature=self._temperature,
+                    max_tokens=self._max_tokens,
+                )
+                if raw.strip():
+                    logger.info(f"[C.Y.R.U.S] LLM: Ollama responded ({len(raw)} chars)")
+                    return self._split_response(raw.strip())
+                logger.warning("[C.Y.R.U.S] LLM: Ollama returned empty response")
+                break   # empty response is not a transient error — skip retries
+            except OllamaUnavailableError as exc:
+                logger.warning(f"[C.Y.R.U.S] LLM: Ollama unavailable — {exc}")
+                break   # connection refused → no point retrying immediately
+            except LLMError as exc:
+                logger.warning(f"[C.Y.R.U.S] LLM: Ollama error — {exc}")
+                if _attempt < _MAX_ATTEMPTS:
+                    logger.info(
+                        f"[C.Y.R.U.S] LLM: retrying in {_RETRY_DELAY:.0f}s "
+                        f"(model may still be loading)…"
+                    )
+                    await asyncio.sleep(_RETRY_DELAY)
 
         # Fallback to Claude API (only in HYBRID mode)
         if self._mode == "HYBRID":
