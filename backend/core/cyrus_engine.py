@@ -508,11 +508,13 @@ class CYRUSEngine:
             try:
                 audio_bytes, mime = await self._tts.synthesise(text)
                 if audio_bytes:
+                    est = len(audio_bytes) / (24000 * 2) if mime == "audio/wav" else 30.0
+                    self._audio_in.mute_for(est + 0.8)
                     if mime == "audio/wav":
                         await self._audio_out.play_wav(audio_bytes)
                     else:
                         await self._play_mp3(audio_bytes)
-                    self._audio_in.mute_for(1.2)
+                    self._audio_in.mute_for(0.5)
             except Exception as exc:
                 logger.error(f"[C.Y.R.U.S] _speak_text failed: {exc}")
         await self._bus.emit("status", {"state": "idle"})
@@ -692,11 +694,13 @@ class CYRUSEngine:
             try:
                 audio_bytes, mime = await self._tts.synthesise(GREETING)
                 if audio_bytes:
+                    est = len(audio_bytes) / (24000 * 2) if mime == "audio/wav" else 30.0
+                    self._audio_in.mute_for(est + 0.8)
                     if mime == "audio/wav":
                         await self._audio_out.play_wav(audio_bytes)
                     else:
                         await self._play_mp3(audio_bytes)
-                    self._audio_in.mute_for(1.5)
+                    self._audio_in.mute_for(0.5)
             except Exception as exc:
                 logger.warning(f"[C.Y.R.U.S] Greeting TTS failed: {exc}")
         self._last_greeting_at = time.monotonic()
@@ -937,9 +941,9 @@ class CYRUSEngine:
         if not pcm:
             return
 
-        # Gate: discard utterances shorter than 300 ms — almost certainly noise.
-        # 16 kHz × 2 bytes × 0.3 s = 9 600 bytes
-        _MIN_PCM = int(self._cfg.audio.input.sample_rate * 2 * 0.30)
+        # Gate: discard utterances shorter than 600 ms — almost certainly noise.
+        # 16 kHz × 2 bytes × 0.6 s = 19 200 bytes
+        _MIN_PCM = int(self._cfg.audio.input.sample_rate * 2 * 0.60)
         if len(pcm) < _MIN_PCM:
             logger.debug(f"[C.Y.R.U.S] PCM too short ({len(pcm)} B < {_MIN_PCM} B) — discarded")
             await asyncio.sleep(0.05)
@@ -967,6 +971,16 @@ class CYRUSEngine:
         if not transcript.strip():
             logger.debug("[C.Y.R.U.S] Empty transcript — ignoring")
             # Return to LISTENING without emitting state (no visible flicker)
+            await self._state.set_status(SystemStatus.LISTENING)
+            await asyncio.sleep(0.05)
+            return
+
+        # Reject Whisper hallucination patterns: repeated single tokens like
+        # "CYRUS, CYRUS, CYRUS" or "No, no, no, no" that appear when the model
+        # echoes the initial_prompt or hears its own TTS output through the mic.
+        _tokens = [t.strip(" ,.'\"") for t in transcript.split(",") if t.strip(" ,.'\"")]
+        if len(_tokens) >= 3 and len(set(t.lower() for t in _tokens)) == 1:
+            logger.debug(f"[C.Y.R.U.S] Hallucination detected — discarding: '{transcript}'")
             await self._state.set_status(SystemStatus.LISTENING)
             await asyncio.sleep(0.05)
             return
@@ -1080,6 +1094,11 @@ class CYRUSEngine:
         try:
             audio_bytes, mime = await self._tts.synthesise(speech_text)
             if audio_bytes:
+                # Estimate playback duration from WAV byte size; mute mic for the
+                # full duration + 0.5s tail so the barge-in watcher doesn't pick
+                # up the speakers before the user intentionally speaks.
+                estimated_duration = len(audio_bytes) / (24000 * 2) if mime == "audio/wav" else 30.0
+                self._audio_in.mute_for(estimated_duration + 0.5)
                 # Launch barge-in watcher — concurrently monitors mic for speech onset
                 self._barge_in_task = asyncio.create_task(self._barge_in_watcher())
                 async with self._audio_lock:
@@ -1091,10 +1110,8 @@ class CYRUSEngine:
                 if self._barge_in_task and not self._barge_in_task.done():
                     self._barge_in_task.cancel()
                     self._barge_in_task = None
-                # Mute mic briefly so CYRUS doesn't transcribe its own voice (echo)
-                # If interrupted by barge-in, mute_for(0) was already set — skip
-                if not self._audio_out._stop_flag.is_set():
-                    self._audio_in.mute_for(0.8)
+                # Shorten the remaining mute to just 0.5s post-playback tail
+                self._audio_in.mute_for(0.5)
         except Exception as exc:
             logger.error(f"[C.Y.R.U.S] TTS/playback failed: {exc}")
 
@@ -1134,6 +1151,12 @@ class CYRUSEngine:
                 project_root / log_cfg.log_dir,
                 level=log_cfg.level,
             )
+
+        # ctranslate2 emits harmless "Could not locate cudnn_ops_infer64_8.dll"
+        # probes at startup — INT8 CUDA inference does not need cuDNN.
+        import logging as _logging
+        _logging.getLogger("ctranslate2").setLevel(_logging.ERROR)
+        _logging.getLogger("faster_whisper").setLevel(_logging.WARNING)
 
         logger.info("=" * 60)
         logger.info("[C.Y.R.U.S] COGNITIVE SYSTEM v1.0 — STARTING")

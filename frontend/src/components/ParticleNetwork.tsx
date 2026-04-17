@@ -229,24 +229,40 @@ export function ParticleNetwork({ analyser }: Props) {
       uz[i] = Math.sin(sTheta[i]) * Math.sin(sPhi[i])
     }
 
-    const MAX_CONN  = N * 6
+    const MAX_CONN  = N * 8
     const connA     = new Int32Array(MAX_CONN)
     const connB     = new Int32Array(MAX_CONN)
     const connAng   = new Float32Array(MAX_CONN)
     let   nConn     = 0
 
-    const BASE_ANGLE = 0.82
-    for (let i = 0; i < N && nConn < MAX_CONN - 1; i++) {
-      for (let j = i + 1; j < N && nConn < MAX_CONN - 1; j++) {
+    // Phase 1: short-range local connections (dense synaptic clusters)
+    const LOCAL_ANGLE = 0.60
+    for (let i = 0; i < N && nConn < Math.floor(MAX_CONN * 0.65); i++) {
+      for (let j = i + 1; j < N && nConn < Math.floor(MAX_CONN * 0.65); j++) {
         const dot = Math.max(-1, Math.min(1, ux[i]*ux[j] + uy[i]*uy[j] + uz[i]*uz[j]))
         const ang = Math.acos(dot)
-        if (ang < BASE_ANGLE) {
+        if (ang < LOCAL_ANGLE) {
           connA[nConn]   = i
           connB[nConn]   = j
           connAng[nConn] = ang
           nConn++
         }
       }
+    }
+
+    // Phase 2: random long-range connections (axon highways across the sphere)
+    const localCount   = nConn
+    const randomTarget = Math.floor(localCount * 0.55)
+    for (let attempt = 0; attempt < randomTarget * 8 && nConn < MAX_CONN - 1; attempt++) {
+      const i = Math.floor(Math.random() * N)
+      const j = Math.floor(Math.random() * N)
+      if (i === j) continue
+      const a = Math.min(i, j), b = Math.max(i, j)
+      // Store with low connAng so they render like dense local axons
+      connA[nConn]   = a
+      connB[nConn]   = b
+      connAng[nConn] = 0.30 + Math.random() * 0.35
+      nConn++
     }
 
     // Per-node adjacency list (for cascade spawning)
@@ -342,14 +358,7 @@ export function ParticleNetwork({ analyser }: Props) {
       spawnPulse(c, fwd, bright, cascades)
     }
 
-    // ── Mouse / resize ─────────────────────────────────────────────────
-    const mouse = { tx: 0, ty: 0, x: 0, y: 0 }
-    const onMouse = (e: MouseEvent) => {
-      mouse.tx = (e.clientX / window.innerWidth  - 0.5) * 2
-      mouse.ty = (e.clientY / window.innerHeight - 0.5) * 2
-    }
-    window.addEventListener('mousemove', onMouse)
-
+    // ── Resize ─────────────────────────────────────────────────────────
     const onResize = () => {
       const rw = mount.clientWidth  || window.innerWidth
       const rh = mount.clientHeight || window.innerHeight
@@ -373,6 +382,7 @@ export function ParticleNetwork({ analyser }: Props) {
     let lColor     = new THREE.Color(0.80, 0.92, 1.0)
     let audioAmp   = 0
     let rotY       = 0
+    let rotX       = 0
     let simT       = 0
     let rafId      = 0
 
@@ -391,9 +401,6 @@ export function ParticleNetwork({ analyser }: Props) {
       lRadius    = lerp(lRadius,    tgt.radius,                       0.02)
       lSpawn     = lerp(lSpawn,     tgt.spawnRate,                    0.05)
       lColor.lerp(new THREE.Color(...tgt.color), 0.04)
-
-      mouse.x = lerp(mouse.x, mouse.tx, 0.06)
-      mouse.y = lerp(mouse.y, mouse.ty, 0.06)
 
       // ── Audio input per state ────────────────────────────────────────
       const an = analyserRef.current
@@ -420,10 +427,11 @@ export function ParticleNetwork({ analyser }: Props) {
 
       const pulse = lPulse * audioAmp
 
-      // Rotate sphere
+      // Rotate sphere — autonomous drift, no pointer interaction
       rotY += lRotSpeed
-      group.rotation.y = rotY + mouse.x * 0.35
-      group.rotation.x = Math.sin(simT * 0.15) * 0.06 - mouse.y * 0.18
+      rotX  = Math.sin(simT * 0.15) * 0.06
+      group.rotation.y = rotY
+      group.rotation.x = rotX
 
       // ── Per-node position with state-reactive displacement ───────────
       for (let i = 0; i < N; i++) {
@@ -577,7 +585,6 @@ export function ParticleNetwork({ analyser }: Props) {
     return () => {
       cancelAnimationFrame(rafId)
       ro.disconnect()
-      window.removeEventListener('mousemove', onMouse)
       window.removeEventListener('resize', onResize)
       renderer.dispose()
       ptGeo.dispose();   ptMat.dispose()

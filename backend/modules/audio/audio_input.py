@@ -63,7 +63,7 @@ class AudioInput:
         self._device_name = device_name
         self._pa: Optional[pyaudio.PyAudio] = None
         self._device_index: Optional[int] = None
-        self._vad = VADDetector(sample_rate=sample_rate)
+        self._vad = VADDetector(sample_rate=sample_rate, aggressiveness=3)
         self._stop_flag = threading.Event()    # set to interrupt a live recording
         self._muted_until: float = 0.0         # monotonic timestamp — ignore input before this
         self._voice_profile = None             # SpeakerProfile | None — set via set_voice_profile()
@@ -109,7 +109,7 @@ class AudioInput:
                 self._device_name.lower() in info["name"].lower()
                 and info["maxInputChannels"] > 0
             ):
-                logger.debug(f"[C.Y.R.U.S] AudioInput: matched device '{info['name']}' at index {i}")
+                logger.info(f"[C.Y.R.U.S] AudioInput: matched device '{info['name']}' at index {i}")
                 return i
 
         logger.warning(

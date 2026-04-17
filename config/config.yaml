@@ -6,7 +6,7 @@ system:
 local:
   llm:
     provider: ollama
-    model: phi3:latest
+    model: qwen2.5:3B
     host: http://localhost:11434
     timeout: 120
     stream: true
@@ -42,17 +42,19 @@ api:
     volume: +0%
 audio:
   input:
-    device: default
+    device: "Cloud Flight S Chat"
     sample_rate: 16000
     chunk_size: 1024
     channels: 1
     format: int16
-    silence_threshold: 500
+    silence_threshold: 800
     silence_duration: 1.5
   output:
     device: default
     volume: 0.85
     sample_rate: 24000
+huggingface:
+  token: "<YOUR_HF_TOKEN>"  # Reemplazar con un token válido
 trigger:
   wake_words:
   - hola cyrus
@@ -61,13 +63,13 @@ trigger:
   fuzzy_matching: true
   threshold: 78
 asr:
-  model: tiny
-  device: cuda
+  model: base
+  device: cpu
   compute_type: int8
   language: es
   beam_size: 5
-  vad_filter: true
-  initial_prompt: Hola CYRUS, oye CYRUS, hey CYRUS, CYRUS
+  vad_filter: false
+  initial_prompt: null
 conversation:
   max_history_turns: 10
   system_prompt_file: config/soul.md
