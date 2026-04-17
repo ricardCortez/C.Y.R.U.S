@@ -59,3 +59,6 @@ models/tts/piper/*.onnx
 models/tts/piper/*.onnx.json
 test_piper.wav
 test_*.wav
+
+# Launcher state cache
+.cyrus_launcher_state
