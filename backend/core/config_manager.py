@@ -85,6 +85,9 @@ class AudioInputConfig:
     format: str = "int16"
     silence_threshold: int = 500
     silence_duration: float = 1.5
+    noise_gate_factor: float = 3.5
+    noise_calibration_secs: float = 2.0
+    speaker_gate_enabled: bool = True
 
 
 @dataclass

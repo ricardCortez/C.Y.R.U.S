@@ -49,6 +49,9 @@ audio:
     format: int16
     silence_threshold: 400
     silence_duration: 1.5
+    noise_gate_factor: 3.5
+    noise_calibration_secs: 2.0
+    speaker_gate_enabled: true
   output:
     device: default
     volume: 0.85
