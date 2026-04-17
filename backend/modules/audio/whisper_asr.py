@@ -66,12 +66,16 @@ class WhisperASR:
 
     @staticmethod
     def _cuda_usable() -> bool:
-        """Return True when ctranslate2 can reach a CUDA device.
-
-        ctranslate2 4.x runs int8 inference on CUDA without a separate cuDNN
-        install, so we only need to verify a device is visible.  If the runtime
-        load actually fails it will be caught by the caller's try/except.
+        """Return True only when both a CUDA device AND the cuDNN 8.x inference
+        DLL are available.  ctranslate2 Windows wheels link against cuDNN 8.x
+        even for int8 compute; without the DLL, the first inference call prints
+        a C++ warning and returns empty results.
         """
+        import ctypes
+        try:
+            ctypes.CDLL("cudnn_ops_infer64_8.dll")
+        except OSError:
+            return False
         try:
             import ctranslate2 as _ct2
             return _ct2.get_cuda_device_count() > 0
@@ -85,8 +89,8 @@ class WhisperASR:
     def load(self) -> None:
         """Download (on first run) and load the Whisper model into memory.
 
-        Auto-selects CPU when the configured device is ``cuda`` but cuDNN is
-        not present — avoids a fatal DLL crash during first inference.
+        Auto-selects CPU when the configured device is ``cuda`` but cuDNN 8.x
+        is not present — avoids a silent failure during first inference.
 
         Raises:
             ASRError: If the model cannot be loaded.
@@ -180,7 +184,21 @@ class WhisperASR:
                 vad_filter=self._vad_filter,
                 initial_prompt=self._initial_prompt,
             )
-            text = " ".join(seg.text.strip() for seg in segments).strip()
+            try:
+                text = " ".join(seg.text.strip() for seg in segments).strip()
+            except Exception as vad_exc:
+                # Silero VAD model download may fail on offline machines; retry without VAD
+                logger.warning(f"[C.Y.R.U.S] ASR: segment iteration failed ({vad_exc}); retrying vad_filter=False")
+                wav_buf.seek(0)
+                segments2, info = self._model.transcribe(
+                    wav_buf,
+                    language=self._language,
+                    beam_size=self._beam_size,
+                    vad_filter=False,
+                    initial_prompt=self._initial_prompt,
+                )
+                text = " ".join(seg.text.strip() for seg in segments2).strip()
+                self._vad_filter = False  # disable permanently to avoid repeated failures
             lang = info.language if info.language else "es"
             logger.info(f"[C.Y.R.U.S] ASR: transcript='{text}' lang={lang}")
             return text, lang

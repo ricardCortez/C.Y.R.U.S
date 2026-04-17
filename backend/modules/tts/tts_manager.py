@@ -133,14 +133,15 @@ class TTSManager:
                 logger.warning(f"[C.Y.R.U.S] TTS: Kokoro unavailable ({exc})")
             except TTSError as exc:
                 logger.warning(f"[C.Y.R.U.S] TTS: Kokoro error ({exc}); trying Edge-TTS...")
-        try:
-            logger.info("[C.Y.R.U.S] TTS: falling back to Edge-TTS…")
-            mp3 = await self._voiceforge.synthesise(text)
-            if mp3:
-                logger.info(f"[C.Y.R.U.S] TTS: Edge-TTS → {len(mp3)} bytes")
-                return mp3, "audio/mpeg"
-        except TTSAPIError as exc:
-            logger.error(f"[C.Y.R.U.S] TTS: Edge-TTS also failed ({exc})")
+        if self._mode != "LOCAL":
+            try:
+                logger.info("[C.Y.R.U.S] TTS: falling back to Edge-TTS…")
+                mp3 = await self._voiceforge.synthesise(text)
+                if mp3:
+                    logger.info(f"[C.Y.R.U.S] TTS: Edge-TTS → {len(mp3)} bytes")
+                    return mp3, "audio/mpeg"
+            except TTSAPIError as exc:
+                logger.error(f"[C.Y.R.U.S] TTS: Edge-TTS also failed ({exc})")
 
         raise TTSError("[C.Y.R.U.S] TTS: all synthesis backends failed")
 
