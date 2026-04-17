@@ -47,12 +47,13 @@ audio:
     chunk_size: 1024
     channels: 1
     format: int16
-    silence_threshold: 500
-    silence_duration: 1.5
+    silence_threshold: 200  # Reducido para mayor sensibilidad
   output:
     device: default
     volume: 0.85
     sample_rate: 24000
+huggingface:
+  token: "<YOUR_HF_TOKEN>"  # Reemplazar con un token válido
 trigger:
   wake_words:
   - hola cyrus

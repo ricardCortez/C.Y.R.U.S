@@ -26,7 +26,7 @@ export type WSEvent =
 export type WSEventHandler = (evt: WSEvent) => void
 
 const RECONNECT_DELAY_MS = 2000
-const MAX_RECONNECT_ATTEMPTS = 10
+const MAX_RECONNECT_ATTEMPTS = Infinity   // always retry — local backend may start late
 
 export class CYRUSWebSocketClient {
   private ws: WebSocket | null = null

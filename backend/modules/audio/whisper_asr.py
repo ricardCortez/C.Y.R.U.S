@@ -66,32 +66,17 @@ class WhisperASR:
 
     @staticmethod
     def _cuda_usable() -> bool:
-        """Return True only when CUDA is present AND cuDNN is loadable.
+        """Return True when ctranslate2 can reach a CUDA device.
 
-        ctranslate2 links cuDNN at runtime — even ``int8`` ops call cuDNN
-        internally on some builds.  We probe the DLL before loading the model
-        so we can fall back to CPU gracefully instead of crashing the process.
+        ctranslate2 4.x runs int8 inference on CUDA without a separate cuDNN
+        install, so we only need to verify a device is visible.  If the runtime
+        load actually fails it will be caught by the caller's try/except.
         """
         try:
             import ctranslate2 as _ct2
-            if _ct2.get_cuda_device_count() == 0:
-                return False
+            return _ct2.get_cuda_device_count() > 0
         except Exception:
             return False
-
-        # Try loading the cuDNN 8 ops DLL that ctranslate2 requires
-        import ctypes, sys
-        cudnn_names = (
-            ["cudnn_ops_infer64_8.dll"]        if sys.platform == "win32" else
-            ["libcudnn_ops_infer.so.8", "libcudnn.so.8"]
-        )
-        for name in cudnn_names:
-            try:
-                ctypes.cdll.LoadLibrary(name)
-                return True
-            except OSError:
-                continue
-        return False
 
     # ------------------------------------------------------------------
     # Initialisation
