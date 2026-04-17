@@ -1,6 +1,5 @@
 // frontend/src/store/useCYRUSStore.ts
 import { create } from 'zustand'
-import type { VisualPresetId } from '../types/presets'
 
 export type SystemState =
   | 'offline' | 'connected' | 'idle'
@@ -97,8 +96,6 @@ interface CYRUSStore {
   particleCount:  number
   bloomIntensity: number
   orbSpeed:       number
-  visualPreset:   VisualPresetId
-  setVisualPreset: (p: VisualPresetId) => void
 
   // Actions
   setSystemState:       (s: SystemState) => void
@@ -170,7 +167,6 @@ export const useCYRUSStore = create<CYRUSStore>((set) => ({
   particleCount:  200,
   bloomIntensity: 1.4,
   orbSpeed:       1.0,
-  visualPreset:   'neural' as VisualPresetId,
 
   // Actions
   setSystemState:   (s) => set({ systemState: s }),
@@ -234,5 +230,4 @@ export const useCYRUSStore = create<CYRUSStore>((set) => ({
   setParticleCount:  (n) => set({ particleCount: Math.min(400, Math.max(100, n)) }),
   setBloomIntensity: (v) => set({ bloomIntensity: Math.min(2.5, Math.max(0.5, v)) }),
   setOrbSpeed:       (v) => set({ orbSpeed: Math.min(3, Math.max(0.1, v)) }),
-  setVisualPreset:   (p) => set({ visualPreset: p }),
 }))

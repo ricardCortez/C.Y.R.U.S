@@ -334,7 +334,7 @@ export function AgentView() {
     <div className="relative w-screen h-screen overflow-hidden" style={{ background: '#05070d' }}>
       {/* ── Particle network ── */}
       <div className="absolute inset-0">
-        <ParticleNetwork />
+        <ParticleNetwork analyser={analyser} />
       </div>
 
       {/* ── State badge ── */}
