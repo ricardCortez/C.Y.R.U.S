@@ -76,8 +76,12 @@ class XTTTS:
             logger.info(f"[C.Y.R.U.S] TTS XTTS: loading {_XTTS_MODEL} on {dev}...")
 
             # Download model files if not cached
+            import os as _os
             manager = ModelManager()
             model_path, config_path, _ = manager.download_model(_XTTS_MODEL)
+            # download_model returns config_path=None for xtts — derive it
+            if config_path is None:
+                config_path = _os.path.join(model_path, "config.json")
 
             config = XttsConfig()
             config.load_json(config_path)

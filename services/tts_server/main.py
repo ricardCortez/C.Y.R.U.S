@@ -94,6 +94,9 @@ def _load_engines() -> None:
 
         manager = ModelManager()
         model_path, config_path, _ = manager.download_model(_XTTS_MODEL)
+        # download_model returns config_path=None for xtts — derive it
+        if config_path is None:
+            config_path = os.path.join(model_path, "config.json")
 
         config = XttsConfig()
         config.load_json(config_path)
