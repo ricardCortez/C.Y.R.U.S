@@ -3,7 +3,6 @@
 # Phase 1 dependencies — pinned for reproducibility
 
 # ── Audio I/O ────────────────────────────────────────────────────────────────
-PyAudio==0.2.14
 sounddevice==0.4.6
 soundfile==0.12.1
 numpy==1.26.4
