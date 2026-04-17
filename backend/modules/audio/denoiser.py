@@ -29,6 +29,8 @@ class Denoiser:
     """
 
     def __init__(self, sample_rate: int = 16000, prop_decrease: float = 0.75) -> None:
+        if not 0.0 <= prop_decrease <= 1.0:
+            raise ValueError(f"prop_decrease must be in [0.0, 1.0], got {prop_decrease}")
         self._sr = sample_rate
         self._prop = prop_decrease
 
@@ -37,12 +39,12 @@ class Denoiser:
 
         Falls back to passthrough if noisereduce is unavailable or audio is empty.
         """
-        if not pcm or not _NR_AVAILABLE:
+        if not pcm:
+            return pcm
+        if not _NR_AVAILABLE:
             return pcm
 
         arr = np.frombuffer(pcm, dtype=np.int16).astype(np.float32) / 32768.0
-        if arr.size == 0:
-            return pcm
 
         try:
             reduced = nr.reduce_noise(
