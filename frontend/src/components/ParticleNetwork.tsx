@@ -229,16 +229,16 @@ export function ParticleNetwork({ analyser }: Props) {
       uz[i] = Math.sin(sTheta[i]) * Math.sin(sPhi[i])
     }
 
-    const MAX_CONN  = N * 8
+    const MAX_CONN  = N * 3
     const connA     = new Int32Array(MAX_CONN)
     const connB     = new Int32Array(MAX_CONN)
     const connAng   = new Float32Array(MAX_CONN)
     let   nConn     = 0
 
-    // Phase 1: short-range local connections (dense synaptic clusters)
-    const LOCAL_ANGLE = 0.60
-    for (let i = 0; i < N && nConn < Math.floor(MAX_CONN * 0.65); i++) {
-      for (let j = i + 1; j < N && nConn < Math.floor(MAX_CONN * 0.65); j++) {
+    // Phase 1: short-range local connections — tighter angle keeps it sparse
+    const LOCAL_ANGLE = 0.42
+    for (let i = 0; i < N && nConn < Math.floor(MAX_CONN * 0.80); i++) {
+      for (let j = i + 1; j < N && nConn < Math.floor(MAX_CONN * 0.80); j++) {
         const dot = Math.max(-1, Math.min(1, ux[i]*ux[j] + uy[i]*uy[j] + uz[i]*uz[j]))
         const ang = Math.acos(dot)
         if (ang < LOCAL_ANGLE) {
@@ -250,15 +250,14 @@ export function ParticleNetwork({ analyser }: Props) {
       }
     }
 
-    // Phase 2: random long-range connections (axon highways across the sphere)
+    // Phase 2: sparse long-range axons — only 15% extra for clean look
     const localCount   = nConn
-    const randomTarget = Math.floor(localCount * 0.55)
+    const randomTarget = Math.floor(localCount * 0.15)
     for (let attempt = 0; attempt < randomTarget * 8 && nConn < MAX_CONN - 1; attempt++) {
       const i = Math.floor(Math.random() * N)
       const j = Math.floor(Math.random() * N)
       if (i === j) continue
       const a = Math.min(i, j), b = Math.max(i, j)
-      // Store with low connAng so they render like dense local axons
       connA[nConn]   = a
       connB[nConn]   = b
       connAng[nConn] = 0.30 + Math.random() * 0.35
@@ -550,7 +549,7 @@ export function ParticleNetwork({ analyser }: Props) {
         if (connAng[c] > lConnAngle) continue
         const i  = connA[c], j = connB[c]
         const str  = 1 - connAng[c] / lConnAngle
-        const baseA = str * 0.48 * lBright
+        const baseA = str * 0.30 * lBright
         const alp   = Math.min(1, baseA + connFlash[c] * 0.90 + pulse * 0.10)
         const ix = i * 3, jx = j * 3
         const li = drawn * 6

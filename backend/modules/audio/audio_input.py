@@ -62,10 +62,17 @@ class AudioInput:
     # ── WASAPI settings helper ────────────────────────────────────────────────
     @staticmethod
     def _wasapi_settings() -> Optional[object]:
+        # exclusive=True gives the app sole ownership of the device, which
+        # prevents the Windows audio driver from routing mic input back to
+        # the speakers (hardware monitoring / sidetone loopback).
+        try:
+            return sd.WasapiSettings(exclusive=True)
+        except Exception:
+            pass
         try:
             return sd.WasapiSettings(exclusive=False, auto_convert=True)
         except Exception:
-            return None   # non-Windows or PortAudio without WASAPI
+            return None
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
     def open(self) -> None:
