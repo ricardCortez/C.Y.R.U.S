@@ -615,9 +615,10 @@ function VoiceProfilesSection({ sendCommand }: { sendCommand: (cmd: string, payl
                 {sp.role === 'owner' ? '★' : '◆'} {sp.id} ({sp.role})
               </span>
               <button
+                disabled={busy}
                 onClick={() => sendCommand('remove_speaker', { speaker_id: sp.id })}
-                className="text-red-400/60 hover:text-red-400 px-2"
-                style={{ fontSize: 10, background: 'none', border: 'none', cursor: 'pointer' }}
+                className="text-red-400/60 hover:text-red-400 px-2 disabled:opacity-40"
+                style={{ fontSize: 10, background: 'none', border: 'none', cursor: busy ? 'not-allowed' : 'pointer' }}
               >
                 ✕
               </button>
@@ -650,7 +651,10 @@ function VoiceProfilesSection({ sendCommand }: { sendCommand: (cmd: string, payl
         />
         <button
           disabled={busy || !guestName.trim()}
-          onClick={() => sendCommand('start_guest_enrollment', { name: guestName.trim(), samples: 5 })}
+          onClick={() => {
+            sendCommand('start_guest_enrollment', { name: guestName.trim(), samples: 5 })
+            setGuestName('')
+          }}
           className="font-mono text-xs border border-cyan-500/40 text-cyan-400/80 hover:text-cyan-400 rounded px-3 py-1 disabled:opacity-40"
           style={{ background: 'none', cursor: busy || !guestName.trim() ? 'not-allowed' : 'pointer', fontSize: 10 }}
         >
