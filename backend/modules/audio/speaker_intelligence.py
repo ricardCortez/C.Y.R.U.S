@@ -7,7 +7,6 @@ Falls back gracefully when SpeechBrain is not installed.
 """
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -21,7 +20,6 @@ logger = get_logger("cyrus.audio.speaker_intelligence")
 
 try:
     import torch
-    import torchaudio
     _TORCH_OK = True
 except ImportError:
     _TORCH_OK = False
@@ -146,6 +144,8 @@ class SpeakerIntelligence:
             centroid /= norm
 
         speaker_id = name.lower().strip()
+        if speaker_id in self._profiles:
+            logger.warning(f"[C.Y.R.U.S] SpeakerIntelligence: overwriting existing profile for '{speaker_id}'")
         self._profiles[speaker_id] = {"role": role, "embedding": centroid}
         logger.info(f"[C.Y.R.U.S] SpeakerIntelligence: enrolled '{speaker_id}' as {role.value} ({len(embeddings)} samples)")
         self.save()
@@ -157,6 +157,10 @@ class SpeakerIntelligence:
 
         Returns UNKNOWN with confidence 0.0 when no profiles are enrolled
         or when the speaker encoder is unavailable.
+
+        Note:
+            Adaptive centroid updates (score > 0.92) are applied in-memory only.
+            Call save() explicitly to persist them across restarts.
         """
         unknown = SpeakerResult(role=SpeakerRole.UNKNOWN, speaker_id="unknown", confidence=0.0)
 
@@ -227,10 +231,10 @@ class SpeakerIntelligence:
             return
         for npz_path in self._data_dir.glob("*.npz"):
             try:
-                data   = np.load(str(npz_path))
-                sid    = npz_path.stem
-                role   = SpeakerRole(str(data["role"]))
-                emb    = data["embedding"].astype(np.float32)
+                with np.load(str(npz_path)) as data:
+                    sid    = npz_path.stem
+                    role   = SpeakerRole(str(data["role"]))
+                    emb    = data["embedding"].astype(np.float32)
                 self._profiles[sid] = {"role": role, "embedding": emb}
                 logger.info(f"[C.Y.R.U.S] SpeakerIntelligence: loaded '{sid}' ({role.value})")
             except Exception as exc:
