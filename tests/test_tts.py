@@ -90,6 +90,36 @@ class TestVoiceforgeTTS:
         assert result == b""
 
 
+class TestXTTTSVoiceCloning:
+    def test_xtts_set_reference_stores_path(self, tmp_path):
+        from backend.modules.tts.xtts_tts import XTTTS
+        import struct
+
+        # Create a minimal valid WAV
+        wav_path = tmp_path / "ref.wav"
+        with wave.open(str(wav_path), "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(24000)
+            wf.writeframes(struct.pack("<" + "h" * 24000, *([0] * 24000)))
+
+        tts = XTTTS(language="es")
+        tts.set_reference(str(wav_path))
+        assert tts._reference_wav == str(wav_path)
+        assert tts._cached_latents is None  # cache cleared on new reference
+
+    def test_xtts_unload_clears_model(self):
+        from backend.modules.tts.xtts_tts import XTTTS
+
+        tts = XTTTS(language="es")
+        tts._available = True
+        tts._tts = object()
+        tts.unload()
+        assert tts._tts is None
+        assert tts._available is False
+        assert tts._cached_latents is None
+
+
 class TestTTSManagerFallback:
     @pytest.mark.asyncio
     async def test_kokoro_failure_falls_back_to_voiceforge(self):
