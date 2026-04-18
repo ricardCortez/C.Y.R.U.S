@@ -153,7 +153,7 @@ class WhisperASR:
                     f"[C.Y.R.U.S] ASR: CUDA load failed ({exc}); retrying on CPU with int8"
                 )
                 try:
-                    self._model        = WhisperModel(self._model_size, device="cpu", compute_type="int8")
+                    self._model        = WhisperModel(model_size, device="cpu", compute_type="int8")
                     self._device       = "cpu"
                     self._compute_type = "int8"
                     logger.info("[C.Y.R.U.S] ASR: model ready (CPU fallback)")
