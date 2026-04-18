@@ -12,8 +12,10 @@ Run with:
 from __future__ import annotations
 
 import asyncio
+import re
 import sys
 import time
+import wave
 from pathlib import Path
 
 # System monitoring
@@ -332,7 +334,7 @@ class CYRUSEngine:
 
     async def _init_models(self) -> None:
         """Load all ML models asynchronously (in executor to avoid blocking)."""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         # RemoteASR — probe if enabled, otherwise load local Whisper
         if self._remote_asr is not None:
@@ -670,7 +672,7 @@ class CYRUSEngine:
         # Build and save voice profile from enrollment audio
         if pcm_samples:
             try:
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 sample_rate = self._cfg.audio.input.sample_rate
                 profile = await loop.run_in_executor(
                     None,
@@ -708,133 +710,135 @@ class CYRUSEngine:
     async def _run_neural_enrollment(self, role: SpeakerRole, name: str, samples: int = 5) -> None:
         """Record samples and enroll speaker with ECAPA-TDNN."""
         self._enrollment_active = True
-        self._audio_in.request_stop()
-        await asyncio.sleep(0.5)
+        try:
+            self._audio_in.request_stop()
+            await asyncio.sleep(0.5)
 
-        role_str = "propietario" if role == SpeakerRole.OWNER else f"invitado '{name}'"
-        intro = f"Enrollamiento neural para {role_str}. Voy a pedirte que hables {samples} veces. Habla con naturalidad."
+            role_str = "propietario" if role == SpeakerRole.OWNER else f"invitado '{name}'"
+            intro = f"Enrollamiento neural para {role_str}. Voy a pedirte que hables {samples} veces. Habla con naturalidad."
 
-        await self._bus.emit("enrollment", {"step": "start", "total": samples, "role": role.value, "name": name})
-        await self._bus.emit("status", {"state": "speaking"})
-        await self._bus.emit("response", {"text": intro, "language": "es"})
-        async with self._audio_lock:
-            try:
-                ab, mime = await self._tts.synthesise(intro)
-                if ab:
-                    await self._audio_out.play_wav(ab) if mime == "audio/wav" else await self._play_mp3(ab)
-            except Exception:
-                pass
-
-        pcm_samples: list[bytes] = []
-        for i in range(1, samples + 1):
-            await self._bus.emit("enrollment", {"step": "prompt", "sample": i, "total": samples})
+            await self._bus.emit("enrollment", {"step": "start", "total": samples, "role": role.value, "name": name})
+            await self._bus.emit("status", {"state": "speaking"})
+            await self._bus.emit("response", {"text": intro, "language": "es"})
             async with self._audio_lock:
                 try:
-                    ab, mime = await self._tts.synthesise(f"Muestra {i}.")
+                    ab, mime = await self._tts.synthesise(intro)
                     if ab:
                         await self._audio_out.play_wav(ab) if mime == "audio/wav" else await self._play_mp3(ab)
                 except Exception:
                     pass
-            await asyncio.sleep(0.3)
-            try:
-                pcm = await self._audio_in.record_utterance()
-                if pcm:
-                    pcm_samples.append(pcm)
-                await self._bus.emit("enrollment", {"step": "result", "sample": i, "heard": f"Muestra {i} {'OK' if pcm else '(silencio)'}"})
-            except Exception as exc:
-                logger.warning(f"[C.Y.R.U.S] Neural enrollment recording failed: {exc}")
 
-        if pcm_samples:
-            try:
-                loop = asyncio.get_event_loop()
-                await loop.run_in_executor(
-                    None,
-                    lambda: self._speaker_intel.enroll(role, name, pcm_samples),
-                )
-                speakers = self._speaker_intel.list_speakers()
-                await self._bus.emit("speaker_profiles", {"speakers": speakers})
-                summary = f"Perfil de voz registrado para {role_str} con {len(pcm_samples)} muestras."
-                await self._bus.emit("debug", {"text": f"✓ {summary}", "level": "ok"})
-            except Exception as exc:
-                summary = f"No se pudo registrar el perfil: {exc}"
-                logger.warning(f"[C.Y.R.U.S] Neural enrollment failed: {exc}")
-        else:
-            summary = "No se detectó audio. Intenta en un ambiente más silencioso."
+            pcm_samples: list[bytes] = []
+            for i in range(1, samples + 1):
+                await self._bus.emit("enrollment", {"step": "prompt", "sample": i, "total": samples})
+                async with self._audio_lock:
+                    try:
+                        ab, mime = await self._tts.synthesise(f"Muestra {i}.")
+                        if ab:
+                            await self._audio_out.play_wav(ab) if mime == "audio/wav" else await self._play_mp3(ab)
+                    except Exception:
+                        pass
+                await asyncio.sleep(0.3)
+                try:
+                    pcm = await self._audio_in.record_utterance()
+                    if pcm:
+                        pcm_samples.append(pcm)
+                    await self._bus.emit("enrollment", {"step": "result", "sample": i, "heard": f"Muestra {i} {'OK' if pcm else '(silencio)'}"})
+                except Exception as exc:
+                    logger.warning(f"[C.Y.R.U.S] Neural enrollment recording failed: {exc}")
 
-        await self._bus.emit("enrollment", {"step": "done", "added": [name] if pcm_samples else []})
-        await self._bus.emit("status", {"state": "speaking"})
-        async with self._audio_lock:
-            try:
-                ab, mime = await self._tts.synthesise(summary)
-                if ab:
-                    await self._audio_out.play_wav(ab) if mime == "audio/wav" else await self._play_mp3(ab)
-            except Exception:
-                pass
+            if pcm_samples:
+                try:
+                    loop = asyncio.get_running_loop()
+                    await loop.run_in_executor(
+                        None,
+                        lambda: self._speaker_intel.enroll(role, name, pcm_samples),
+                    )
+                    speakers = self._speaker_intel.list_speakers()
+                    await self._bus.emit("speaker_profiles", {"speakers": speakers})
+                    summary = f"Perfil de voz registrado para {role_str} con {len(pcm_samples)} muestras."
+                    await self._bus.emit("debug", {"text": f"✓ {summary}", "level": "ok"})
+                except Exception as exc:
+                    summary = f"No se pudo registrar el perfil: {exc}"
+                    logger.warning(f"[C.Y.R.U.S] Neural enrollment failed: {exc}")
+            else:
+                summary = "No se detectó audio. Intenta en un ambiente más silencioso."
 
-        self._enrollment_active = False
-        await self._bus.emit("status", {"state": "idle"})
-        await self._bus.emit("enrollment", {"step": "idle"})
+            await self._bus.emit("enrollment", {"step": "done", "added": [name] if pcm_samples else []})
+            await self._bus.emit("status", {"state": "speaking"})
+            async with self._audio_lock:
+                try:
+                    ab, mime = await self._tts.synthesise(summary)
+                    if ab:
+                        await self._audio_out.play_wav(ab) if mime == "audio/wav" else await self._play_mp3(ab)
+                except Exception:
+                    pass
+        finally:
+            self._enrollment_active = False
+            await self._bus.emit("status", {"state": "idle"})
+            await self._bus.emit("enrollment", {"step": "idle"})
 
     async def _record_tts_reference(self) -> None:
         """Record 20s of voice as XTTS cloning reference."""
         self._enrollment_active = True
-        self._audio_in.request_stop()
-        await asyncio.sleep(0.3)
+        try:
+            self._audio_in.request_stop()
+            await asyncio.sleep(0.3)
 
-        ref_dir  = self._cfg.project_root / "data" / "tts"
-        ref_dir.mkdir(parents=True, exist_ok=True)
-        ref_path = ref_dir / "reference_voice.wav"
+            ref_dir  = self._cfg.project_root / "data" / "tts"
+            ref_dir.mkdir(parents=True, exist_ok=True)
+            ref_path = ref_dir / "reference_voice.wav"
 
-        intro = "Voy a grabar tu voz como referencia para la síntesis. Habla durante 20 segundos sobre cualquier tema."
-        await self._bus.emit("status", {"state": "speaking"})
-        async with self._audio_lock:
-            try:
-                ab, mime = await self._tts.synthesise(intro)
-                if ab:
-                    await self._audio_out.play_wav(ab) if mime == "audio/wav" else await self._play_mp3(ab)
-            except Exception:
-                pass
+            intro = "Voy a grabar tu voz como referencia para la síntesis. Habla durante 20 segundos sobre cualquier tema."
+            await self._bus.emit("status", {"state": "speaking"})
+            async with self._audio_lock:
+                try:
+                    ab, mime = await self._tts.synthesise(intro)
+                    if ab:
+                        await self._audio_out.play_wav(ab) if mime == "audio/wav" else await self._play_mp3(ab)
+                except Exception:
+                    pass
 
-        await asyncio.sleep(0.5)
-        await self._bus.emit("debug", {"text": "🎙 Grabando referencia TTS (20s)...", "level": "info"})
+            await asyncio.sleep(0.5)
+            await self._bus.emit("debug", {"text": "🎙 Grabando referencia TTS (20s)...", "level": "info"})
 
-        pcm_chunks: list[bytes] = []
-        target_bytes = 16000 * 2 * 20  # 20 seconds at 16kHz int16
-        collected = 0
-        while collected < target_bytes:
-            try:
-                pcm = await self._audio_in.record_utterance()
-                if pcm:
-                    pcm_chunks.append(pcm)
-                    collected += len(pcm)
-            except Exception:
-                break
+            pcm_chunks: list[bytes] = []
+            _sr = self._cfg.audio.input.sample_rate
+            target_bytes = _sr * 2 * 20  # 20 seconds
+            collected = 0
+            while collected < target_bytes:
+                try:
+                    pcm = await self._audio_in.record_utterance()
+                    if pcm:
+                        pcm_chunks.append(pcm)
+                        collected += len(pcm)
+                except Exception:
+                    break
 
-        if pcm_chunks:
-            import wave as _wave
-            combined = b"".join(pcm_chunks)
-            with _wave.open(str(ref_path), "wb") as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(2)
-                wf.setframerate(16000)
-                wf.writeframes(combined)
-            self._xtts.set_reference(str(ref_path))
-            await self._bus.emit("debug", {"text": f"✓ Referencia TTS guardada: {ref_path.name}", "level": "ok"})
-            summary = "Referencia de voz guardada. La síntesis de voz ahora usará tu voz como modelo."
-        else:
-            summary = "No se detectó audio para la referencia."
+            if pcm_chunks:
+                combined = b"".join(pcm_chunks)
+                with wave.open(str(ref_path), "wb") as wf:
+                    wf.setnchannels(1)
+                    wf.setsampwidth(2)
+                    wf.setframerate(_sr)
+                    wf.writeframes(combined)
+                self._xtts.set_reference(str(ref_path))
+                await self._bus.emit("debug", {"text": f"✓ Referencia TTS guardada: {ref_path.name}", "level": "ok"})
+                summary = "Referencia de voz guardada. La síntesis de voz ahora usará tu voz como modelo."
+            else:
+                summary = "No se detectó audio para la referencia."
 
-        await self._bus.emit("status", {"state": "speaking"})
-        async with self._audio_lock:
-            try:
-                ab, mime = await self._tts.synthesise(summary)
-                if ab:
-                    await self._audio_out.play_wav(ab) if mime == "audio/wav" else await self._play_mp3(ab)
-            except Exception:
-                pass
-
-        self._enrollment_active = False
-        await self._bus.emit("status", {"state": "idle"})
+            await self._bus.emit("status", {"state": "speaking"})
+            async with self._audio_lock:
+                try:
+                    ab, mime = await self._tts.synthesise(summary)
+                    if ab:
+                        await self._audio_out.play_wav(ab) if mime == "audio/wav" else await self._play_mp3(ab)
+                except Exception:
+                    pass
+        finally:
+            self._enrollment_active = False
+            await self._bus.emit("status", {"state": "idle"})
 
     async def _greet(self) -> None:
         """Synthesise and play the startup greeting in Spanish."""
@@ -896,9 +900,10 @@ class CYRUSEngine:
             await self._bus.emit("wake_words", {"words": self._trigger.wake_words})
             await self._bus.emit("debug", {"text": f"✗ Wake word '{word}' eliminado", "level": "warn"})
         elif cmd == "start_enrollment":
+            # Redirected to neural enrollment (SpeakerProfile removed)
             if not self._enrollment_active:
-                samples = int(payload.get("samples", 5))
-                asyncio.create_task(self._run_enrollment(samples=samples))
+                samples = int(payload.get("samples", 8))
+                asyncio.create_task(self._run_neural_enrollment(SpeakerRole.OWNER, "owner", samples))
 
         elif cmd == "start_owner_enrollment":
             if not self._enrollment_active:
@@ -908,6 +913,7 @@ class CYRUSEngine:
         elif cmd == "start_guest_enrollment":
             if not self._enrollment_active:
                 name    = str(payload.get("name", "guest")).strip().lower()
+                name    = re.sub(r'[^\w\-]', '_', name)[:32] or "guest"
                 samples = int(payload.get("samples", 5))
                 asyncio.create_task(self._run_neural_enrollment(SpeakerRole.GUEST, name, samples))
 
@@ -1136,7 +1142,7 @@ class CYRUSEngine:
             return
 
         # Speaker Intelligence — identify who is speaking
-        speaker_result = await asyncio.get_event_loop().run_in_executor(
+        speaker_result = await asyncio.get_running_loop().run_in_executor(
             None, self._speaker_intel.identify, pcm
         )
         logger.debug(f"[C.Y.R.U.S] Speaker: {speaker_result.speaker_id} ({speaker_result.role.value}) conf={speaker_result.confidence:.2f}")
@@ -1152,7 +1158,7 @@ class CYRUSEngine:
                     pcm, self._cfg.audio.input.sample_rate
                 )
             else:
-                transcript, lang = await asyncio.get_event_loop().run_in_executor(
+                transcript, lang = await asyncio.get_running_loop().run_in_executor(
                     None, self._asr.transcribe, pcm
                 )
         except Exception as exc:
