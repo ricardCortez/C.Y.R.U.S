@@ -83,3 +83,11 @@ class TestWhisperModelLoad:
         text, lang = asr.transcribe(pcm)
         assert isinstance(text, str)
         asr.unload()
+
+
+def test_select_model_cpu():
+    from backend.modules.audio.whisper_asr import WhisperASR
+    model, device, compute = WhisperASR._select_model_and_device(force_cpu=True)
+    assert model == "small"
+    assert device == "cpu"
+    assert compute == "int8"

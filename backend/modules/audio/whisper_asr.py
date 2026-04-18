@@ -53,7 +53,7 @@ class WhisperASR:
         self._language = language
         self._beam_size = beam_size
         self._vad_filter = vad_filter
-        self._initial_prompt = initial_prompt
+        self._initial_prompt = initial_prompt or "Habla en español. C.Y.R.U.S es un asistente de IA personal."
         self._model: Optional["WhisperModel"] = None  # lazy load
 
     # ------------------------------------------------------------------
@@ -82,6 +82,29 @@ class WhisperASR:
         except Exception:
             return False
 
+    @staticmethod
+    def _select_model_and_device(force_cpu: bool = False) -> tuple[str, str, str]:
+        """Auto-select Whisper model size and compute device based on available hardware.
+
+        Returns:
+            Tuple of (model_size, device, compute_type).
+        """
+        if force_cpu or not WhisperASR._cuda_usable():
+            return "small", "cpu", "int8"
+
+        try:
+            import torch
+            if not torch.cuda.is_available():
+                return "small", "cpu", "int8"
+            vram_bytes = torch.cuda.get_device_properties(0).total_memory
+            vram_gb    = vram_bytes / (1024 ** 3)
+            if vram_gb >= 5.0:
+                return "medium", "cuda", "float16"
+            else:
+                return "small", "cuda", "float16"
+        except Exception:
+            return "small", "cpu", "int8"
+
     # ------------------------------------------------------------------
     # Initialisation
     # ------------------------------------------------------------------
@@ -100,23 +123,26 @@ class WhisperASR:
 
         device       = self._device
         compute_type = self._compute_type
+        model_size   = self._model_size
 
-        if device == "cuda" and not self._cuda_usable():
+        # "auto" triggers hardware-aware selection — overrides config values
+        if model_size == "auto":
+            model_size, device, compute_type = self._select_model_and_device()
+        elif device == "cuda" and not self._cuda_usable():
             logger.warning(
                 "[C.Y.R.U.S] ASR: CUDA requested but cuDNN not available — "
                 "falling back to CPU/int8 (install cuDNN to enable GPU)"
             )
-            device       = "cpu"
-            compute_type = "int8"
+            model_size, device, compute_type = self._select_model_and_device(force_cpu=True)
             self._device       = device
             self._compute_type = compute_type
 
         try:
             logger.info(
-                f"[C.Y.R.U.S] ASR: loading whisper/{self._model_size} on {device} ({compute_type})..."
+                f"[C.Y.R.U.S] ASR: loading whisper/{model_size} on {device} ({compute_type})..."
             )
             self._model = WhisperModel(
-                self._model_size,
+                model_size,
                 device=device,
                 compute_type=compute_type,
             )
