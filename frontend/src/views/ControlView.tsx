@@ -593,6 +593,85 @@ function TabConfig({ sendCommand }: { sendCommand: (cmd: string, extra?: object)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// VOICE PROFILES SECTION
+// ═══════════════════════════════════════════════════════════════════════════
+
+function VoiceProfilesSection({ sendCommand }: { sendCommand: (cmd: string, payload?: object) => void }) {
+  const speakerProfiles = useCYRUSStore(s => s.speakerProfiles)
+  const enrollmentStep  = useCYRUSStore(s => s.enrollmentStep)
+  const [guestName, setGuestName] = useState('')
+  const busy = enrollmentStep !== 'idle'
+
+  return (
+    <div className="border border-cyan-900/30 rounded p-4 space-y-3">
+      <p className="font-mono text-xs tracking-widest text-cyan-400/60">PERFILES DE VOZ</p>
+
+      {/* Enrolled speakers list */}
+      {speakerProfiles.length > 0 && (
+        <div className="space-y-1">
+          {speakerProfiles.map(sp => (
+            <div key={sp.id} className="flex items-center justify-between font-mono text-xs">
+              <span style={{ color: sp.role === 'owner' ? '#00ff88' : '#00d4ff' }}>
+                {sp.role === 'owner' ? '★' : '◆'} {sp.id} ({sp.role})
+              </span>
+              <button
+                onClick={() => sendCommand('remove_speaker', { speaker_id: sp.id })}
+                className="text-red-400/60 hover:text-red-400 px-2"
+                style={{ fontSize: 10, background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {speakerProfiles.length === 0 && (
+        <p className="font-mono text-xs text-cyan-900/60">Sin perfiles enrollados</p>
+      )}
+
+      {/* Enroll owner */}
+      <button
+        disabled={busy}
+        onClick={() => sendCommand('start_owner_enrollment', { samples: 8 })}
+        className="w-full font-mono text-xs border border-green-500/40 text-green-400/80 hover:text-green-400 rounded px-3 py-2 disabled:opacity-40"
+        style={{ background: 'none', cursor: busy ? 'not-allowed' : 'pointer' }}
+      >
+        ENROLLAR PROPIETARIO (8 muestras)
+      </button>
+
+      {/* Enroll guest */}
+      <div className="flex gap-2">
+        <input
+          value={guestName}
+          onChange={e => setGuestName(e.target.value)}
+          placeholder="nombre invitado"
+          className="flex-1 font-mono text-xs bg-transparent border border-cyan-900/40 rounded px-2 py-1 text-cyan-300/70 outline-none"
+          style={{ fontSize: 10 }}
+        />
+        <button
+          disabled={busy || !guestName.trim()}
+          onClick={() => sendCommand('start_guest_enrollment', { name: guestName.trim(), samples: 5 })}
+          className="font-mono text-xs border border-cyan-500/40 text-cyan-400/80 hover:text-cyan-400 rounded px-3 py-1 disabled:opacity-40"
+          style={{ background: 'none', cursor: busy || !guestName.trim() ? 'not-allowed' : 'pointer', fontSize: 10 }}
+        >
+          ENROLLAR
+        </button>
+      </div>
+
+      {/* Record TTS reference */}
+      <button
+        disabled={busy}
+        onClick={() => sendCommand('record_tts_reference')}
+        className="w-full font-mono text-xs border border-orange-500/40 text-orange-400/80 hover:text-orange-400 rounded px-3 py-2 disabled:opacity-40"
+        style={{ background: 'none', cursor: busy ? 'not-allowed' : 'pointer' }}
+      >
+        GRABAR VOZ DE REFERENCIA TTS (20s)
+      </button>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // TAB 3 — VOZ
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -617,10 +696,17 @@ function TabVoz({ sendCommand }: { sendCommand: (cmd: string, extra?: object) =>
   const enrollSample  = useCYRUSStore(s => s.enrollmentSample)
   const enrollTotal   = useCYRUSStore(s => s.enrollmentTotal)
   const enrollResults = useCYRUSStore(s => s.enrollmentResults)
+  const wsConnected   = useCYRUSStore(s => s.wsConnected)
   const [newWord, setNewWord] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
 
   const isEnrolling = enrollStep !== 'idle' && enrollStep !== 'done'
+
+  useEffect(() => {
+    if (wsConnected) {
+      sendCommand('list_speakers')
+    }
+  }, [wsConnected, sendCommand])
 
   const asrLines = logs.filter(l => l.message.startsWith('ASR ')).slice(-5).reverse()
 
@@ -701,6 +787,11 @@ function TabVoz({ sendCommand }: { sendCommand: (cmd: string, extra?: object) =>
           {isEnrolling ? `GRABANDO ${enrollSample}/${enrollTotal}…` : 'INICIAR ENROLLAMIENTO'}
         </button>
       </Card>
+
+      {/* ── Perfiles de Voz (neural enrollment) ── */}
+      <div style={{ marginBottom: 8 }}>
+        <VoiceProfilesSection sendCommand={sendCommand} />
+      </div>
 
       {/* ── Palabras activas + ASR ── */}
       <Card style={{ marginBottom: 8 }}>

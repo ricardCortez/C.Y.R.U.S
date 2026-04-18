@@ -111,6 +111,10 @@ export function useWebSocket(): { connected: boolean; sendCommand: (cmd: string,
           setServiceStatus(evt.data as ServiceStatus)
           break
 
+        case 'speaker_profiles':
+          useCYRUSStore.getState().setSpeakerProfiles(evt.data.speakers ?? [])
+          break
+
         case 'error':
           setStatusMessage(evt.data.message)
           setSystemState('error')

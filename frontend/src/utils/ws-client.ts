@@ -22,6 +22,7 @@ export type WSEvent =
       embedder: { enabled: boolean; online: boolean; host: string }
     }
   }
+  | { event: 'speaker_profiles'; data: { speakers: { id: string; role: string }[] } }
 
 export type WSEventHandler = (evt: WSEvent) => void
 

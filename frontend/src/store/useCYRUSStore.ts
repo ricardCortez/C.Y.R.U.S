@@ -79,6 +79,10 @@ interface CYRUSStore {
   enrollmentTotal:   number
   enrollmentResults: string[]
 
+  // Speaker profiles (neural enrollment)
+  speakerProfiles: { id: string; role: string }[]
+  setSpeakerProfiles: (profiles: { id: string; role: string }[]) => void
+
   // System stats (real — from backend)
   systemStats: SystemStats | null
 
@@ -150,6 +154,9 @@ export const useCYRUSStore = create<CYRUSStore>((set) => ({
   enrollmentTotal:   5,
   enrollmentResults: [],
 
+  // Speaker profiles
+  speakerProfiles: [],
+
   // System stats
   systemStats: null,
 
@@ -210,6 +217,7 @@ export const useCYRUSStore = create<CYRUSStore>((set) => ({
 
   clearLogs:    () => set({ logs: [] }),
   setWakeWords: (words) => set({ wakeWords: words }),
+  setSpeakerProfiles: (profiles) => set({ speakerProfiles: profiles }),
   setCurrentModel: (model: string) => set({ currentModel: model }),
   setEnrollment: (data) => set((st) => {
     const next: Partial<typeof st> = {}
