@@ -152,9 +152,9 @@ class XTTTS:
                 if self._cached_latents:
                     gpt_cond_latent, speaker_embedding = self._cached_latents
                 else:
-                    gpt_cond_latent, speaker_embedding = self._tts.get_conditioning_latents(audio_path=[])
+                    raise TTSError("[C.Y.R.U.S] XTTS: no reference voice set. Use record_tts_reference command first.")
             else:
-                gpt_cond_latent, speaker_embedding = self._tts.get_conditioning_latents(audio_path=[])
+                raise TTSError("[C.Y.R.U.S] XTTS: no reference voice set. Use record_tts_reference command first.")
 
             out = self._tts.inference(
                 text=text,

@@ -6,7 +6,7 @@ export type SystemState =
   | 'listening' | 'transcribing' | 'thinking'
   | 'speaking' | 'error'
 
-export type LogLevel = 'info' | 'warn' | 'error'
+export type LogLevel = 'info' | 'warn' | 'error' | 'ok'
 
 export interface LogEntry {
   id:        number

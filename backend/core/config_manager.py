@@ -34,6 +34,15 @@ class LLMLocalConfig:
 
 
 @dataclass
+class XTTSConfig:
+    enabled: bool = True
+    language: str = "es"
+    speaker: str = "Tammie Ema"
+    reference_voice: str = ""
+    idle_unload_secs: int = 120
+
+
+@dataclass
 class TTSLocalConfig:
     provider: str = "kokoro"           # kokoro | piper
     voice: str = "ef_dora"            # Kokoro voice ID
@@ -43,6 +52,7 @@ class TTSLocalConfig:
     # Piper-specific fields (only used when provider = "piper")
     piper_model: str = ""            # path to .onnx model file
     piper_speaker: Optional[int] = None  # speaker ID for multi-speaker models
+    xtts: XTTSConfig = field(default_factory=XTTSConfig)
 
 
 @dataclass
@@ -320,6 +330,8 @@ def load_config(config_path: Optional[Path] = None) -> CYRUSConfig:
         tts_raw = dict(loc.get("tts") or {})
         tts_cfg = TTSLocalConfig(**{k: v for k, v in tts_raw.items() if k in TTSLocalConfig.__dataclass_fields__})
         cfg.local = LocalConfig(llm=llm_cfg, tts=tts_cfg)
+    if xtts_raw := raw.get("local", {}).get("tts", {}).get("xtts"):
+        cfg.local.tts.xtts = XTTSConfig(**{k: v for k, v in xtts_raw.items() if k in XTTSConfig.__dataclass_fields__})
 
     # ── api ──────────────────────────────────────────────────────────────────
     if api := raw.get("api"):

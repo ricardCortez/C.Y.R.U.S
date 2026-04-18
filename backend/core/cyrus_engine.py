@@ -584,6 +584,8 @@ class CYRUSEngine:
 
     async def _run_enrollment(self, samples: int = 5) -> None:
         """Record N samples, transcribe each, register wake-word variants, and build voice profile."""
+        # DEPRECATED: SpeakerProfile removed in Voice Intelligence v2.
+        # Use _run_neural_enrollment() instead.
         self._enrollment_active = True
         # Interrupt any currently-blocked recording
         self._audio_in.request_stop()
@@ -671,20 +673,7 @@ class CYRUSEngine:
 
         # Build and save voice profile from enrollment audio
         if pcm_samples:
-            try:
-                loop = asyncio.get_running_loop()
-                sample_rate = self._cfg.audio.input.sample_rate
-                profile = await loop.run_in_executor(
-                    None,
-                    lambda: SpeakerProfile.from_pcm_samples(pcm_samples, sample_rate=sample_rate),
-                )
-                profile_path = self._cfg.project_root / "config" / "voice_profile.npy"
-                profile.save(profile_path)
-                self._audio_in.set_voice_profile(profile)
-                logger.info("[C.Y.R.U.S] Voice profile built and activated for barge-in")
-                await self._bus.emit("debug", {"text": "✓ Perfil de voz guardado — barge-in personalizado activo", "level": "ok"})
-            except Exception as exc:
-                logger.warning(f"[C.Y.R.U.S] Voice profile build failed: {exc}")
+            logger.warning("[C.Y.R.U.S] Legacy enrollment: SpeakerProfile removed — use neural enrollment commands instead")
 
         # Summary
         if added:

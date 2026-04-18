@@ -5,7 +5,7 @@
 
 import { useEffect, useCallback } from 'react'
 import { CYRUSWebSocketClient, WSEvent } from '../utils/ws-client'
-import { useCYRUSStore, SystemState, SystemStats, ServiceStatus } from '../store/useCYRUSStore'
+import { useCYRUSStore, SystemState, SystemStats, ServiceStatus, LogLevel } from '../store/useCYRUSStore'
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8765'
 
@@ -75,8 +75,9 @@ export function useWebSocket(): { connected: boolean; sendCommand: (cmd: string,
           break
 
         case 'debug': {
-          const lvl = evt.data.level ?? 'info'
-          addLog(lvl === 'warn' ? 'warn' : 'info', evt.data.text)
+          const lvl: string = evt.data.level ?? 'info'
+          const level: LogLevel = lvl === 'warn' ? 'warn' : lvl === 'error' ? 'error' : lvl === 'ok' ? 'ok' : 'info'
+          addLog(level, evt.data.text)
           break
         }
 
