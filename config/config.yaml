@@ -154,6 +154,10 @@ services:
     enabled: false
     host: http://localhost:8002
     timeout: 10
+scheduler:
+  enabled: true
+  briefing_time: "07:00"      # hora local del briefing matutino (HH:MM)
+  weather_city: Lima           # ciudad para el clima del briefing
 planner:
   enabled: true
   db_path: data/planner.db

@@ -73,6 +73,8 @@ from backend.modules.home_assistant.device_controller import DeviceController
 from backend.modules.tools.registry import get_registry
 from backend.modules.tools.executor import ToolExecutor
 import backend.modules.tools.builtins  # registers all built-in tools
+from backend.modules.scheduler.scheduler import AgentScheduler
+from backend.modules.scheduler.briefing import MorningBriefingAgent
 from backend.utils.helpers import current_time_str
 from backend.utils.logger import configure_file_logging, get_logger
 
@@ -306,6 +308,14 @@ class CYRUSEngine:
             )
         else:
             self._planner = TaskPlanner(db_path=str(self._cfg.project_root / "data/planner.db"))
+
+        # ── Scheduler ─────────────────────────────────────────────────────
+        self._scheduler = AgentScheduler(tick_secs=30.0)
+        self._briefing_agent = MorningBriefingAgent(
+            ollama=self._ollama,
+            planner=self._planner,
+            city=getattr(getattr(self._cfg, "scheduler", None), "weather_city", "Lima"),
+        )
 
         # ── Home Assistant (Phase 4) ───────────────────────────────────────
         ha_cfg = getattr(self._cfg, "home_assistant", None)
@@ -1141,6 +1151,75 @@ class CYRUSEngine:
             await self._bus.emit("debug", {"text": "Comprobando servicios API...", "level": "info"})
             await self._emit_service_status()
 
+        elif cmd == "scheduler_list":
+            jobs = self._scheduler.list_jobs()
+            await self._bus.emit("scheduler_jobs", {"jobs": jobs})
+
+        elif cmd == "scheduler_trigger":
+            job_id = str(payload.get("job_id", "briefing_matutino"))
+            ok = await self._scheduler.trigger(job_id)
+            await self._bus.emit("debug", {
+                "text": f"☀ Briefing manual disparado: {job_id}" if ok else f"Job '{job_id}' no encontrado",
+                "level": "ok" if ok else "warn",
+            })
+
+        elif cmd == "briefing_now":
+            # Direct shortcut to trigger briefing without knowing job_id
+            asyncio.create_task(self._run_briefing())
+            await self._bus.emit("debug", {"text": "☀ Briefing matutino en curso…", "level": "info"})
+
+        elif cmd == "scheduler_set_time":
+            new_time = str(payload.get("time", "07:00")).strip()
+            job = self._scheduler._jobs.get("briefing_matutino")
+            if job:
+                job.schedule = f"daily {new_time}"
+                job.compute_next_fire()
+                await self._bus.emit("debug", {"text": f"☀ Briefing reprogramado a las {new_time}", "level": "ok"})
+                await self._bus.emit("scheduler_jobs", {"jobs": self._scheduler.list_jobs()})
+
+    # ------------------------------------------------------------------
+    # Scheduler helpers
+    # ------------------------------------------------------------------
+
+    async def _run_briefing(self) -> None:
+        """Generate and play the morning briefing."""
+        logger.info("[C.Y.R.U.S] Running morning briefing…")
+        await self._bus.emit("debug", {"text": "☀ Generando briefing matutino…", "level": "info"})
+
+        try:
+            text = await self._briefing_agent.generate()
+        except Exception as exc:
+            logger.error(f"[C.Y.R.U.S] Briefing generation failed: {exc}")
+            return
+
+        await self._bus.emit("response", {"text": text, "language": "es"})
+        await self._bus.emit("debug", {"text": f"☀ Briefing: {text[:80]}…", "level": "ok"})
+
+        # Speak briefing through TTS pipeline
+        if self._audio_lock is None:
+            return
+        try:
+            await self._bus.emit("status", {"state": "speaking"})
+            audio_bytes, mime = await self._tts.synthesise(text)
+            if audio_bytes:
+                pcm_b, pcm_r, dur = self._decode_to_pcm(audio_bytes, mime)
+                self._audio_in.mute_for(dur + 5.0)
+                async with self._audio_lock:
+                    await self._audio_out.play_pcm(pcm_b, sample_rate=pcm_r)
+            await self._bus.emit("status", {"state": "idle"})
+        except Exception as exc:
+            logger.error(f"[C.Y.R.U.S] Briefing TTS/playback failed: {exc}")
+            await self._bus.emit("status", {"state": "idle"})
+
+    async def _on_scheduler_event(self, job_id: str, payload: dict) -> None:
+        """Forward scheduler events to the frontend."""
+        await self._bus.emit("scheduler_event", payload)
+        if payload.get("event") == "error":
+            await self._bus.emit("debug", {
+                "text": f"⚠ Tarea '{job_id}' falló: {payload.get('last_error', '')}",
+                "level": "warn",
+            })
+
     async def _pipeline_loop(self) -> None:
         """Continuous voice pipeline loop."""
         self._audio_lock = asyncio.Lock()
@@ -1156,6 +1235,22 @@ class CYRUSEngine:
 
         # Start background system stats broadcaster
         asyncio.create_task(self._stats_loop())
+
+        # ── Scheduler setup ────────────────────────────────────────────────
+        sched_cfg = getattr(self._cfg, "scheduler", None)
+        briefing_time = getattr(sched_cfg, "briefing_time", "07:00") if sched_cfg else "07:00"
+        briefing_enabled = getattr(sched_cfg, "enabled", True) if sched_cfg else True
+
+        if briefing_enabled:
+            self._scheduler.register(
+                job_id="briefing_matutino",
+                label="Briefing matutino",
+                fn=self._run_briefing,
+                schedule=f"daily {briefing_time}",
+            )
+            self._scheduler.on_job_event(self._on_scheduler_event)
+            self._scheduler.start()
+            logger.info(f"[C.Y.R.U.S] Scheduler started — briefing at {briefing_time}")
 
         logger.info("[C.Y.R.U.S] Starting… Say 'Hola C.Y.R.U.S' or 'Hey C.Y.R.U.S'")
         await self._bus.emit("status", {"state": "idle", "message": "C.Y.R.U.S online"})

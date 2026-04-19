@@ -23,6 +23,9 @@ export type WSEvent =
     }
   }
   | { event: 'speaker_profiles'; data: { speakers: { id: string; role: string }[] } }
+  | { event: 'planner_tasks';   data: { tasks: { id: number; description: string; status: string; due_hint?: string }[] } }
+  | { event: 'scheduler_jobs';  data: { jobs: { job_id: string; label: string; schedule: string; status: string; next_fire: string | null; run_count: number; last_error: string }[] } }
+  | { event: 'scheduler_event'; data: { event: string; job_id: string; label: string; status: string; run_count: number; last_error: string } }
 
 export type WSEventHandler = (evt: WSEvent) => void
 

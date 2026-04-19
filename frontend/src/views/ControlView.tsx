@@ -139,7 +139,7 @@ function Slider({ label, value, min, max, step = 0.05, unit = '', onChange, onCo
 
 // ── Tab bar ──────────────────────────────────────────────────────────────────
 
-const TABS = ['SISTEMA', 'CONFIG', 'VOZ', 'API'] as const
+const TABS = ['SISTEMA', 'CONFIG', 'VOZ', 'API', 'AGENDA'] as const
 type Tab = typeof TABS[number]
 
 function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
@@ -1016,6 +1016,180 @@ function TabAPI({ sendCommand }: { sendCommand: (cmd: string, extra?: object) =>
 // ═══════════════════════════════════════════════════════════════════════════
 // ROOT
 // ═══════════════════════════════════════════════════════════════════════════
+// TAB 5 — AGENDA (Briefing + Planner + Scheduler)
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface PlannerTask { id: number; description: string; status: string; due_hint?: string }
+
+function TabAgenda({ sendCommand }: { sendCommand: (cmd: string, extra?: object) => void }) {
+  const [tasks,        setTasks]        = useState<PlannerTask[]>([])
+  const [newTask,      setNewTask]      = useState('')
+  const [dueHint,      setDueHint]      = useState('')
+  const [briefingTime, setBriefingTime] = useState('07:00')
+  const [jobs,         setJobs]         = useState<any[]>([])
+  const wsConnected = useCYRUSStore(s => s.wsConnected)
+
+  // Listen for planner + scheduler events via debug log (re-use existing store)
+  const logs = useCYRUSStore(s => s.logs)
+
+  useEffect(() => {
+    if (!wsConnected) return
+    sendCommand('planner_list')
+    sendCommand('scheduler_list')
+  }, [wsConnected, sendCommand])
+
+  useEffect(() => {
+    const raw = (window as any).__cyrus_planner_tasks
+    if (raw) setTasks(raw)
+  }, [logs])
+
+  useEffect(() => {
+    const raw = (window as any).__cyrus_scheduler_jobs
+    if (raw) setJobs(raw)
+  }, [logs])
+
+  const addTask = () => {
+    if (!newTask.trim()) return
+    sendCommand('planner_add', { description: newTask.trim(), due_hint: dueHint.trim() || undefined })
+    setNewTask('')
+    setDueHint('')
+    setTimeout(() => sendCommand('planner_list'), 400)
+  }
+
+  const completeTask = (id: number) => {
+    sendCommand('planner_complete', { task_id: id })
+    setTimeout(() => sendCommand('planner_list'), 400)
+  }
+
+  const monoBtn: React.CSSProperties = {
+    fontFamily: 'monospace', fontSize: 9, letterSpacing: '0.15em',
+    padding: '5px 10px', borderRadius: 5, cursor: 'pointer',
+    border: '1px solid #00f0ff33', background: 'rgba(0,240,255,0.06)', color: '#b5f7ff',
+  }
+
+  const input: React.CSSProperties = {
+    fontFamily: 'monospace', fontSize: 11, background: 'rgba(0,20,40,0.8)',
+    border: '1px solid #1a3a5a', borderRadius: 6, color: '#b5f7ff',
+    padding: '7px 10px', outline: 'none', width: '100%',
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+      {/* ── Briefing ── */}
+      <Card style={{ border: '1px solid #2a1a00', background: 'rgba(20,10,0,0.85)' }}>
+        <div className="flex items-center justify-between mb-3">
+          <Label>☀ BRIEFING MATUTINO</Label>
+          <button style={{ ...monoBtn, background: 'rgba(255,140,0,0.15)', borderColor: '#ff8c0055', color: '#ffaa55' }}
+            onClick={() => sendCommand('briefing_now')}>
+            BRIEFING AHORA
+          </button>
+        </div>
+        <div className="flex items-center gap-3">
+          <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#ff8c0077', letterSpacing: '0.2em' }}>
+            HORA DIARIA
+          </span>
+          <input
+            type="time"
+            value={briefingTime}
+            onChange={e => setBriefingTime(e.target.value)}
+            style={{ ...input, width: 120 }}
+          />
+          <button style={monoBtn}
+            onClick={() => sendCommand('scheduler_set_time', { time: briefingTime })}>
+            GUARDAR
+          </button>
+        </div>
+        {jobs.length > 0 && (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {jobs.map((j: any) => (
+              <div key={j.job_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontFamily: 'monospace', fontSize: 9, color: '#ff8c0066', letterSpacing: '0.1em' }}>
+                  {j.label.toUpperCase()}
+                </span>
+                <span style={{ fontFamily: 'monospace', fontSize: 9, color: '#ff8c0044' }}>
+                  {j.next_fire ? `próximo: ${new Date(j.next_fire).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}` : j.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* ── Planner ── */}
+      <Card style={{ border: '1px solid #003a2a', background: 'rgba(0,14,10,0.85)' }}>
+        <Label>📋 TAREAS PENDIENTES</Label>
+
+        {/* Add task */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+          <input
+            placeholder="Nueva tarea…"
+            value={newTask}
+            onChange={e => setNewTask(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addTask()}
+            style={input}
+          />
+          <div className="flex gap-2">
+            <input
+              placeholder="Fecha/hint (opcional: mañana, viernes…)"
+              value={dueHint}
+              onChange={e => setDueHint(e.target.value)}
+              style={{ ...input, fontSize: 10 }}
+            />
+            <button style={{ ...monoBtn, whiteSpace: 'nowrap', color: '#00ff88', borderColor: '#00ff8844' }}
+              onClick={addTask}>
+              + AGREGAR
+            </button>
+          </div>
+        </div>
+
+        {/* Task list */}
+        {tasks.length === 0 ? (
+          <p style={{ fontFamily: 'monospace', fontSize: 10, color: '#00f0ff22', textAlign: 'center', padding: '8px 0' }}>
+            Sin tareas pendientes
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {tasks.filter((t: PlannerTask) => t.status === 'pending').map((t: PlannerTask) => (
+              <div key={t.id} style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '6px 8px', borderRadius: 5,
+                background: 'rgba(0,255,136,0.04)', border: '1px solid #00ff8822',
+              }}>
+                <button
+                  onClick={() => completeTask(t.id)}
+                  style={{
+                    width: 14, height: 14, borderRadius: '50%', border: '1px solid #00ff8844',
+                    background: 'none', cursor: 'pointer', flexShrink: 0,
+                  }}
+                  title="Marcar como completada"
+                />
+                <span style={{ flex: 1, fontFamily: 'monospace', fontSize: 10, color: '#b5f7ff99' }}>
+                  {t.description}
+                </span>
+                {t.due_hint && (
+                  <span style={{ fontFamily: 'monospace', fontSize: 8, color: '#ff8c0066', letterSpacing: '0.1em' }}>
+                    {t.due_hint}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex justify-end mt-3">
+          <button style={monoBtn} onClick={() => sendCommand('planner_list')}>
+            ACTUALIZAR
+          </button>
+        </div>
+      </Card>
+
+    </motion.div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 
 export function ControlView() {
   const navigate = useNavigate()
@@ -1067,6 +1241,7 @@ export function ControlView() {
           {tab === 'CONFIG'  && <TabConfig  key="config"  sendCommand={sendCommand} />}
           {tab === 'VOZ'     && <TabVoz     key="voz"     sendCommand={sendCommand} />}
           {tab === 'API'     && <TabAPI     key="api"     sendCommand={sendCommand} />}
+          {tab === 'AGENDA'  && <TabAgenda  key="agenda"  sendCommand={sendCommand} />}
         </AnimatePresence>
 
         {/* ── Footer ── */}

@@ -116,6 +116,23 @@ export function useWebSocket(): { connected: boolean; sendCommand: (cmd: string,
           useCYRUSStore.getState().setSpeakerProfiles(evt.data.speakers ?? [])
           break
 
+        case 'planner_tasks':
+          ;(window as any).__cyrus_planner_tasks = evt.data.tasks ?? []
+          // Trigger re-render by adding a silent debug entry
+          addLog('info', `📋 Tareas: ${(evt.data.tasks ?? []).length} pendientes`)
+          break
+
+        case 'scheduler_jobs':
+          ;(window as any).__cyrus_scheduler_jobs = evt.data.jobs ?? []
+          addLog('info', `☀ Scheduler: ${(evt.data.jobs ?? []).length} jobs`)
+          break
+
+        case 'scheduler_event':
+          if (evt.data.event === 'start') addLog('info', `☀ Iniciando: ${evt.data.label}`)
+          if (evt.data.event === 'done')  addLog('ok', `☀ Completado: ${evt.data.label} (run #${evt.data.run_count})`)
+          if (evt.data.event === 'error') addLog('warn', `☀ Error: ${evt.data.label} — ${evt.data.last_error}`)
+          break
+
         case 'error':
           setStatusMessage(evt.data.message)
           setSystemState('error')
