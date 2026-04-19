@@ -70,6 +70,9 @@ from backend.modules.memory.memory_manager import MemoryManager
 from backend.modules.planner.planner import TaskPlanner
 from backend.modules.home_assistant.ha_client import HomeAssistantClient
 from backend.modules.home_assistant.device_controller import DeviceController
+from backend.modules.tools.registry import get_registry
+from backend.modules.tools.executor import ToolExecutor
+import backend.modules.tools.builtins  # registers all built-in tools
 from backend.utils.helpers import current_time_str
 from backend.utils.logger import configure_file_logging, get_logger
 
@@ -165,6 +168,13 @@ class CYRUSEngine:
             prompts=self._cfg.prompts,
             mode=self._cfg.system.mode,
         )
+        # ── Tool executor (ReAct loop for web search, files, system, etc.) ──
+        self._tools = ToolExecutor(
+            registry=get_registry(),
+            ollama=self._ollama,
+        )
+        _tool_names = get_registry().names()
+        logger.info(f"[C.Y.R.U.S] Tools registered: {_tool_names}")
 
         # ── TTS ────────────────────────────────────────────────────────────
         tts_local_cfg = self._cfg.local.tts
@@ -1365,19 +1375,39 @@ class CYRUSEngine:
             except Exception as exc:
                 logger.warning(f"[C.Y.R.U.S] Memory retrieval failed: {exc}")
 
+        # 4b. Try tool-assisted ReAct path first (web search, clima, archivos, etc.)
+        display_text = speech_text = ""
         try:
-            display_text, speech_text = await self._llm.generate(
-                clean_input,
-                history=self._state.get_history_for_llm()[:-1],  # exclude the turn we just added
-                language=lang,
-                turn_count=self._state.turn_count,
-                vision_context=vision_ctx,
-                memory_context=memory_ctx,
+            system_prompt = self._llm._build_system_prompt(lang, self._state.turn_count, vision_ctx, memory_ctx)
+            tool_display, tool_speech = await self._tools.run(
+                user_input=clean_input,
+                messages=self._state.get_history_for_llm()[:-1],
+                system_prompt=system_prompt,
+                temperature=0.5,
+                max_tokens=300,
             )
+            if tool_display and tool_speech:
+                display_text = tool_display
+                speech_text  = tool_speech
+                await self._bus.emit("debug", {"text": "🔧 Respondió via Tools (ReAct)", "level": "ok"})
         except Exception as exc:
-            logger.error(f"[C.Y.R.U.S] LLM failed: {exc}")
-            display_text = "Tengo problemas para procesar tu solicitud. Por favor intenta de nuevo."
-            speech_text = display_text
+            logger.warning(f"[C.Y.R.U.S] Tool executor error: {exc}")
+
+        # 4c. Fall back to normal LLM if tools didn't produce a result
+        if not display_text:
+            try:
+                display_text, speech_text = await self._llm.generate(
+                    clean_input,
+                    history=self._state.get_history_for_llm()[:-1],
+                    language=lang,
+                    turn_count=self._state.turn_count,
+                    vision_context=vision_ctx,
+                    memory_context=memory_ctx,
+                )
+            except Exception as exc:
+                logger.error(f"[C.Y.R.U.S] LLM failed: {exc}")
+                display_text = "Tengo problemas para procesar tu solicitud. Por favor intenta de nuevo."
+                speech_text  = display_text
 
         # Store display text in history (markdown-safe version for context)
         await self._state.add_turn("assistant", display_text, lang)
