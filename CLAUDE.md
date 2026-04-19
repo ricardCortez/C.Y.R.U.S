@@ -1,4 +1,4 @@
-# C.Y.R.U.S — Context for Claude
+aA# C.Y.R.U.S — Context for Claude
 
 ## Project
 
@@ -175,3 +175,106 @@ sys.modules["cv2"] = MagicMock()
 sys.modules["qdrant_client"] = MagicMock()
 sys.modules["qdrant_client.models"] = MagicMock()
 ```
+
+
+Comparación: C.Y.R.U.S vs OpenJarvis vs JARVIS (ethanplusai)
+
+  Servicios Core
+
+  ┌───────────────────┬──────────────────────────┬─────────────────────────────────────────┬────────────────────────┐
+  │     Servicio      │        C.Y.R.U.S         │               OpenJarvis                │     JARVIS (ethan)     │
+  ├───────────────────┼──────────────────────────┼─────────────────────────────────────────┼────────────────────────┤
+  │ ASR / Voz → Texto │ faster-whisper (local,   │ ❌ no mencionado                        │ Web Speech API         │
+  │                   │ CUDA)                    │                                         │ (Google, cloud)        │
+  ├───────────────────┼──────────────────────────┼─────────────────────────────────────────┼────────────────────────┤
+  │ TTS / Texto → Voz │ Kokoro + XTTS v2 (local) │ ❌ no mencionado                        │ Fish Audio (cloud, voz │
+  │                   │                          │                                         │  JARVIS)               │
+  ├───────────────────┼──────────────────────────┼─────────────────────────────────────────┼────────────────────────┤
+  │ LLM               │ Ollama local             │ Ollama / vLLM / SGLang / Claude /       │ Claude Haiku/Opus      │
+  │                   │ (qwen2.5:7b)             │ OpenAI (multi-backend)                  │ (cloud only)           │
+  ├───────────────────┼──────────────────────────┼─────────────────────────────────────────┼────────────────────────┤
+  │ Speaker ID        │ SpeechBrain ECAPA-TDNN   │ ❌                                      │ ❌                     │
+  │                   │ (local)                  │                                         │                        │
+  ├───────────────────┼──────────────────────────┼─────────────────────────────────────────┼────────────────────────┤
+  │ Wake word /       │ Custom TriggerDetector   │ ❌                                      │ ❌                     │
+  │ trigger           │                          │                                         │                        │
+  ├───────────────────┼──────────────────────────┼─────────────────────────────────────────┼────────────────────────┤
+  │ Visión / Cámaras  │ OpenCV + YOLO + Frigate  │ ❌                                      │ Screen monitor         │
+  │                   │                          │                                         │ (screenshots)          │
+  ├───────────────────┼──────────────────────────┼─────────────────────────────────────────┼────────────────────────┤
+  │ Memoria vectorial │ Qdrant (local)           │ In-context + trace-based                │ SQLite FTS5            │
+  ├───────────────────┼──────────────────────────┼─────────────────────────────────────────┼────────────────────────┤
+  │ Historial         │ SQLite                   │ Agentes con loop guards                 │ SQLite                 │
+  │ conversación      │                          │                                         │                        │
+  ├───────────────────┼──────────────────────────┼─────────────────────────────────────────┼────────────────────────┤
+  │ Home Automation   │ Phase 4 (próximo)        │ ❌                                      │ ❌                     │
+  ├───────────────────┼──────────────────────────┼─────────────────────────────────────────┼────────────────────────┤
+  │ Frontend          │ React + Tailwind +       │ Tauri + React (desktop)                 │ Three.js orb visual    │
+  │                   │ Framer Motion            │                                         │                        │
+  ├───────────────────┼──────────────────────────┼─────────────────────────────────────────┼────────────────────────┤
+  │ Planificador de   │ ❌                       │ openjarvis-scheduler (cron)             │ planner.py             │
+  │ tareas            │                          │                                         │                        │
+  ├───────────────────┼──────────────────────────┼─────────────────────────────────────────┼────────────────────────┤
+  │ Agentes múltiples │ ❌                       │ Multi-agent (ReAct, CodeAct)            │ Single-agent           │
+  ├───────────────────┼──────────────────────────┼─────────────────────────────────────────┼────────────────────────┤
+  │ Browser/Web       │ ❌                       │ ✅                                      │ Playwright             │
+  │ automation        │                          │                                         │                        │
+  ├───────────────────┼──────────────────────────┼─────────────────────────────────────────┼────────────────────────┤
+  │ Email / Calendar  │ ❌                       │ Morning Digest agent                    │ AppleScript (macOS     │
+  │                   │                          │                                         │ only)                  │
+  ├───────────────────┼──────────────────────────┼─────────────────────────────────────────┼────────────────────────┤
+  │ Seguridad / audit │ ❌                       │ openjarvis-security (guardrails)        │ Read-only email        │
+  ├───────────────────┼──────────────────────────┼─────────────────────────────────────────┼────────────────────────┤
+  │ Learning /        │ EMA adaptativo en        │ GRPO + reinforcement learning           │ Learning.py +          │
+  │ adaptación        │ memoria                  │                                         │ evolution              │
+  ├───────────────────┼──────────────────────────┼─────────────────────────────────────────┼────────────────────────┤
+  │ 100% Local        │ ✅ (todo local)          │ ✅ (preferencia local)                  │ ❌ (Claude + Fish      │
+  │                   │                          │                                         │ Audio cloud)           │
+  └───────────────────┴──────────────────────────┴─────────────────────────────────────────┴────────────────────────┘
+
+  ---
+  Lo que podemos tomar de cada uno
+
+  De OpenJarvis — lo valioso:
+
+  1. Sistema de scheduling — Agentes que corren por cron (ej: "briefing matutino" a las 7am con clima + calendario)
+  2. Multi-backend LLM — Soporte flexible para cambiar entre Ollama, vLLM, Claude API sin reescribir la lógica
+  3. MCP (Model Context Protocol) — Estándar abierto para integrar herramientas externas como plugins
+  4. Filosofía de eficiencia — Medir latencia, VRAM, costo como métricas de primer nivel
+
+  De JARVIS (ethan) — lo valioso:
+
+  1. Orb visual con Three.js — El orbe audio-reactivo es visualmente muy potente para el frontend
+  2. Planner centralizado — Módulo explícito para planificación de tareas del usuario
+  3. Screen awareness — Tomar screenshots para dar contexto visual al LLM
+  4. Estructura de templates YAML para prompts especializados
+
+  ---
+  Decisiones recomendadas
+
+  Adoptar pronto (sin romper nada):
+  - Visual orb Three.js — Reemplazar o complementar el frontend con el orbe audio-reactivo; es el diferenciador visual
+  más potente
+  - Planner.py pattern — Agregar un módulo planificador para manejar tareas programadas del usuario
+
+  Adoptar en Fase 5-6:
+  - Scheduler (estilo OpenJarvis) — Para briefings matutinos, recordatorios, tareas recurrentes
+  - Multi-backend LLM — Wrapper que permita cambiar entre Ollama local ↔ Claude API sin reescribir engine
+
+  Evaluar más adelante:
+  - MCP — Protocolo de herramientas; útil cuando tengamos 10+ skills
+  - Screen monitor — Útil pero requiere privacidad: captura pantalla del usuario
+
+  No adoptar:
+  - Cloud ASR/TTS (JARVIS usa Web Speech + Fish Audio) — perdemos privacidad y capacidad offline
+  - AppleScript bridges — somos Windows
+  - GRPO/RL de OpenJarvis — es investigación avanzada, overkill por ahora
+
+  ---
+  Prioridad visual (UI)
+
+  El mayor diferenciador visual de JARVIS es el orbe Three.js audio-reactivo. Nuestro stack (React + Framer Motion)
+  puede integrar Three.js con @react-three/fiber. La UI de OpenJarvis es un dashboard más técnico (Tauri).
+
+  ¿Quieres que empiece por el orbe visual, por el planificador, o por el multi-backend LLM? Puedo hacer un plan
+  detallado para cualquiera de los tres.
