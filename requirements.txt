@@ -1,11 +1,12 @@
 # C.Y.R.U.S - Cognitive sYstem for Real-time Utility & Services
 # Python 3.11+ required
-# Phase 1 dependencies — pinned for reproducibility
+# CPU-only build (no NVIDIA GPU) — install torch separately before this file:
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
 # ── Audio I/O ────────────────────────────────────────────────────────────────
 sounddevice==0.4.6
 soundfile==0.12.1
-numpy==1.26.4
+# numpy is pinned by torch — do not re-pin here to avoid conflicts
 
 # ── Automatic Speech Recognition ─────────────────────────────────────────────
 faster-whisper==1.0.3
@@ -15,12 +16,20 @@ ctranslate2==4.3.1
 noisereduce>=3.0.0
 
 # ── Voice Activity Detection ──────────────────────────────────────────────────
-webrtcvad==2.0.10
+webrtcvad-wheels>=2.0.10  # pre-built wheels for Windows (replaces webrtcvad on Win)
 librosa==0.10.2
 
 # ── Speaker Recognition ───────────────────────────────────────────────────────
 speechbrain>=1.0.0
-transformers>=4.40.0,<4.46.0  # >=4.50 conflicts with torch via model_debugging_utils/k2 import chain
+transformers>=4.40.0,<4.46.0  # >=4.46 imports torch.distributed.tensor → triggers speechbrain k2 lazy import crash
+# Required by transformers 4.45.x — newer versions break the pin above
+tokenizers>=0.20,<0.21
+# huggingface-hub: any version >=0.23.2,<1.0 works; pip may pull 0.36.x
+huggingface-hub>=0.23.2,<1.0
+# Required by transformers (often not auto-installed)
+requests>=2.32.0
+regex>=2024.0.0
+safetensors>=0.4.1
 
 # ── Wake-word / fuzzy matching ────────────────────────────────────────────────
 fuzzywuzzy==0.18.0
@@ -28,9 +37,11 @@ python-Levenshtein==0.25.1
 
 # ── Text-to-Speech ────────────────────────────────────────────────────────────
 kokoro==0.9.4
-# espeak-ng must be installed via system package manager
+# espeak-ng must be installed via system package manager (winget install eSpeak.eSpeak-ng)
 edge-tts==6.1.12          # TTS of last resort (no API key needed)
-TTS>=0.22.0                # Coqui XTTS v2 voice cloning
+# TTS (Coqui XTTS v2) is NOT listed here — it is optionally loaded at runtime via
+# xtts_tts.py:load() and will gracefully degrade if the package is absent.
+# Install manually if needed: pip install TTS>=0.22.0
 
 # ── LLM clients ───────────────────────────────────────────────────────────────
 anthropic==0.28.1
@@ -53,9 +64,12 @@ asyncio-throttle==1.0.2
 aiofiles==23.2.1
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
-pathlib2==2.3.7            # extra compat shims (Python 3.11 has pathlib built-in)
+pathlib2==2.3.7
 structlog==24.1.0
-rich==13.7.1               # pretty console output
+rich==13.7.1
+psutil>=5.9.0              # system monitoring (CPU/RAM usage in engine)
+setuptools<70              # provides pkg_resources (required by ctranslate2); newer setuptools removed it
+pyaudio>=0.2.14            # audio I/O backend (auto-installed on Windows via wheel)
 
 # ── Memory (Phase 3) ──────────────────────────────────────────────────────────
 qdrant-client==1.9.1
@@ -65,7 +79,7 @@ sentence-transformers==3.0.1
 opencv-python==4.10.0.84
 ultralytics==8.2.24
 deepface==0.0.93
-Pillow==10.4.0
+# Pillow is pinned by torch — do not re-pin here to avoid conflicts
 
 # ── Testing ───────────────────────────────────────────────────────────────────
 pytest==8.2.2

@@ -67,6 +67,9 @@ from backend.modules.memory.remote_embedder import RemoteEmbedder
 from backend.modules.memory.qdrant_store import QdrantStore
 from backend.modules.memory.conversation_db import ConversationDB
 from backend.modules.memory.memory_manager import MemoryManager
+from backend.modules.planner.planner import TaskPlanner
+from backend.modules.home_assistant.ha_client import HomeAssistantClient
+from backend.modules.home_assistant.device_controller import DeviceController
 from backend.utils.helpers import current_time_str
 from backend.utils.logger import configure_file_logging, get_logger
 
@@ -283,6 +286,32 @@ class CYRUSEngine:
                 top_k=mem_cfg.top_k,
             )
 
+        # ── Planner ───────────────────────────────────────────────────────
+        planner_cfg = getattr(self._cfg, "planner", None)
+        planner_enabled = planner_cfg and getattr(planner_cfg, "enabled", True)
+        if planner_enabled:
+            self._planner = TaskPlanner(
+                db_path=str(self._cfg.project_root / getattr(planner_cfg, "db_path", "data/planner.db")),
+                max_tasks=getattr(planner_cfg, "max_tasks", 100),
+            )
+        else:
+            self._planner = TaskPlanner(db_path=str(self._cfg.project_root / "data/planner.db"))
+
+        # ── Home Assistant (Phase 4) ───────────────────────────────────────
+        ha_cfg = getattr(self._cfg, "home_assistant", None)
+        self._ha_client: HomeAssistantClient | None = None
+        self._ha_controller: DeviceController | None = None
+        if ha_cfg and getattr(ha_cfg, "enabled", False):
+            _ha_token = getattr(ha_cfg, "token", "")
+            if _ha_token and _ha_token not in ("${HA_TOKEN}", ""):
+                self._ha_client = HomeAssistantClient(
+                    base_url=ha_cfg.base_url,
+                    token=_ha_token,
+                    timeout=getattr(ha_cfg, "timeout", 10),
+                    verify_ssl=getattr(ha_cfg, "verify_ssl", True),
+                )
+                self._ha_controller = DeviceController(client=self._ha_client)
+
         # ── Speaker Intelligence ───────────────────────────────────────────
         spk_cfg = self._cfg.speaker
         self._speaker_intel = SpeakerIntelligence(
@@ -410,6 +439,15 @@ class CYRUSEngine:
                 logger.warning(f"[C.Y.R.U.S] Qdrant unavailable ({exc}); memory search disabled")
             self._conv_db.init()
             logger.info(f"[C.Y.R.U.S] Memory session: {self._memory.session_id}")
+
+        # ── Home Assistant ─────────────────────────────────────────────────
+        if self._ha_client is not None:
+            logger.info("[C.Y.R.U.S] Checking Home Assistant connection…")
+            await self._ha_client.check_connection()
+            if self._ha_client.available:
+                logger.info("[C.Y.R.U.S] Home Assistant connected")
+            else:
+                logger.warning("[C.Y.R.U.S] Home Assistant not reachable — automation disabled")
 
         # ── Speaker Intelligence (ECAPA-TDNN) ─────────────────────────────
         logger.info("[C.Y.R.U.S] Loading speaker intelligence model...")
@@ -1015,6 +1053,32 @@ class CYRUSEngine:
             self._tts.set_voice_preset(preset)
             await self._bus.emit("debug", {"text": f"Preset de voz: {preset}", "level": "ok"})
 
+        elif cmd == "planner_list":
+            tasks = self._planner.get_pending()
+            await self._bus.emit("planner_tasks", {"tasks": [t.to_dict() for t in tasks]})
+
+        elif cmd == "planner_add":
+            desc = str(payload.get("description", "")).strip()
+            if desc:
+                task = self._planner.add_task(desc, due_hint=payload.get("due_hint"))
+                tasks = self._planner.get_pending()
+                await self._bus.emit("planner_tasks", {"tasks": [t.to_dict() for t in tasks]})
+                await self._bus.emit("debug", {"text": f"📋 Tarea agregada: {task.description}", "level": "ok"})
+
+        elif cmd == "planner_complete":
+            tid = int(payload.get("task_id", 0))
+            self._planner.complete_task(tid)
+            tasks = self._planner.get_pending()
+            await self._bus.emit("planner_tasks", {"tasks": [t.to_dict() for t in tasks]})
+            await self._bus.emit("debug", {"text": f"📋 Tarea #{tid} completada", "level": "ok"})
+
+        elif cmd == "planner_cancel":
+            tid = int(payload.get("task_id", 0))
+            self._planner.cancel_task(tid)
+            tasks = self._planner.get_pending()
+            await self._bus.emit("planner_tasks", {"tasks": [t.to_dict() for t in tasks]})
+            await self._bus.emit("debug", {"text": f"📋 Tarea #{tid} cancelada", "level": "warn"})
+
         elif cmd == "set_llm_model":
             model = str(payload.get("model", "")).strip()
             if model:
@@ -1240,6 +1304,43 @@ class CYRUSEngine:
         elif _speaker_role == SpeakerRole.GUEST:
             clean_input = f"[INVITADO: {_speaker_id}] {clean_input}"
             await self._bus.emit("debug", {"text": f"👤 Invitado: {_speaker_id}", "level": "info"})
+
+        # 3b. Planner voice command intercept ────────────────────────────
+        planner_reply = self._planner.handle_voice_command(clean_input)
+        if planner_reply:
+            await self._bus.emit("debug", {"text": f"📋 Planner: {planner_reply}", "level": "ok"})
+            await self._bus.emit("response", {"text": planner_reply, "language": lang})
+            await self._state.add_turn("user", clean_input, lang)
+            await self._state.add_turn("assistant", planner_reply, lang)
+            await self._bus.emit("status", {"state": "speaking"})
+            async with self._audio_lock:
+                try:
+                    ab, mime = await self._tts.synthesise(planner_reply)
+                    if ab:
+                        await self._audio_out.play_wav(ab) if mime == "audio/wav" else await self._play_mp3(ab)
+                except Exception as exc:
+                    logger.warning(f"[C.Y.R.U.S] Planner TTS failed: {exc}")
+            await self._bus.emit("status", {"state": "idle"})
+            return
+
+        # 3c. Home Assistant voice command intercept ───────────────────────
+        if self._ha_controller is not None and self._ha_client is not None and self._ha_client.available:
+            ha_reply = await self._ha_controller.handle_voice_command(clean_input)
+            if ha_reply:
+                await self._bus.emit("debug", {"text": f"🏠 HA: {ha_reply}", "level": "ok"})
+                await self._bus.emit("response", {"text": ha_reply, "language": lang})
+                await self._state.add_turn("user", clean_input, lang)
+                await self._state.add_turn("assistant", ha_reply, lang)
+                await self._bus.emit("status", {"state": "speaking"})
+                async with self._audio_lock:
+                    try:
+                        ab, mime = await self._tts.synthesise(ha_reply)
+                        if ab:
+                            await self._audio_out.play_wav(ab) if mime == "audio/wav" else await self._play_mp3(ab)
+                    except Exception as exc:
+                        logger.warning(f"[C.Y.R.U.S] HA TTS failed: {exc}")
+                await self._bus.emit("status", {"state": "idle"})
+                return
 
         # 4. LLM inference ───────────────────────────────────────────────
         await self._bus.emit("status", {"state": "thinking"})

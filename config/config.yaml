@@ -1,7 +1,7 @@
 system:
   name: C.Y.R.U.S
   version: 1.0.0
-  mode: LOCAL
+  mode: HYBRID
   log_level: INFO
 local:
   llm:
@@ -19,7 +19,7 @@ local:
     piper_model: models/tts/piper/es_MX-ald-medium.onnx
     piper_speaker: null
     xtts:
-      enabled: true
+      enabled: false
       language: es
       speaker: Tammie Ema
       reference_voice: data/tts/reference_voice.wav
@@ -44,7 +44,7 @@ api:
     volume: +0%
 audio:
   input:
-    device: Cloud Flight S Chat
+    device: default
     sample_rate: 16000
     chunk_size: 1024
     channels: 1
@@ -53,7 +53,7 @@ audio:
     silence_duration: 1.5
     noise_gate_factor: 3.5
     noise_calibration_secs: 2.0
-    speaker_gate_enabled: true
+    speaker_gate_enabled: false
   output:
     device: default
     volume: 0.85
@@ -73,11 +73,11 @@ trigger:
   fuzzy_matching: true
   threshold: 65
 asr:
-  model: medium
-  device: cuda
-  compute_type: float16
+  model: small
+  device: cpu
+  compute_type: int8
   language: es
-  beam_size: 5
+  beam_size: 3
   vad_filter: false
   initial_prompt: "Habla en español. C.Y.R.U.S es un asistente de IA personal."
 conversation:
@@ -106,7 +106,7 @@ vision:
   yolo:
     model: yolov8n.pt
     confidence: 0.45
-    device: cuda
+    device: cpu
   face:
     db_path: data/faces
     model_name: Facenet512
@@ -135,7 +135,7 @@ speaker:
   model_dir: models/speaker/ecapa
 services:
   tts:
-    enabled: true
+    enabled: false
     host: http://localhost:8020
     language: es
     speaker: ''
@@ -154,3 +154,13 @@ services:
     enabled: false
     host: http://localhost:8002
     timeout: 10
+planner:
+  enabled: true
+  db_path: data/planner.db
+  max_tasks: 100
+home_assistant:
+  enabled: false
+  base_url: http://homeassistant.local:8123
+  token: ${HA_TOKEN}
+  timeout: 10
+  verify_ssl: false

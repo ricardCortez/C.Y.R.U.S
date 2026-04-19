@@ -1,9 +1,13 @@
-aA# C.Y.R.U.S — Context for Claude
+# C.Y.R.U.S — Context for Claude
 
 ## Project
 
-Local AI assistant (Spanish). Windows 10, RTX 2070 SUPER, Proxmox + Home Assistant + Frigate on LAN.
-Owner: Ricardo (Lima, Peru).
+Local AI assistant (Spanish). Owner: Ricardo (Lima, Peru).
+
+**Hardware profiles:**
+- **Dev laptop** (current): Intel i7-1355U, Intel Iris Xe (integrated GPU), 24 GB RAM — CPU-only mode
+- **Production desktop** (planned): RTX 2070 SUPER, 8 GB VRAM — CUDA mode (original config)
+- **LAN**: Proxmox + Home Assistant + Frigate
 
 ## Stack
 
@@ -15,9 +19,9 @@ Owner: Ricardo (Lima, Peru).
 
 ## Current Status (2026-04-19)
 
-**Last commit:** this one — GPU fixes, ASR upgrade, audio input hardening.
+**Last work:** CPU adaptation for dev laptop + Phase 4 HA structure + Planner module.
 
-**Next task:** Phase 4 — Home Assistant integration.
+**Next task:** Phase 4 — Home Assistant integration (needs HA base URL + Long-Lived Token from Ricardo).
 Plan file: `docs/superpowers/plans/2026-04-12-cyrus-phases4-7-summary.md`
 
 ---
@@ -27,7 +31,7 @@ Plan file: `docs/superpowers/plans/2026-04-12-cyrus-phases4-7-summary.md`
 ### Prerequisites
 
 1. **Python 3.11+** with venv at `venv/`
-2. **CUDA 12.x** + NVIDIA driver ≥ 525
+2. **GPU (optional):** CUDA 12.x + NVIDIA driver ≥ 525 — for GPU mode. CPU mode works without GPU.
 3. **Ollama** installed and running (`ollama serve`)
 4. Pull the LLM model:
    ```
@@ -92,9 +96,50 @@ Speaker profiles stored at: `data/speakers/<name>.npz`
 | ASR model | `config/config.yaml` | Upgraded `asr.model: small → medium` (RTX 2070S has ≥5GB VRAM) |
 | transformers pin | `requirements.txt` | `transformers>=4.40.0,<4.46.0` — permanent fix for k2/torch conflict |
 
+### CPU Adaptation for Dev Laptop ✅ (2026-04-19)
+
+Hardware: Intel i7-1355U + Intel Iris Xe (integrated, no NVIDIA) + 24 GB RAM.
+
+| What | Change |
+|------|--------|
+| ASR model | `medium → small`, `cuda → cpu`, `float16 → int8` |
+| XTTS v2 | disabled (`xtts.enabled: false`) — too slow on CPU |
+| YOLO | `cuda → cpu` |
+| Speaker gate | disabled (no enrolled profiles on fresh machine) |
+| Audio device | `Cloud Flight S Chat → default` (laptop mic) |
+| System mode | `LOCAL → HYBRID` (Claude API fallback when Ollama is slow) |
+| TTS service | disabled (`services.tts.enabled: false`) — engine uses Kokoro in-process |
+| webrtcvad | replaced with `webrtcvad-wheels` (pre-built Windows wheel) |
+| setuptools | pinned `<70` — newer versions remove `pkg_resources` needed by ctranslate2 |
+| pyaudio | added to requirements.txt |
+
+### Phase 4 — Home Assistant (structure only, needs credentials) ✅ (2026-04-19)
+
+| File | Description |
+|------|-------------|
+| `backend/modules/home_assistant/ha_client.py` | Async REST API client (turn_on/off/toggle, brightness, etc.) |
+| `backend/modules/home_assistant/device_controller.py` | Voice command router (Spanish: "enciende la sala", etc.) |
+| `config/config.yaml` | Added `home_assistant:` section (enabled: false, needs HA_TOKEN) |
+
+**To activate:** set `home_assistant.enabled: true` + `home_assistant.base_url` + `home_assistant.token` in config.yaml (or set `HA_TOKEN` env var).
+
+### Planner Module ✅ (2026-04-19) — Improvement from JARVIS analysis
+
+| File | Description |
+|------|-------------|
+| `backend/modules/planner/planner.py` | SQLite task tracker with voice command regex |
+| Engine hook | In `_process_one_turn()` before LLM — intercepts "recuérdame", "qué tengo pendiente", etc. |
+| Frontend cmds | `planner_list`, `planner_add`, `planner_complete`, `planner_cancel` |
+
+Voice commands (auto-routed without LLM):
+- "recuérdame hacer X" → adds task
+- "qué tengo pendiente" / "mis tareas" → lists tasks
+- "completé la tarea 3" → marks done
+- "cancela la tarea 2" → cancels
+
 ---
 
-## Key Config (config.yaml)
+## Key Config (config.yaml) — CPU/laptop profile
 
 ```yaml
 speaker:
@@ -103,8 +148,8 @@ speaker:
   model_dir: models/speaker/ecapa
 
 asr:
-  model: medium
-  device: cuda
+  model: small   # medium for GPU machine (RTX 2070S)
+  device: cpu    # cuda for GPU machine
   compute_type: float16
   language: es
   initial_prompt: "Habla en español. C.Y.R.U.S es un asistente de IA personal."
