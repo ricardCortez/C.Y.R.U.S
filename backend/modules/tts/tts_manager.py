@@ -123,7 +123,18 @@ class TTSManager:
         elif forced == "xtts":
             logger.warning("[C.Y.R.U.S] TTS: XTTS forced but unavailable — falling back")
 
-        # ── 4. Kokoro ─────────────────────────────────────────────────
+        # ── 4. Edge-TTS (preferred in HYBRID over Kokoro for natural Spanish voice) ──
+        if self._mode == "HYBRID" and forced in ("edge-tts", None):
+            try:
+                logger.info("[C.Y.R.U.S] TTS: Edge-TTS (Spanish voice)…")
+                mp3 = await self._voiceforge.synthesise(text)
+                if mp3:
+                    logger.info(f"[C.Y.R.U.S] TTS: Edge-TTS → {len(mp3)} bytes")
+                    return mp3, "audio/mpeg"
+            except TTSAPIError as exc:
+                logger.warning(f"[C.Y.R.U.S] TTS: Edge-TTS failed ({exc}); trying Kokoro…")
+
+        # ── 5. Kokoro (offline fallback) ───────────────────────────────
         if forced in ("kokoro", None) or forced not in ("piper", "remote-tts", "xtts", "edge-tts"):
             try:
                 wav = self._kokoro.synthesise(text)
@@ -132,16 +143,9 @@ class TTSManager:
             except KokoroUnavailableError as exc:
                 logger.warning(f"[C.Y.R.U.S] TTS: Kokoro unavailable ({exc})")
             except TTSError as exc:
-                logger.warning(f"[C.Y.R.U.S] TTS: Kokoro error ({exc}); trying Edge-TTS...")
-        if self._mode != "LOCAL":
-            try:
-                logger.info("[C.Y.R.U.S] TTS: falling back to Edge-TTS…")
-                mp3 = await self._voiceforge.synthesise(text)
-                if mp3:
-                    logger.info(f"[C.Y.R.U.S] TTS: Edge-TTS → {len(mp3)} bytes")
-                    return mp3, "audio/mpeg"
-            except TTSAPIError as exc:
-                logger.error(f"[C.Y.R.U.S] TTS: Edge-TTS also failed ({exc})")
+                logger.warning(f"[C.Y.R.U.S] TTS: Kokoro error ({exc})")
+        if self._mode == "LOCAL":
+            pass  # edge-tts not available in LOCAL mode
 
         raise TTSError("[C.Y.R.U.S] TTS: all synthesis backends failed")
 

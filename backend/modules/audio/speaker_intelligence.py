@@ -88,15 +88,38 @@ class SpeakerIntelligence:
         try:
             logger.info("[C.Y.R.U.S] SpeakerIntelligence: loading ECAPA-TDNN...")
             self._model_dir.mkdir(parents=True, exist_ok=True)
+            # On Windows, SpeechBrain tries to create symlinks from HF cache to savedir,
+            # which requires Developer Mode or admin rights (WinError 1314).
+            # Fix: pre-copy cached files so SpeechBrain finds them and skips symlinks.
+            self._prefetch_hf_model("speechbrain/spkrec-ecapa-voxceleb", self._model_dir)
             self._classifier = EncoderClassifier.from_hparams(
                 source="speechbrain/spkrec-ecapa-voxceleb",
                 savedir=str(self._model_dir),
-                run_opts={"device": "cpu"},  # embedder always on CPU to save VRAM
+                run_opts={"device": "cpu"},
             )
             logger.info("[C.Y.R.U.S] SpeakerIntelligence: ECAPA-TDNN ready")
         except Exception as exc:
             logger.warning(f"[C.Y.R.U.S] SpeakerIntelligence: load failed ({exc}) — UNKNOWN fallback")
             self._classifier = None
+
+    @staticmethod
+    def _prefetch_hf_model(repo_id: str, dest: Path) -> None:
+        """Copy HuggingFace cached model files to dest to avoid Windows symlink errors."""
+        import shutil
+        try:
+            from huggingface_hub import snapshot_download
+            snapshot = snapshot_download(repo_id, local_files_only=True)
+            src = Path(snapshot)
+            for f in src.rglob("*"):
+                if f.is_file():
+                    rel = f.relative_to(src)
+                    dst = dest / rel
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    if not dst.exists():
+                        shutil.copy2(str(f), str(dst))
+            logger.info(f"[C.Y.R.U.S] SpeakerIntelligence: model files ready in {dest}")
+        except Exception as exc:
+            logger.debug(f"[C.Y.R.U.S] SpeakerIntelligence: prefetch skipped ({exc})")
 
         self._data_dir.mkdir(parents=True, exist_ok=True)
         self.load_profiles()

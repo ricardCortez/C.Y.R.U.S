@@ -574,12 +574,12 @@ class CYRUSEngine:
                 audio_bytes, mime = await self._tts.synthesise(text)
                 if audio_bytes:
                     est = len(audio_bytes) / (24000 * 2) if mime == "audio/wav" else 30.0
-                    self._audio_in.mute_for(est + 0.8)
+                    self._audio_in.mute_for(est + 2.0)
                     if mime == "audio/wav":
                         await self._audio_out.play_wav(audio_bytes)
                     else:
                         await self._play_mp3(audio_bytes)
-                    self._audio_in.mute_for(0.5)
+                    self._audio_in.mute_for(2.0)
             except Exception as exc:
                 logger.error(f"[C.Y.R.U.S] _speak_text failed: {exc}")
         await self._bus.emit("status", {"state": "idle"})
@@ -882,12 +882,12 @@ class CYRUSEngine:
                 audio_bytes, mime = await self._tts.synthesise(GREETING)
                 if audio_bytes:
                     est = len(audio_bytes) / (24000 * 2) if mime == "audio/wav" else 30.0
-                    self._audio_in.mute_for(est + 0.8)
+                    self._audio_in.mute_for(est + 2.0)
                     if mime == "audio/wav":
                         await self._audio_out.play_wav(audio_bytes)
                     else:
                         await self._play_mp3(audio_bytes)
-                    self._audio_in.mute_for(0.5)
+                    self._audio_in.mute_for(2.0)
             except Exception as exc:
                 logger.warning(f"[C.Y.R.U.S] Greeting TTS failed: {exc}")
         self._last_greeting_at = time.monotonic()
@@ -1399,7 +1399,10 @@ class CYRUSEngine:
                 # full duration + 0.5s tail so the barge-in watcher doesn't pick
                 # up the speakers before the user intentionally speaks.
                 estimated_duration = len(audio_bytes) / (24000 * 2) if mime == "audio/wav" else 30.0
-                self._audio_in.mute_for(estimated_duration + 0.5)
+                # Tail of 2.0s after playback — laptop speakers/mic are close together,
+                # room reverb can persist 1-2s after audio ends.
+                _ECHO_TAIL = 2.0
+                self._audio_in.mute_for(estimated_duration + _ECHO_TAIL)
                 # Launch barge-in watcher — concurrently monitors mic for speech onset
                 self._barge_in_task = asyncio.create_task(self._barge_in_watcher())
                 async with self._audio_lock:
@@ -1411,8 +1414,8 @@ class CYRUSEngine:
                 if self._barge_in_task and not self._barge_in_task.done():
                     self._barge_in_task.cancel()
                     self._barge_in_task = None
-                # Shorten the remaining mute to just 0.5s post-playback tail
-                self._audio_in.mute_for(0.5)
+                # Keep tail mute active to absorb room reverb
+                self._audio_in.mute_for(_ECHO_TAIL)
         except Exception as exc:
             logger.error(f"[C.Y.R.U.S] TTS/playback failed: {exc}")
 

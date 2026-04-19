@@ -38,7 +38,7 @@ python-Levenshtein==0.25.1
 # ── Text-to-Speech ────────────────────────────────────────────────────────────
 kokoro==0.9.4
 # espeak-ng must be installed via system package manager (winget install eSpeak.eSpeak-ng)
-edge-tts==6.1.12          # TTS of last resort (no API key needed)
+edge-tts>=7.0.0            # Microsoft Neural TTS — primary Spanish voice (es-PE-AlexNeural)
 # TTS (Coqui XTTS v2) is NOT listed here — it is optionally loaded at runtime via
 # xtts_tts.py:load() and will gracefully degrade if the package is absent.
 # Install manually if needed: pip install TTS>=0.22.0

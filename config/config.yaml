@@ -1,7 +1,7 @@
 system:
   name: C.Y.R.U.S
   version: 1.0.0
-  mode: LOCAL
+  mode: HYBRID
   log_level: INFO
 local:
   llm:
@@ -39,7 +39,7 @@ api:
     timeout: 60
   tts:
     provider: edge-tts
-    voice: en-GB-RyanNeural
+    voice: es-PE-AlexNeural
     rate: +0%
     volume: +0%
 audio:
