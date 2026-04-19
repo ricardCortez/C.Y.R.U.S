@@ -8,7 +8,7 @@ local:
     provider: ollama
     model: qwen3:8b
     host: http://localhost:11434
-    timeout: 120
+    timeout: 300
     stream: true
   tts:
     provider: piper
@@ -81,7 +81,7 @@ asr:
   vad_filter: false
   initial_prompt: "Habla en español. C.Y.R.U.S es un asistente de IA personal."
 conversation:
-  max_history_turns: 10
+  max_history_turns: 4
   system_prompt_file: config/soul.md
   prompts_file: config/prompts.yaml
 websocket:

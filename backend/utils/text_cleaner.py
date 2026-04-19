@@ -109,8 +109,8 @@ _NORMALIZATIONS: list[tuple[str, str]] = [
     (r'/etc/([^\s,]+)',                  r'la configuración de \1'),
     (r'~?/home/\w+/([^\s,\.]+)',         r'la carpeta \1'),
 
-    # ── Ports written as :NNNN (skip http: and https:) ──────────────────
-    (r'(?<!http):(\d{2,5})\b',           r' puerto \1'),
+    # ── Ports written as :NNNN (skip http: and https: and time HH:MM) ──────────────────
+    (r'(?<!http)(?<!\d):(\d{4,5})\b',    r' puerto \1'),
 
     # ── Repeated "puerto" artifact clean-up ─────────────────────────────
     (r'\bpuerto\s+puerto\b',             'puerto'),

@@ -4,20 +4,8 @@ system_prompt_override: null   # dejar null para usar soul.md
 
 # ── Contexto inyectado antes de cada turno ────────────────────────────────────
 context_template: |
-  === DATOS REALES DEL SISTEMA — USA ESTOS SIEMPRE ===
-  Fecha y hora actual: {current_time}
-  Idioma del usuario: {language}
-  Turno: {turn_count}
-  Modo: {system_mode}
-  =====================================================
-
-  REGLA ABSOLUTA — HORA Y FECHA: Cuando Ricardo pregunte la hora, el día, la
-  fecha o cualquier dato temporal, responde EXACTAMENTE con el valor de
-  "Fecha y hora actual" que aparece arriba. Ese dato es real, viene del servidor
-  donde corres. NUNCA digas que no tienes acceso a la hora — sí la tienes.
-
-  INSTRUCCIÓN: Responde siempre en español neutro latinoamericano.
-  FORMATO: Responde con texto conversacional limpio, sin markdown (sin **, sin #, sin listas con guiones). Sé conciso y natural para una respuesta de voz.
+  [CONTEXTO: {current_time} | idioma={language} | turno={turn_count}]
+  Usa la hora y fecha del contexto cuando te la pregunten. Responde en español sin markdown.
 
 # ── Respuestas predefinidas para errores conocidos ────────────────────────────
 canned:

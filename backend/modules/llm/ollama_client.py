@@ -110,7 +110,8 @@ class OllamaClient:
 
         payload = self._build_payload(messages, system_prompt, temperature, max_tokens, stream=False)
         try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
+            _timeout = httpx.Timeout(connect=10.0, read=self._timeout, write=30.0, pool=5.0)
+            async with httpx.AsyncClient(timeout=_timeout) as client:
                 resp = await client.post(f"{self._host}/api/chat", json=payload)
                 resp.raise_for_status()
                 data = resp.json()
@@ -141,7 +142,8 @@ class OllamaClient:
         """
         payload = self._build_payload(messages, system_prompt, temperature, max_tokens, stream=True)
         try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
+            _timeout = httpx.Timeout(connect=10.0, read=self._timeout, write=30.0, pool=5.0)
+            async with httpx.AsyncClient(timeout=_timeout) as client:
                 async with client.stream("POST", f"{self._host}/api/chat", json=payload) as resp:
                     resp.raise_for_status()
                     _in_think = False
