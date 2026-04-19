@@ -41,20 +41,31 @@ function ResponseOverlay() {
       {showThinking && (
         <motion.div
           key="thinking"
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.3 }}
-          className="absolute bottom-28 left-1/2 -translate-x-1/2 pointer-events-none"
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.35 }}
+          className="absolute bottom-28 left-1/2 -translate-x-1/2 pointer-events-none flex flex-col items-center gap-3"
         >
+          {/* Neural activity label */}
+          <motion.span
+            className="font-mono"
+            style={{ fontSize: 8, letterSpacing: '0.4em', color: '#ff8c0066' }}
+            animate={{ opacity: [0.4, 0.9, 0.4] }}
+            transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            ACTIVIDAD NEURONAL
+          </motion.span>
+          {/* Pulse dots — staggered wave */}
           <div className="flex items-center gap-2">
-            {[0, 1, 2].map(i => (
+            {[0,1,2,3,4].map(i => (
               <motion.div
                 key={i}
                 className="rounded-full"
-                style={{ width: 6, height: 6, background: '#ff8c00' }}
-                animate={{ opacity: [0.2, 1, 0.2], scale: [0.8, 1.2, 0.8] }}
-                transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.3, ease: 'easeInOut' }}
+                style={{ width: i === 2 ? 8 : 5, height: i === 2 ? 8 : 5, background: '#ff8c00' }}
+                animate={{ opacity: [0.15, 1, 0.15], scale: [0.7, 1.3, 0.7],
+                           boxShadow: ['0 0 0px #ff8c0000', '0 0 10px #ff8c00cc', '0 0 0px #ff8c0000'] }}
+                transition={{ duration: 1.4, repeat: Infinity, delay: i * 0.22, ease: 'easeInOut' }}
               />
             ))}
           </div>
