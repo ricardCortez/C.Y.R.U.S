@@ -54,6 +54,9 @@ def clean_for_tts(text: str) -> str:
     # Bare URLs
     text = re.sub(r'https?://\S+', '', text)
 
+    # Reasoning model thinking blocks: <think>...</think> → remove entirely
+    text = re.sub(r'<think>[\s\S]*?</think>', '', text, flags=re.IGNORECASE)
+
     # HTML tags
     text = re.sub(r'<[^>]+>', '', text)
 

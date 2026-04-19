@@ -144,6 +144,7 @@ class OllamaClient:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
                 async with client.stream("POST", f"{self._host}/api/chat", json=payload) as resp:
                     resp.raise_for_status()
+                    _in_think = False
                     async for line in resp.aiter_lines():
                         if not line.strip():
                             continue
@@ -151,7 +152,17 @@ class OllamaClient:
                             data = json.loads(line)
                             token = data.get("message", {}).get("content", "")
                             if token:
-                                yield token
+                                # Strip <think>...</think> blocks emitted by reasoning models
+                                if "<think>" in token:
+                                    _in_think = True
+                                if _in_think:
+                                    if "</think>" in token:
+                                        _in_think = False
+                                        token = token[token.index("</think>") + len("</think>"):]
+                                    else:
+                                        continue
+                                if token.strip():
+                                    yield token
                             if data.get("done"):
                                 break
                         except json.JSONDecodeError:
@@ -183,6 +194,7 @@ class OllamaClient:
             "model": self._model,
             "messages": all_messages,
             "stream": stream,
+            "think": False,   # disable extended thinking for qwen3/deepseek-r1 — faster on CPU
             "options": {
                 "temperature": temperature,
                 "num_predict": max_tokens,

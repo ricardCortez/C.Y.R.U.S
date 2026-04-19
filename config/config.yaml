@@ -1,12 +1,12 @@
 system:
   name: C.Y.R.U.S
   version: 1.0.0
-  mode: HYBRID
+  mode: LOCAL
   log_level: INFO
 local:
   llm:
     provider: ollama
-    model: qwen2.5:7b-instruct-q4_0
+    model: qwen3:8b
     host: http://localhost:11434
     timeout: 120
     stream: true
