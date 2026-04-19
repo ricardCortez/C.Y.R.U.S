@@ -20,6 +20,7 @@ librosa==0.10.2
 
 # ── Speaker Recognition ───────────────────────────────────────────────────────
 speechbrain>=1.0.0
+transformers>=4.40.0,<4.46.0  # >=4.50 conflicts with torch via model_debugging_utils/k2 import chain
 
 # ── Wake-word / fuzzy matching ────────────────────────────────────────────────
 fuzzywuzzy==0.18.0

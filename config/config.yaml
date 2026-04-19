@@ -73,7 +73,7 @@ trigger:
   fuzzy_matching: true
   threshold: 65
 asr:
-  model: small
+  model: medium
   device: cuda
   compute_type: float16
   language: es

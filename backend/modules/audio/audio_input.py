@@ -59,20 +59,52 @@ class AudioInput:
         self._last_speech_at: float = 0.0
         self._RECALIB_IDLE_SECS: float = 300.0  # 5 min
 
-    # ── WASAPI settings helper ────────────────────────────────────────────────
-    @staticmethod
-    def _wasapi_settings() -> Optional[object]:
-        # exclusive=True gives the app sole ownership of the device, which
-        # prevents the Windows audio driver from routing mic input back to
-        # the speakers (hardware monitoring / sidetone loopback).
+    # ── Stream helper ─────────────────────────────────────────────────────────
+    def _is_wasapi_device(self) -> bool:
+        """Return True if the resolved device belongs to the WASAPI host API."""
         try:
-            return sd.WasapiSettings(exclusive=True)
+            idx = self._device_index if self._device_index is not None else sd.default.device[0]
+            hostapi_idx = sd.query_devices(idx)["hostapi"]
+            return "wasapi" in sd.query_hostapis(hostapi_idx)["name"].lower()
         except Exception:
-            pass
-        try:
-            return sd.WasapiSettings(exclusive=False, auto_convert=True)
-        except Exception:
-            return None
+            return False
+
+    def _open_input_stream(self, **extra_kwargs) -> sd.InputStream:
+        """Open an InputStream with the best available settings for the device.
+
+        WASAPI extra_settings are only applied when the device is actually a
+        WASAPI device — applying them to MME/DirectSound devices causes
+        PaErrorCode -9984 (incompatible host API stream info).
+        For non-WASAPI devices (MME, DirectSound) no extra settings are needed;
+        Windows resamples to the requested sample rate automatically.
+        """
+        base: dict = dict(
+            samplerate=self._sample_rate,
+            channels=self._channels,
+            dtype="int16",
+            blocksize=self._chunk_size,
+            device=self._device_index,
+            **extra_kwargs,
+        )
+        attempts: list[dict] = []
+        if self._is_wasapi_device():
+            try:
+                attempts.append({"extra_settings": sd.WasapiSettings(exclusive=True)})
+            except Exception:
+                pass
+            try:
+                attempts.append({"extra_settings": sd.WasapiSettings(exclusive=False)})
+            except Exception:
+                pass
+        attempts.append({})  # plain — always works for MME/DirectSound
+
+        last_exc: Exception = RuntimeError("no attempts made")
+        for extra in attempts:
+            try:
+                return sd.InputStream(**{**base, **extra})
+            except Exception as exc:
+                last_exc = exc
+        raise AudioInputError(f"[C.Y.R.U.S] Cannot open microphone: {last_exc}") from last_exc
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
     def open(self) -> None:
@@ -118,21 +150,18 @@ class AudioInput:
         n_frames = int(self._sample_rate * secs)
         logger.info(f"[C.Y.R.U.S] AudioInput: calibrating noise floor ({secs:.1f}s)…")
         try:
-            wasapi = self._wasapi_settings()
-            kwargs: dict = dict(
-                samplerate=self._sample_rate,
-                channels=self._channels,
-                dtype="int16",
-                blocksize=self._chunk_size,
-                device=self._device_index,
-            )
-            if wasapi is not None:
-                kwargs["extra_settings"] = wasapi
-            with sd.InputStream(**kwargs) as stream:
+            stream = self._open_input_stream()
+            with stream:
                 data, _ = stream.read(n_frames)
             pcm = data.tobytes()
             self._noise_floor = self._rms(pcm)
             logger.info(f"[C.Y.R.U.S] AudioInput: noise floor = {self._noise_floor:.1f} RMS")
+            if self._noise_floor == 0.0:
+                logger.warning(
+                    "[C.Y.R.U.S] AudioInput: noise floor is ZERO — microphone may be muted, "
+                    "powered off, or the USB wireless headset is not connected to its dongle. "
+                    "Check that the headset is turned on and paired."
+                )
         except Exception as exc:
             logger.warning(f"[C.Y.R.U.S] AudioInput: calibration failed ({exc}) — using config threshold")
             self._noise_floor = 0.0
@@ -175,24 +204,22 @@ class AudioInput:
             self._last_speech_at = now
 
         threshold = self._effective_threshold
-        wasapi = self._wasapi_settings()
-        kwargs: dict = dict(
-            samplerate=self._sample_rate,
-            channels=self._channels,
-            dtype="int16",
-            blocksize=self._chunk_size,
-            device=self._device_index,
-        )
-        if wasapi is not None:
-            kwargs["extra_settings"] = wasapi
+        stream = self._open_input_stream()
 
+        # ── Diagnostic: log device info once per open ────────────────────
         try:
-            stream = sd.InputStream(**kwargs)
-            stream.start()
-        except Exception as exc:
-            raise AudioInputError(f"[C.Y.R.U.S] Cannot open microphone: {exc}") from exc
+            dev_info = sd.query_devices(self._device_index)
+            host_api = sd.query_hostapis(dev_info["hostapi"])["name"]
+            logger.info(
+                f"[C.Y.R.U.S] AudioInput: stream opened — device='{dev_info['name']}' "
+                f"idx={self._device_index} api={host_api} "
+                f"sr={self._sample_rate} threshold={threshold:.0f}"
+            )
+        except Exception:
+            pass
 
-        logger.debug("[C.Y.R.U.S] AudioInput: listening for speech…")
+        stream.start()
+
         self._vad.reset()
         self._stop_flag.clear()
         frames: list[bytes] = []
@@ -200,6 +227,12 @@ class AudioInput:
         speech_started = False
         pre_roll: list[bytes] = []
         max_pre_roll = int(self._sample_rate / self._chunk_size * 0.3)
+
+        # Diagnostic counters
+        _diag_chunks = 0
+        _diag_max_rms = 0
+        _diag_vad_hits = 0
+        _DIAG_INTERVAL = 50  # log summary every ~3 seconds (50×1024/16000)
 
         try:
             while True:
@@ -211,6 +244,27 @@ class AudioInput:
                 data = raw.tobytes()
                 is_speech = self._vad.feed(data)
                 rms = self._rms(data)
+
+                _diag_chunks += 1
+                _diag_max_rms = max(_diag_max_rms, rms)
+                if is_speech:
+                    _diag_vad_hits += 1
+
+                # Periodic diagnostic log — INFO so it always appears
+                if _diag_chunks % _DIAG_INTERVAL == 0:
+                    muted = time.monotonic() < self._muted_until
+                    logger.info(
+                        f"[C.Y.R.U.S] AudioInput: chunks={_diag_chunks} "
+                        f"max_rms={_diag_max_rms} vad_hits={_diag_vad_hits} "
+                        f"threshold={threshold:.0f} muted={muted} speech_started={speech_started}"
+                    )
+                    if _diag_max_rms == 0 and _diag_chunks <= _DIAG_INTERVAL * 3:
+                        logger.warning(
+                            "[C.Y.R.U.S] AudioInput: ZERO audio — headset apagado/sin conexión "
+                            "al dongle, mute físico activo, o nivel de entrada en 0% en Windows."
+                        )
+                    _diag_max_rms = 0
+                    _diag_vad_hits = 0
 
                 if not speech_started:
                     pre_roll.append(data)
@@ -225,13 +279,20 @@ class AudioInput:
                         speech_started = True
                         frames.extend(pre_roll)
                         self._last_speech_at = time.monotonic()
-                        logger.debug("[C.Y.R.U.S] AudioInput: speech onset")
+                        logger.info(
+                            f"[C.Y.R.U.S] AudioInput: speech onset "
+                            f"rms={rms} threshold={threshold:.0f} vad=True"
+                        )
                     silence_count = 0
                     frames.append(data)
                 elif speech_started:
                     frames.append(data)
                     silence_count += 1
                     if silence_count >= self._silence_frames:
+                        logger.info(
+                            f"[C.Y.R.U.S] AudioInput: utterance end "
+                            f"frames={len(frames)} bytes={len(frames)*self._chunk_size*2}"
+                        )
                         break
         finally:
             stream.stop()
@@ -257,19 +318,8 @@ class AudioInput:
         collected: list[bytes] = []
         vad = VADDetector(sample_rate=self._sample_rate, aggressiveness=3, speech_ratio=0.85)
 
-        wasapi = self._wasapi_settings()
-        kwargs: dict = dict(
-            samplerate=self._sample_rate,
-            channels=self._channels,
-            dtype="int16",
-            blocksize=self._chunk_size,
-            device=self._device_index,
-        )
-        if wasapi is not None:
-            kwargs["extra_settings"] = wasapi
-
         try:
-            stream = sd.InputStream(**kwargs)
+            stream = self._open_input_stream()
             stream.start()
         except Exception as exc:
             logger.warning(f"[C.Y.R.U.S] AudioInput: barge-in stream failed: {exc}")

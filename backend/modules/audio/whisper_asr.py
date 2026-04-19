@@ -66,18 +66,18 @@ class WhisperASR:
 
     @staticmethod
     def _cuda_usable() -> bool:
-        """Return True only when both a CUDA device AND the cuDNN 8.x inference
-        DLL are available.  ctranslate2 Windows wheels link against cuDNN 8.x
-        even for int8 compute; without the DLL, the first inference call prints
-        a C++ warning and returns empty results.
+        """Return True when ctranslate2 can use CUDA.
+
+        ctranslate2 4.x bundles cudnn64_8.dll inside its own package directory.
+        We add that directory to the DLL search path before the check so the
+        older probe for the system-level cudnn_ops_infer64_8.dll is no longer
+        needed.
         """
-        import ctypes
         try:
-            ctypes.CDLL("cudnn_ops_infer64_8.dll")
-        except OSError:
-            return False
-        try:
-            import ctranslate2 as _ct2
+            import ctranslate2 as _ct2, os
+            ct2_dir = os.path.dirname(_ct2.__file__)
+            if hasattr(os, "add_dll_directory"):
+                os.add_dll_directory(ct2_dir)
             return _ct2.get_cuda_device_count() > 0
         except Exception:
             return False
