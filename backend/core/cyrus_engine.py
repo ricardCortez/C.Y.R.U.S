@@ -573,13 +573,18 @@ class CYRUSEngine:
             try:
                 audio_bytes, mime = await self._tts.synthesise(text)
                 if audio_bytes:
-                    est = len(audio_bytes) / (24000 * 2) if mime == "audio/wav" else 30.0
-                    self._audio_in.mute_for(est + 2.0)
-                    if mime == "audio/wav":
+                    try:
+                        _pb, _pr, _dur = self._decode_to_pcm(audio_bytes, mime)
+                    except Exception:
+                        _pb, _pr, _dur = None, 24000, 5.0
+                    self._audio_in.mute_for(_dur + 5.0)
+                    if _pb is not None:
+                        await self._audio_out.play_pcm(_pb, sample_rate=_pr)
+                    elif mime == "audio/wav":
                         await self._audio_out.play_wav(audio_bytes)
                     else:
                         await self._play_mp3(audio_bytes)
-                    self._audio_in.mute_for(2.0)
+                    # tail already included — do not reset mute
             except Exception as exc:
                 logger.error(f"[C.Y.R.U.S] _speak_text failed: {exc}")
         await self._bus.emit("status", {"state": "idle"})
@@ -881,13 +886,18 @@ class CYRUSEngine:
             try:
                 audio_bytes, mime = await self._tts.synthesise(GREETING)
                 if audio_bytes:
-                    est = len(audio_bytes) / (24000 * 2) if mime == "audio/wav" else 30.0
-                    self._audio_in.mute_for(est + 2.0)
-                    if mime == "audio/wav":
+                    try:
+                        pcm_b, pcm_r, dur = self._decode_to_pcm(audio_bytes, mime)
+                    except Exception:
+                        pcm_b, pcm_r, dur = None, 24000, 5.0
+                    self._audio_in.mute_for(dur + 5.0)
+                    if pcm_b is not None:
+                        await self._audio_out.play_pcm(pcm_b, sample_rate=pcm_r)
+                    elif mime == "audio/wav":
                         await self._audio_out.play_wav(audio_bytes)
                     else:
                         await self._play_mp3(audio_bytes)
-                    self._audio_in.mute_for(2.0)
+                    # tail already included — do not reset mute
             except Exception as exc:
                 logger.warning(f"[C.Y.R.U.S] Greeting TTS failed: {exc}")
         self._last_greeting_at = time.monotonic()
@@ -1395,27 +1405,42 @@ class CYRUSEngine:
         try:
             audio_bytes, mime = await self._tts.synthesise(speech_text)
             if audio_bytes:
-                # Estimate playback duration from WAV byte size; mute mic for the
-                # full duration + 0.5s tail so the barge-in watcher doesn't pick
-                # up the speakers before the user intentionally speaks.
-                estimated_duration = len(audio_bytes) / (24000 * 2) if mime == "audio/wav" else 30.0
-                # Tail of 2.0s after playback — laptop speakers/mic are close together,
-                # room reverb can persist 1-2s after audio ends.
-                _ECHO_TAIL = 2.0
-                self._audio_in.mute_for(estimated_duration + _ECHO_TAIL)
-                # Launch barge-in watcher — concurrently monitors mic for speech onset
+                # Pre-decode to PCM to get EXACT audio duration.
+                # This avoids the bug where MP3 used a hardcoded 30s estimate and
+                # then mute_for(tail) would reset it to just 2s post-playback.
+                try:
+                    pcm_bytes, pcm_rate, actual_duration = self._decode_to_pcm(audio_bytes, mime)
+                except Exception as dec_exc:
+                    logger.warning(f"[C.Y.R.U.S] Audio decode failed ({dec_exc}); using fallback 8s duration")
+                    pcm_bytes, pcm_rate, actual_duration = None, 24000, 8.0
+
+                # Mute mic for full playback + echo tail.
+                # 5s tail absorbs laptop speaker reverb (speakers/mic close together).
+                # We do NOT call mute_for() again after playback — the tail is already
+                # included here so the remaining mute covers the reverb window.
+                _ECHO_TAIL = 5.0
+                self._audio_in.mute_for(actual_duration + _ECHO_TAIL)
+                logger.info(
+                    f"[C.Y.R.U.S] TTS playback: actual={actual_duration:.2f}s "
+                    f"tail={_ECHO_TAIL}s mime={mime} bytes={len(audio_bytes)}"
+                )
+
+                # Launch barge-in watcher concurrently
                 self._barge_in_task = asyncio.create_task(self._barge_in_watcher())
                 async with self._audio_lock:
-                    if mime == "audio/wav":
+                    if pcm_bytes is not None:
+                        await self._audio_out.play_pcm(pcm_bytes, sample_rate=pcm_rate)
+                    elif mime == "audio/wav":
                         await self._audio_out.play_wav(audio_bytes)
                     else:
                         await self._play_mp3(audio_bytes)
+
                 # Cancel barge-in task if playback finished normally
                 if self._barge_in_task and not self._barge_in_task.done():
                     self._barge_in_task.cancel()
                     self._barge_in_task = None
-                # Keep tail mute active to absorb room reverb
-                self._audio_in.mute_for(_ECHO_TAIL)
+                # Tail mute still active — do NOT reset with mute_for() here.
+                # The remaining mute from the original call covers the echo tail.
         except Exception as exc:
             logger.error(f"[C.Y.R.U.S] TTS/playback failed: {exc}")
 
@@ -1428,16 +1453,41 @@ class CYRUSEngine:
         await self._state.set_status(SystemStatus.IDLE)
         await self._bus.emit("status", {"state": "idle"})
 
+    def _decode_to_pcm(self, audio_bytes: bytes, mime: str) -> tuple[bytes, int, float]:
+        """Decode audio to PCM int16 mono. Returns (pcm_bytes, sample_rate, duration_secs).
+
+        Works for both WAV and MP3/MPEG.  Duration is computed from the actual
+        decoded PCM length so mute_for() receives the real playback time.
+        """
+        import io as _io
+        import soundfile as _sf
+
+        buf = _io.BytesIO(audio_bytes)
+        try:
+            data, rate = _sf.read(buf, dtype="int16", always_2d=False)
+        except Exception:
+            # soundfile failed (unlikely for WAV, possible for some MP3)
+            # Fall back to treating it as raw WAV bytes
+            if mime == "audio/wav":
+                rate = 24000
+                import numpy as _np
+                data = _np.frombuffer(audio_bytes[44:], dtype="int16")
+            else:
+                raise
+
+        # Mono-mix if stereo
+        import numpy as _np
+        if data.ndim == 2:
+            data = data[:, 0]
+
+        pcm      = data.tobytes()
+        duration = len(data) / rate
+        return pcm, rate, duration
+
     async def _play_mp3(self, mp3_bytes: bytes) -> None:
         """Decode and play MP3 bytes (edge-tts fallback output)."""
         try:
-            import io
-            import soundfile as sf
-            import numpy as np
-
-            buf = io.BytesIO(mp3_bytes)
-            data, rate = sf.read(buf, dtype="int16")
-            pcm = data.tobytes()
+            pcm, rate, _ = self._decode_to_pcm(mp3_bytes, "audio/mpeg")
             await self._audio_out.play_pcm(pcm, sample_rate=rate)
         except Exception as exc:
             logger.error(f"[C.Y.R.U.S] MP3 decode/playback failed: {exc}")

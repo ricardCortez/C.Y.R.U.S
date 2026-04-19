@@ -178,7 +178,7 @@ class AudioInput:
 
     def mute_for(self, seconds: float) -> None:
         self._muted_until = time.monotonic() + seconds
-        logger.debug(f"[C.Y.R.U.S] AudioInput: muted for {seconds:.1f}s")
+        logger.info(f"[C.Y.R.U.S] AudioInput: mute_for({seconds:.2f}s) — free at T+{seconds:.2f}s")
 
     def set_voice_profile(self, profile: object) -> None:
         self._voice_profile = profile
