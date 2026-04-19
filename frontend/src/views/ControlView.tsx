@@ -1,48 +1,58 @@
 /**
  * C.Y.R.U.S — Control Panel  (route "/control")
- *
- * Layout: tabbed — SISTEMA | CONFIG | VOZ
- * Each tab groups related controls to avoid the long single-column scroll.
+ * Redesigned: 2-column dashboard, real-time pipeline monitor, full-width layout
  */
 
-import { useEffect, useRef, useState } from 'react'
-import { useNavigate }                  from 'react-router-dom'
-import { motion, AnimatePresence }      from 'framer-motion'
-import ReactMarkdown                    from 'react-markdown'
+import { useEffect, useRef, useState, useMemo } from 'react'
+import { useNavigate }          from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
+import ReactMarkdown            from 'react-markdown'
 import { useCYRUSStore, SystemState, LogEntry, ServiceStatus } from '../store/useCYRUSStore'
-import { useWebSocket } from '../hooks/useWebSocket'
+import { useWebSocket }         from '../hooks/useWebSocket'
 
-// ── Color maps ──────────────────────────────────────────────────────────────
+// ── Design tokens ────────────────────────────────────────────────────────────
+
+const C = {
+  bg:       '#030508',
+  panel:    'rgba(6,12,22,0.92)',
+  border:   '#0d1f30',
+  borderHi: '#1a3a55',
+  text:     '#8ab8cc',
+  textDim:  '#2a4a5a',
+  textBright:'#c8e8f4',
+  cyan:     '#00d8ff',
+  green:    '#00e87a',
+  amber:    '#ff9020',
+  purple:   '#a855f7',
+  red:      '#ff3c3c',
+  blue:     '#2a8aff',
+}
+
 const STATE_COLOR: Record<SystemState, string> = {
-  offline:      '#ff3333',
-  connected:    '#00d4ff',
-  idle:         '#0077bb',
-  listening:    '#00ff88',
-  transcribing: '#00d4ff',
-  thinking:     '#ff8c00',
-  speaking:     '#a855f7',
-  error:        '#ff3333',
+  offline: C.red, connected: C.cyan, idle: C.blue,
+  listening: C.green, transcribing: C.cyan, thinking: C.amber,
+  speaking: C.purple, error: C.red,
 }
 const STATE_LABEL: Record<SystemState, string> = {
-  offline:      'OFFLINE',
-  connected:    'STANDBY',
-  idle:         'IDLE',
-  listening:    'LISTENING',
-  transcribing: 'TRANSCRIBING',
-  thinking:     'PROCESSING',
-  speaking:     'SPEAKING',
-  error:        'ERROR',
+  offline:'OFFLINE', connected:'STANDBY', idle:'IDLE',
+  listening:'ESCUCHANDO', transcribing:'TRANSCRIBIENDO',
+  thinking:'PROCESANDO', speaking:'HABLANDO', error:'ERROR',
 }
 
 // ── Primitives ───────────────────────────────────────────────────────────────
 
-function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+const mono = (size = 9, color = C.text): React.CSSProperties => ({
+  fontFamily: '"Share Tech Mono", "Courier New", monospace',
+  fontSize: size, color, letterSpacing: '0.08em',
+})
+
+function Panel({ children, style, accent }: { children: React.ReactNode; style?: React.CSSProperties; accent?: string }) {
   return (
     <div style={{
-      background: 'rgba(0,16,32,0.7)',
-      border: '1px solid #0a2030',
-      borderRadius: 8,
-      padding: '12px 14px',
+      background: C.panel,
+      border: `1px solid ${accent ? accent + '40' : C.border}`,
+      borderRadius: 10,
+      padding: '14px 16px',
       ...style,
     }}>
       {children}
@@ -50,628 +60,681 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
   )
 }
 
-function Label({ children, dim }: { children: React.ReactNode; dim?: boolean }) {
+function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span className="font-mono" style={{
-      fontSize: 8,
+    <div style={{
+      ...mono(8, C.textDim),
       letterSpacing: '0.25em',
-      color: dim ? '#152530' : '#1e3a4a',
-    }}>
-      {children}
-    </span>
-  )
-}
-
-function Divider() {
-  return <div style={{ height: 1, background: '#081820', margin: '2px 0' }} />
-}
-
-function Badge({ label, color }: { label: string; color: string }) {
-  return (
-    <span className="font-mono" style={{
-      fontSize: 8,
-      letterSpacing: '0.18em',
-      padding: '4px 10px',
-      borderRadius: 999,
-      background: color,
-      color: '#f8ffff',
       textTransform: 'uppercase',
-      whiteSpace: 'nowrap',
+      marginBottom: 10,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
     }}>
-      {label}
-    </span>
+      <div style={{ flex: 1, height: 1, background: C.border }} />
+      <span>{children}</span>
+      <div style={{ flex: 1, height: 1, background: C.border }} />
+    </div>
   )
 }
 
-// ── Stat bar ─────────────────────────────────────────────────────────────────
-
-function StatBar({ label, value, color = '#00f0ff', unit = '%' }: {
-  label: string; value: number; color?: string; unit?: string
+function MetricBar({ label, value, color = C.cyan, unit = '%', warn = 80, crit = 95 }: {
+  label: string; value: number; color?: string; unit?: string; warn?: number; crit?: number
 }) {
+  const col = value >= crit ? C.red : value >= warn ? C.amber : color
   return (
-    <div className="mb-3">
-      <div className="flex justify-between mb-1">
-        <span className="font-mono" style={{ fontSize: 9, color: '#2a4050', letterSpacing: '0.12em' }}>{label}</span>
-        <span className="font-mono" style={{ fontSize: 9, color }}>{value.toFixed(0)}{unit}</span>
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+        <span style={mono(9, C.textDim)}>{label}</span>
+        <span style={mono(9, col)}>{value.toFixed(0)}{unit}</span>
       </div>
-      <div style={{ height: 3, background: '#071218', borderRadius: 2, overflow: 'hidden' }}>
+      <div style={{ height: 4, background: '#060e18', borderRadius: 2, overflow: 'hidden' }}>
         <motion.div
-          initial={{ width: 0 }}
           animate={{ width: `${Math.min(100, value)}%` }}
-          transition={{ duration: 0.9, ease: 'easeOut' }}
-          style={{ height: '100%', background: `linear-gradient(90deg, ${color}66, ${color})`, borderRadius: 2 }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+          style={{ height: '100%', background: `linear-gradient(90deg, ${col}44, ${col})`, borderRadius: 2 }}
         />
       </div>
     </div>
   )
 }
 
-// ── Slider ───────────────────────────────────────────────────────────────────
+function Btn({ children, onClick, color = C.cyan, disabled = false, small = false, style }: {
+  children: React.ReactNode; onClick?: () => void; color?: string;
+  disabled?: boolean; small?: boolean; style?: React.CSSProperties
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        ...mono(small ? 9 : 10, disabled ? C.textDim : color),
+        letterSpacing: '0.18em',
+        padding: small ? '5px 10px' : '8px 14px',
+        borderRadius: 7,
+        border: `1px solid ${disabled ? C.border : color + '55'}`,
+        background: disabled ? 'transparent' : `${color}12`,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        transition: 'all 0.15s',
+        textTransform: 'uppercase',
+        whiteSpace: 'nowrap',
+        ...style,
+      }}
+    >
+      {children}
+    </button>
+  )
+}
 
-function Slider({ label, value, min, max, step = 0.05, unit = '', onChange, onCommit }: {
+function Select({ value, onChange, options, style }: {
+  value: string; onChange: (v: string) => void
+  options: { value: string; label: string }[]
+  style?: React.CSSProperties
+}) {
+  return (
+    <select value={value} onChange={e => onChange(e.target.value)} style={{
+      ...mono(10, C.textBright),
+      background: '#040c18', border: `1px solid ${C.border}`,
+      borderRadius: 7, padding: '8px 10px', cursor: 'pointer', outline: 'none',
+      width: '100%', ...style,
+    }}>
+      {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  )
+}
+
+function Input({ value, onChange, placeholder, onKeyDown, type = 'text', style }: {
+  value: string; onChange: (v: string) => void; placeholder?: string
+  onKeyDown?: (e: React.KeyboardEvent) => void; type?: string; style?: React.CSSProperties
+}) {
+  return (
+    <input
+      type={type} value={value} placeholder={placeholder}
+      onChange={e => onChange(e.target.value)}
+      onKeyDown={onKeyDown}
+      style={{
+        ...mono(10, C.textBright),
+        background: '#040c18', border: `1px solid ${C.border}`,
+        borderRadius: 7, padding: '8px 10px', outline: 'none', width: '100%', ...style,
+      }}
+    />
+  )
+}
+
+function SliderRow({ label, value, min, max, step = 0.05, unit = '', onChange, onCommit }: {
   label: string; value: number; min: number; max: number
   step?: number; unit?: string; onChange: (v: number) => void; onCommit?: (v: number) => void
 }) {
   const pct = ((value - min) / (max - min)) * 100
   return (
-    <div className="mb-4">
-      <div className="flex justify-between mb-2">
-        <Label>{label}</Label>
-        <span className="font-mono" style={{ fontSize: 9, color: '#00f0ff66' }}>{value.toFixed(2)}{unit}</span>
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+        <span style={mono(9, C.textDim)}>{label}</span>
+        <span style={mono(9, C.cyan)}>{value.toFixed(2)}{unit}</span>
       </div>
-      <div style={{ position: 'relative', height: 4, background: '#071218', borderRadius: 2 }}>
-        <div style={{
-          position: 'absolute', top: 0, left: 0, bottom: 0,
-          width: `${pct}%`,
-          background: 'linear-gradient(90deg, #00f0ff33, #00f0ff)',
-          borderRadius: 2,
-        }} />
+      <div style={{ position: 'relative', height: 4, background: '#060e18', borderRadius: 2 }}>
+        <div style={{ position:'absolute',top:0,left:0,bottom:0,width:`${pct}%`,background:`linear-gradient(90deg,${C.cyan}33,${C.cyan})`,borderRadius:2 }} />
         <input type="range" min={min} max={max} step={step} value={value}
           onChange={e => onChange(parseFloat(e.target.value))}
           onMouseUp={e => onCommit?.(parseFloat((e.target as HTMLInputElement).value))}
           onTouchEnd={e => onCommit?.(parseFloat((e.target as HTMLInputElement).value))}
-          style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', margin: 0 }}
+          style={{ position:'absolute',inset:0,opacity:0,cursor:'pointer',width:'100%',margin:0 }}
         />
       </div>
     </div>
   )
 }
 
-// ── Tab bar ──────────────────────────────────────────────────────────────────
+// ── Uptime formatter ──────────────────────────────────────────────────────────
+
+function uptime(s: number) {
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60
+  return [h, m, sec].map(n => String(n).padStart(2, '0')).join(':')
+}
+
+// ── Log color map ─────────────────────────────────────────────────────────────
+
+const LOG_COL: Record<string, string> = { info: C.cyan, warn: C.amber, error: C.red, ok: C.green }
+
+// ── Tab bar ───────────────────────────────────────────────────────────────────
 
 const TABS = ['SISTEMA', 'CONFIG', 'VOZ', 'API', 'AGENDA'] as const
 type Tab = typeof TABS[number]
 
+const TAB_ICON: Record<Tab, string> = {
+  SISTEMA: '◉', CONFIG: '⚙', VOZ: '◎', API: '⬡', AGENDA: '◈'
+}
+
 function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
   return (
-    <div className="flex gap-1 mb-4" style={{
-      background: 'rgba(0,10,20,0.8)',
-      border: '1px solid #0a1e2a',
-      borderRadius: 8,
-      padding: 3,
-    }}>
+    <div style={{ display: 'flex', gap: 4, padding: '3px', background: '#050c16', border: `1px solid ${C.border}`, borderRadius: 10, marginBottom: 16 }}>
       {TABS.map(t => (
-        <button key={t} onClick={() => onChange(t)}
-          className="font-mono flex-1 rounded"
-          style={{
-            fontSize: 9,
-            letterSpacing: '0.2em',
-            padding: '6px 0',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-            background:   active === t ? 'rgba(0,240,255,0.10)' : 'transparent',
-            border:       active === t ? '1px solid #00f0ff33'  : '1px solid transparent',
-            color:        active === t ? '#00f0ff'              : '#1e3a4a',
-          }}
-        >
-          {t}
+        <button key={t} onClick={() => onChange(t)} style={{
+          flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+          padding: '8px 4px', borderRadius: 8, cursor: 'pointer', transition: 'all 0.2s',
+          background: active === t ? `${C.cyan}14` : 'transparent',
+          border: active === t ? `1px solid ${C.cyan}44` : '1px solid transparent',
+        }}>
+          <span style={{ fontSize: 12, color: active === t ? C.cyan : C.textDim }}>{TAB_ICON[t]}</span>
+          <span style={mono(7, active === t ? C.cyan : C.textDim)}>{t}</span>
         </button>
       ))}
     </div>
   )
 }
 
-// ── Helper ───────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// PIPELINE MONITOR — parses logs to show live pipeline stages
+// ═══════════════════════════════════════════════════════════════════════════
 
-function uptimeStr(s: number) {
-  const h = Math.floor(s / 3600)
-  const m = Math.floor((s % 3600) / 60)
-  const sec = s % 60
-  return [h, m, sec].map(n => String(n).padStart(2, '0')).join(':')
+interface StageInfo { label: string; state: 'idle'|'active'|'done'|'error'; latency?: string; detail?: string }
+
+function usePipelineInfo() {
+  const state = useCYRUSStore(s => s.systemState)
+  const logs  = useCYRUSStore(s => s.logs)
+
+  return useMemo(() => {
+    const recent = logs.slice(-60)
+
+    const find = (pattern: RegExp) => recent.slice().reverse().find(l => pattern.test(l.message))
+
+    const asrLog   = find(/ASR.*transcript=/)
+    const llmLog   = find(/LLM.*responded|LLM.*failed/)
+    const ttsLog   = find(/TTS playback: actual=/)
+    const muteLog  = find(/mute_for\(/)
+    const toolLog  = find(/Respondió via Tools/)
+    const trigLog  = find(/Trigger detected/)
+
+    // Parse latencies from log messages
+    const asrTime  = asrLog?.message.match(/(\d+\.\d+)s/)
+    const ttsMatch = ttsLog?.message.match(/actual=([\d.]+)s/)
+    const muteMatch= muteLog?.message.match(/mute_for\(([\d.]+)s\)/)
+
+    const mic: StageInfo = {
+      label: 'MICRÓFONO',
+      state: state === 'listening' || state === 'transcribing' ? 'active'
+           : state === 'speaking' ? 'idle' : 'idle',
+      detail: muteMatch ? `muted ${parseFloat(muteMatch[1]).toFixed(1)}s` : undefined,
+    }
+
+    const asr: StageInfo = {
+      label: 'ASR',
+      state: state === 'transcribing' ? 'active'
+           : asrLog ? 'done' : 'idle',
+      latency: asrTime ? `${asrTime[1]}s` : undefined,
+      detail:  trigLog?.message.match(/'(.+)' in/)?.[1]?.slice(0, 24),
+    }
+
+    const llm: StageInfo = {
+      label: 'LLM',
+      state: state === 'thinking' ? 'active'
+           : llmLog?.message.includes('failed') ? 'error'
+           : llmLog ? 'done' : 'idle',
+      detail: toolLog ? '🔧 tools' : undefined,
+    }
+
+    const tts: StageInfo = {
+      label: 'TTS',
+      state: state === 'speaking' ? 'active'
+           : ttsLog ? 'done' : 'idle',
+      latency: ttsMatch ? `${parseFloat(ttsMatch[1]).toFixed(1)}s` : undefined,
+    }
+
+    return [mic, asr, llm, tts]
+  }, [state, logs])
+}
+
+function PipelineMonitor() {
+  const stages = usePipelineInfo()
+  const state  = useCYRUSStore(s => s.systemState)
+
+  const stageColor = (s: StageInfo['state']) =>
+    s === 'active' ? C.amber : s === 'done' ? C.green : s === 'error' ? C.red : C.textDim
+
+  return (
+    <Panel style={{ marginBottom: 12 }} accent={C.amber}>
+      <SectionLabel>PIPELINE EN TIEMPO REAL</SectionLabel>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+        {stages.map((stage, i) => (
+          <div key={stage.label} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+            {/* Stage box */}
+            <div style={{
+              flex: 1,
+              padding: '8px 6px',
+              borderRadius: 7,
+              border: `1px solid ${stageColor(stage.state)}44`,
+              background: stage.state === 'active' ? `${stageColor(stage.state)}12` : '#04080e',
+              textAlign: 'center',
+              position: 'relative',
+              overflow: 'hidden',
+            }}>
+              {stage.state === 'active' && (
+                <motion.div
+                  style={{ position:'absolute',top:0,left:0,height:'100%',width:'30%',background:`linear-gradient(90deg,transparent,${C.amber}22,transparent)` }}
+                  animate={{ left: ['0%', '120%'] }}
+                  transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
+                />
+              )}
+              <div style={mono(8, stageColor(stage.state))}>{stage.label}</div>
+              {stage.latency && <div style={mono(8, C.green)}>{stage.latency}</div>}
+              {stage.detail && <div style={{ ...mono(7, C.textDim), marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stage.detail}</div>}
+              {/* Active dot */}
+              {stage.state === 'active' && (
+                <div style={{ position:'absolute',top:4,right:4,width:5,height:5,borderRadius:'50%',background:C.amber,boxShadow:`0 0 6px ${C.amber}` }} />
+              )}
+            </div>
+            {/* Arrow */}
+            {i < stages.length - 1 && (
+              <div style={{ ...mono(10, C.border), padding: '0 3px', flexShrink: 0 }}>→</div>
+            )}
+          </div>
+        ))}
+      </div>
+      {/* State label */}
+      <div style={{ display:'flex', justifyContent:'flex-end', marginTop:8 }}>
+        <span style={{ ...mono(8, STATE_COLOR[state]), letterSpacing:'0.2em' }}>
+          ● {STATE_LABEL[state]}
+        </span>
+      </div>
+    </Panel>
+  )
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TAB 1 — SISTEMA
+// TAB 1 — SISTEMA (2-column dashboard)
 // ═══════════════════════════════════════════════════════════════════════════
-
-const LOG_COLOR: Record<string, string> = {
-  info:  '#00f0ff',
-  warn:  '#ff8c00',
-  error: '#ff3333',
-  ok:    '#00ff88',
-}
 
 function TabSistema() {
-  const systemState = useCYRUSStore(s => s.systemState)
-  const wsConnected = useCYRUSStore(s => s.wsConnected)
-  const statusMsg   = useCYRUSStore(s => s.statusMessage)
-  const stats       = useCYRUSStore(s => s.systemStats)
-  const logs        = useCYRUSStore(s => s.logs)
-  const clearLogs   = useCYRUSStore(s => s.clearLogs)
-  const endRef      = useRef<HTMLDivElement>(null)
+  const state    = useCYRUSStore(s => s.systemState)
+  const wsOn     = useCYRUSStore(s => s.wsConnected)
+  const stats    = useCYRUSStore(s => s.systemStats)
+  const logs     = useCYRUSStore(s => s.logs)
+  const clearLogs= useCYRUSStore(s => s.clearLogs)
+  const endRef   = useRef<HTMLDivElement>(null)
 
-  const [fake, setFake] = useState({ cpu: 18, ram: 52, vram: 31 })
+  const [sim, setSim] = useState({ cpu: 18, ram: 55 })
   useEffect(() => {
     if (stats) return
-    const id = setInterval(() => setFake(v => ({
-      cpu:  Math.max(5,  Math.min(85, v.cpu  + (Math.random() - 0.5) * 4)),
-      ram:  Math.max(30, Math.min(90, v.ram  + (Math.random() - 0.5) * 2)),
-      vram: Math.max(20, Math.min(65, v.vram + (Math.random() - 0.5) * 1.5)),
-    })), 3000)
+    const id = setInterval(() => setSim(v => ({
+      cpu: Math.max(5, Math.min(90, v.cpu + (Math.random()-0.5)*5)),
+      ram: Math.max(30, Math.min(85, v.ram + (Math.random()-0.5)*2)),
+    })), 2500)
     return () => clearInterval(id)
   }, [stats])
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [logs])
 
-  const color   = STATE_COLOR[systemState]
-  const cpu     = stats?.cpu     ?? fake.cpu
-  const ram     = stats?.ram     ?? fake.ram
-  const vram    = stats?.vram    ?? fake.vram
-  const temp    = stats?.gpuTemp ?? 62
-  const gpu     = (stats?.gpuName ?? 'RTX 2070S').replace('NVIDIA GeForce ', '').replace('NVIDIA ', '')
-  const uptime  = stats?.uptime  ?? 0
-  const tts     = stats?.ttsBackend?.toUpperCase() ?? '—'
-  const isReal  = !!stats
+  const cpu   = stats?.cpu   ?? sim.cpu
+  const ram   = stats?.ram   ?? sim.ram
+  const vram  = stats?.vram  ?? 0
+  const temp  = stats?.gpuTemp ?? 0
+  const ut    = stats?.uptime  ?? 0
+  const tts   = stats?.ttsBackend?.toUpperCase() ?? '—'
+  const live  = !!stats
+  const col   = STATE_COLOR[state]
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25 }}>
+      {/* Pipeline monitor — full width at top */}
+      <PipelineMonitor />
 
-      {/* ── Status row ── */}
-      <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: '1fr auto' }}>
+      {/* 2-column layout below */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
 
-        {/* State card */}
-        <Card>
-          <div className="flex items-center gap-3">
-            <div style={{ position: 'relative', width: 12, height: 12, flexShrink: 0 }}>
-              <div style={{
-                width: '100%', height: '100%', borderRadius: '50%',
-                background: color, boxShadow: `0 0 8px ${color}`,
-              }} />
-              {wsConnected && (
-                <div className="absolute inset-0 rounded-full animate-ping"
-                  style={{ background: color, opacity: 0.2 }} />
-              )}
-            </div>
-            <div className="min-w-0">
-              <div className="font-mono font-bold truncate"
-                style={{ fontSize: 14, letterSpacing: '0.18em', color, textShadow: `0 0 12px ${color}44` }}>
-                {STATE_LABEL[systemState]}
+        {/* LEFT — Status + Metrics */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {/* State card */}
+          <Panel accent={col}>
+            <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:12 }}>
+              <div style={{ position:'relative', width:14, height:14, flexShrink:0 }}>
+                <div style={{ width:'100%',height:'100%',borderRadius:'50%',background:col,boxShadow:`0 0 10px ${col}` }} />
+                {wsOn && <div style={{ position:'absolute',inset:0,borderRadius:'50%',background:col,opacity:0.25,animation:'ping 1.5s infinite' }} />}
               </div>
-              {statusMsg && (
-                <div className="font-mono truncate"
-                  style={{ fontSize: 8, color: '#1e3a4a', letterSpacing: '0.1em', marginTop: 1 }}>
-                  {statusMsg}
+              <div>
+                <div style={{ ...mono(15, col), letterSpacing:'0.2em', textShadow:`0 0 14px ${col}44` }}>
+                  {STATE_LABEL[state]}
                 </div>
-              )}
+                <div style={mono(8, C.textDim)}>WebSocket: {wsOn ? 'CONECTADO' : 'DESCONECTADO'}</div>
+              </div>
             </div>
-          </div>
-        </Card>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, paddingTop:10, borderTop:`1px solid ${C.border}` }}>
+              {[
+                { k:'UPTIME',   v: uptime(ut),      c: C.cyan },
+                { k:'TTS',      v: tts,             c: C.purple },
+                { k:'DATOS',    v: live ? 'LIVE' : 'SIM', c: live ? C.green : C.textDim },
+              ].map(({ k, v, c }) => (
+                <div key={k} style={{ textAlign:'center' }}>
+                  <div style={mono(7, C.textDim)}>{k}</div>
+                  <div style={{ ...mono(10, c), marginTop:3 }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </Panel>
 
-        {/* Quick pills */}
-        <Card style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6, minWidth: 80 }}>
-          <div className="font-mono text-right" style={{ fontSize: 8, letterSpacing: '0.1em', color: '#1e3a4a' }}>
-            WS&nbsp;<span style={{ color: wsConnected ? '#00ff88' : '#ff3333' }}>{wsConnected ? 'ON' : 'OFF'}</span>
-          </div>
-          <div className="font-mono text-right" style={{ fontSize: 8, letterSpacing: '0.1em', color: '#1e3a4a' }}>
-            TTS&nbsp;<span style={{ color: '#00f0ff66' }}>{tts}</span>
-          </div>
-          <div className="font-mono text-right" style={{ fontSize: 8, letterSpacing: '0.1em', color: '#1e3a4a' }}>
-            {isReal ? <span style={{ color: '#00ff8866' }}>● LIVE</span> : <span>○ SIM</span>}
-          </div>
-        </Card>
+          {/* Metrics */}
+          <Panel>
+            <SectionLabel>MÉTRICAS DEL SISTEMA</SectionLabel>
+            <MetricBar label="CPU" value={cpu} color={C.cyan} />
+            <MetricBar label="RAM" value={ram} color={C.green} />
+            {vram > 0 && <MetricBar label="VRAM" value={vram} color={C.purple} />}
+            {temp > 0 && (
+              <div style={{ display:'flex', justifyContent:'space-between', paddingTop:8, borderTop:`1px solid ${C.border}`, marginTop:4 }}>
+                <span style={mono(9, C.textDim)}>GPU TEMP</span>
+                <span style={mono(9, temp > 80 ? C.red : temp > 70 ? C.amber : C.textDim)}>{temp}°C</span>
+              </div>
+            )}
+          </Panel>
+
+          {/* Tool catalog */}
+          <Panel>
+            <SectionLabel>HERRAMIENTAS ACTIVAS</SectionLabel>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:5 }}>
+              {['buscar_web','clima','hora_ciudad','calculadora','listar_archivos','leer_archivo','sistema_info','abrir_app'].map(t => (
+                <div key={t} style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 6px', borderRadius:5, background:'#04080e', border:`1px solid ${C.border}` }}>
+                  <div style={{ width:5,height:5,borderRadius:'50%',background:C.green,boxShadow:`0 0 4px ${C.green}`,flexShrink:0 }} />
+                  <span style={mono(8, C.text)}>{t}</span>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        </div>
+
+        {/* RIGHT — Log */}
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          <Panel style={{ flex: 1, display:'flex', flexDirection:'column' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+              <SectionLabel>LOG EN TIEMPO REAL</SectionLabel>
+              <Btn onClick={clearLogs} small color={C.textDim}>LIMPIAR</Btn>
+            </div>
+            <div style={{
+              flex: 1, minHeight: 380, maxHeight: 500, overflowY:'auto',
+              background:'#02060c', borderRadius:6, border:`1px solid #060e18`,
+              padding:'8px 10px', display:'flex', flexDirection:'column', gap:1,
+            }}>
+              {logs.length === 0 ? (
+                <div style={mono(9, C.textDim)}>Esperando eventos del sistema…</div>
+              ) : logs.map((e: LogEntry) => (
+                <div key={e.id} style={{ display:'flex', gap:8, alignItems:'baseline' }}>
+                  <span style={mono(8, C.textDim)}>{e.timestamp}</span>
+                  <span style={{ ...mono(9, LOG_COL[e.level] ?? C.cyan), opacity:0.85, wordBreak:'break-word', flex:1 }}>
+                    {e.message}
+                  </span>
+                </div>
+              ))}
+              <div ref={endRef} />
+            </div>
+          </Panel>
+        </div>
       </div>
-
-      {/* ── Metrics ── */}
-      <Card style={{ marginBottom: 8 }}>
-        <div className="flex items-center justify-between mb-3">
-          <Label>MÉTRICAS DEL SISTEMA</Label>
-          <span className="font-mono" style={{ fontSize: 8, color: '#1e3a4a' }}>{uptimeStr(uptime)}</span>
-        </div>
-
-        <StatBar label="CPU" value={cpu} />
-        <StatBar label={`GPU  ${gpu.slice(0, 14)}`} value={vram} color="#a855f7" unit="% VRAM" />
-        <StatBar label="RAM" value={ram} color="#00ff88" />
-
-        {/* Meta row */}
-        <div className="grid mt-3" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '0 8px' }}>
-          {[
-            { k: 'GPU TEMP', v: `${temp}°C`,  c: temp > 80 ? '#ff3333' : temp > 70 ? '#ff8c00' : '#00f0ff66' },
-            { k: 'LOCATION', v: 'LIMA, PE',   c: '#1e3a4a' },
-            { k: 'MODE',     v: isReal ? 'LIVE' : 'SIM', c: isReal ? '#00ff8866' : '#1e3a4a' },
-          ].map(({ k, v, c }) => (
-            <div key={k}>
-              <div className="font-mono" style={{ fontSize: 7, color: '#0e1e28', letterSpacing: '0.15em' }}>{k}</div>
-              <div className="font-mono" style={{ fontSize: 10, color: c, marginTop: 2 }}>{v}</div>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      {/* ── System log ── */}
-      <Card>
-        <div className="flex items-center justify-between mb-2">
-          <Label>LOG DEL SISTEMA</Label>
-          <button onClick={clearLogs} className="font-mono"
-            style={{ fontSize: 7, color: '#1e3a4a', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.15em' }}>
-            LIMPIAR
-          </button>
-        </div>
-        <div style={{
-          height: 220, overflowY: 'auto', overflowX: 'hidden',
-          background: 'rgba(0,6,12,0.8)', borderRadius: 4,
-          border: '1px solid #071218', padding: '6px 8px',
-        }}>
-          {logs.length === 0 ? (
-            <p className="font-mono" style={{ fontSize: 9, color: '#0a1e2a', letterSpacing: '0.1em' }}>
-              Esperando eventos…
-            </p>
-          ) : logs.map((entry: LogEntry) => (
-            <div key={entry.id} className="flex gap-2 font-mono" style={{ fontSize: 9, lineHeight: 1.6 }}>
-              <span style={{ color: '#152530', flexShrink: 0 }}>{entry.timestamp}</span>
-              <span style={{ color: LOG_COLOR[entry.level] ?? '#00f0ff', opacity: 0.75, wordBreak: 'break-word' }}>
-                {entry.message}
-              </span>
-            </div>
-          ))}
-          <div ref={endRef} />
-        </div>
-      </Card>
-
     </motion.div>
   )
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TAB 2 — CONFIG
+// TAB 2 — CONFIG (clean grid layout)
 // ═══════════════════════════════════════════════════════════════════════════
 
 function TabConfig({ sendCommand }: { sendCommand: (cmd: string, extra?: object) => void }) {
-  const ttsSpeed        = useCYRUSStore(s => s.ttsSpeed)
-  const setTtsSpeed     = useCYRUSStore(s => s.setTtsSpeed)
-  const availableModels = useCYRUSStore(s => s.availableModels)
-  const currentModel    = useCYRUSStore(s => s.currentModel)
-  const systemStats     = useCYRUSStore(s => s.systemStats)
-  const particleCount   = useCYRUSStore(s => s.particleCount)
-  const bloomIntensity  = useCYRUSStore(s => s.bloomIntensity)
-  const orbSpeed        = useCYRUSStore(s => s.orbSpeed)
+  const ttsSpeed       = useCYRUSStore(s => s.ttsSpeed)
+  const setTtsSpeed    = useCYRUSStore(s => s.setTtsSpeed)
+  const availModels    = useCYRUSStore(s => s.availableModels)
+  const currentModel   = useCYRUSStore(s => s.currentModel)
+  const sysStats       = useCYRUSStore(s => s.systemStats)
+  const particleCount  = useCYRUSStore(s => s.particleCount)
+  const bloomIntensity = useCYRUSStore(s => s.bloomIntensity)
+  const orbSpeed       = useCYRUSStore(s => s.orbSpeed)
   const setParticleCount  = useCYRUSStore(s => s.setParticleCount)
   const setBloomIntensity = useCYRUSStore(s => s.setBloomIntensity)
   const setOrbSpeed       = useCYRUSStore(s => s.setOrbSpeed)
 
-  const [llmModel, setLlmModel]   = useState('phi3:latest')
-  const [ttsEngine, setTtsEngine] = useState('piper')
-  const [testText, setTestText]   = useState('')
-  const [testing, setTesting]     = useState(false)
+  const [llmModel,    setLlmModel]   = useState(currentModel || '')
+  const [ttsEngine,   setTtsEngine]  = useState('edge-tts')
+  const [voicePreset, setVoicePreset]= useState('natural')
+  const [testText,    setTestText]   = useState('')
+  const [testing,     setTesting]    = useState(false)
+  const [ollamaOk,    setOllamaOk]   = useState<boolean|null>(null)
 
-  const commitLlm = (m: string) => { if (m.trim()) sendCommand('set_llm_model', { model: m.trim() }) }
-  const commitSpeed = (v: number) => sendCommand('set_tts_speed', { speed: v })
-  const refreshModels = () => sendCommand('list_ollama_models')
+  useEffect(() => { sendCommand('list_ollama_models') }, [sendCommand])
+  useEffect(() => { if (currentModel) setLlmModel(currentModel) }, [currentModel])
 
-  const [detectorEngine, setDetectorEngine] = useState<'auto' | 'ollama'>('auto')
-  const [detectorStatus, setDetectorStatus] = useState('DESCONOCIDO')
-  const [voicePreset, setVoicePreset]       = useState('natural')
-
-  const commitDetector = (engine: 'auto' | 'ollama') => {
-    setDetectorEngine(engine)
-    if (engine === 'auto') {
-      checkDetector()
-    } else {
-      sendCommand('set_local_ai_detector', { detector: engine })
-      setDetectorStatus('INSTALADO')
-    }
-  }
-
-  const commitTtsEngine = (engine: string) => {
-    setTtsEngine(engine)
-    sendCommand('set_tts_engine', { engine })
-  }
-
-  const commitVoicePreset = (preset: string) => {
-    setVoicePreset(preset)
-    sendCommand('set_voice_preset', { preset })
-  }
-
-  const checkDetector = () => {
-    setDetectorStatus('COMPROBANDO')
+  const probeOllama = () => {
+    setOllamaOk(null)
     sendCommand('probe_local_ai_detector', { detector: 'ollama' })
-    setTimeout(() => setDetectorStatus('INSTALADO'), 1400)
+    setTimeout(() => setOllamaOk(true), 1800)
   }
-
-  useEffect(() => {
-    if (detectorEngine === 'auto') {
-      checkDetector()
-    }
-  }, [detectorEngine])
-
-  useEffect(() => {
-    sendCommand('list_ollama_models')
-  }, [sendCommand])
-
-  useEffect(() => {
-    if (availableModels.length) {
-      const active = currentModel || availableModels[0].name
-      setLlmModel(active)
-    }
-  }, [availableModels, currentModel])
-
-  useEffect(() => {
-    if (currentModel && llmModel !== currentModel) {
-      setLlmModel(currentModel)
-    }
-  }, [currentModel, llmModel])
 
   const testTts = () => {
-    const text = testText.trim() || 'Sistema de voz CYRUS operativo.'
     setTesting(true)
-    sendCommand('test_tts', { text, engine: ttsEngine, preset: voicePreset })
-    setTimeout(() => setTesting(false), 3000)
-  }
-
-  const selectStyle: React.CSSProperties = {
-    fontSize: 10, fontFamily: 'monospace',
-    background: '#040c14', border: '1px solid #0a2030',
-    color: '#00f0ffcc', borderRadius: 6,
-    padding: '8px 10px', cursor: 'pointer', outline: 'none',
-  }
-
-  const actionButton: React.CSSProperties = {
-    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 10, letterSpacing: '0.14em',
-    padding: '10px 14px', borderRadius: 8,
-    border: '1px solid #00f0ff33', background: 'rgba(0,240,255,0.07)',
-    color: '#b5f7ff', cursor: 'pointer', transition: 'transform 0.2s ease, background 0.2s ease',
+    sendCommand('test_tts', { text: testText.trim() || 'Sistema CYRUS operativo.', engine: ttsEngine })
+    setTimeout(() => setTesting(false), 4000)
   }
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
 
-      {/* ── Detector local ── */}
-      <Card style={{ marginBottom: 10, border: '1px solid #00445a', background: 'rgba(0,16,28,0.86)' }}>
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <Label>DETECTOR IA LOCAL</Label>
-            <p className="font-mono" style={{ fontSize: 10, color: '#0f3043', marginTop: 8, lineHeight: 1.6 }}>
-              Autodetección disponible para el back-end local con Ollama. Elige el modo automático para usar la conexión local cuando esté activa.
-            </p>
-          </div>
-          <Badge
-            label={detectorStatus}
-            color={detectorStatus === 'INSTALADO' ? '#008272cc' : detectorStatus === 'COMPROBANDO' ? '#0f5c91cc' : '#a52a2acc'}
-          />
-        </div>
+        {/* LEFT column */}
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
 
-        <div className="grid gap-3 mt-5" style={{ gridTemplateColumns: '1.35fr auto' }}>
-          <div>
-            <Label dim>MOTOR LOCAL</Label>
-            <select value={detectorEngine} onChange={e => commitDetector(e.target.value as 'auto' | 'ollama')} style={{ ...selectStyle, width: '100%' }}>
-              <option value="auto">Autodetectar (Ollama)</option>
-              <option value="ollama">Ollama local</option>
-            </select>
-          </div>
-          <button onClick={checkDetector} style={actionButton}>
-            {detectorStatus === 'COMPROBANDO' ? 'COMPROBANDO…' : 'DETECTAR'}
-          </button>
-        </div>
-
-        <div style={{ marginTop: 14, padding: '12px 14px', borderRadius: 10, background: 'rgba(0,12,18,0.9)', border: '1px dashed #0a3e5d' }}>
-          <p className="font-mono" style={{ fontSize: 9, color: '#00d8ff99', lineHeight: 1.6, margin: 0 }}>
-            Sistemas conocidos: <strong>Whisper</strong>, <strong>VOSK</strong>, <strong>GPT4All</strong>. Selecciona el que esté instalado y disponible en el backend.
-          </p>
-        </div>
-      </Card>
-
-      {/* ── Síntesis de voz ── */}
-      <Card style={{ marginBottom: 10, border: '1px solid #003a68', background: 'rgba(0,16,28,0.88)' }}>
-        <div className="flex items-center justify-between gap-4">
-          <Label>SÍNTESIS DE VOZ</Label>
-          <div className="flex items-center gap-2">
-            {systemStats?.ttsBackend && (
-              <span className="font-mono" style={{ fontSize: 8, letterSpacing: '0.15em', color: '#00ff88cc' }}>
-                ACTIVO: {systemStats.ttsBackend.toUpperCase()}
-              </span>
-            )}
-            <Badge label="PRUEBA" color="#00a2d8cc" />
-          </div>
-        </div>
-
-        <div className="grid gap-3 mt-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          <div>
-            <Label dim>MOTOR</Label>
-            <select value={ttsEngine} onChange={e => commitTtsEngine(e.target.value)} style={{ ...selectStyle, width: '100%' }}>
-              <option value="piper">Piper</option>
-              <option value="remote-tts">Remote TTS (servidor)</option>
-              <option value="xtts">XTTS v2 (local)</option>
-              <option value="kokoro">Kokoro</option>
-              <option value="edge-tts">Edge TTS</option>
-            </select>
-          </div>
-          <div>
-            <Label dim>PERSONALIDAD</Label>
-            <select value={voicePreset} onChange={e => commitVoicePreset(e.target.value)} style={{ ...selectStyle, width: '100%' }}>
-              <option value="natural">Natural</option>
-              <option value="dramatic">Dramática</option>
-              <option value="suave">Suave</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="grid gap-3 mt-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          <div>
-            <Label dim>VELOCIDAD</Label>
-            <Slider label="" value={ttsSpeed} min={0.5} max={2.0} step={0.05} onChange={setTtsSpeed} onCommit={commitSpeed} />
-          </div>
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <Label dim>MODELO</Label>
-              <button onClick={refreshModels} style={{ ...actionButton, padding: '8px 12px', fontSize: 9, background: 'rgba(0,240,255,0.10)' }}>
-                REFRESCAR
-              </button>
+          {/* LLM Model */}
+          <Panel accent={C.amber}>
+            <SectionLabel>MODELO LLM (OLLAMA)</SectionLabel>
+            <div style={{ display:'flex', gap:8, marginBottom:10 }}>
+              <Btn onClick={() => sendCommand('list_ollama_models')} small color={C.cyan} style={{flex:1}}>REFRESCAR</Btn>
+              <Btn onClick={probeOllama} small color={ollamaOk === true ? C.green : ollamaOk === false ? C.red : C.amber} style={{flex:1}}>
+                {ollamaOk === null ? 'PROBAR' : ollamaOk ? 'ACTIVO ✓' : 'ERROR ✗'}
+              </Btn>
             </div>
-            {availableModels.length > 0 ? (
-              <div style={{ display: 'grid', gap: 6 }}>
-                <select value={llmModel} onChange={e => { setLlmModel(e.target.value); commitLlm(e.target.value) }}
-                  style={{ ...selectStyle, width: '100%' }}>
-                  {availableModels.map(model => (
-                    <option key={model.name} value={model.name}>
-                      {model.name}{model.name === currentModel ? ' • ACTIVO' : ''}
-                    </option>
-                  ))}
-                </select>
-                <div className="font-mono" style={{ fontSize: 9, color: '#00d8ff99' }}>
-                  Modelo activo: <strong>{currentModel || 'No seleccionado'}</strong><br />
-                  {availableModels.length} modelo{availableModels.length === 1 ? '' : 's'} detectado{availableModels.length === 1 ? '' : 's'} — 
-                  <span style={{
-                    color: (() => {
-                      const model = availableModels.find(m => m.name === llmModel)
-                      if (!model) return '#ffaa00'
-                      return model.compatible ? '#00ff88' : '#ff4444'
-                    })(),
-                    fontWeight: 'bold'
-                  }}>
-                    {(() => {
-                      const model = availableModels.find(m => m.name === llmModel)
-                      const compat = model?.compatibility ?? 'Desconocida'
-                      const icon = compat.includes('GPU') ? '🖥️' : compat.includes('CPU') ? '💻' : '❓'
-                      return `${icon} ${compat}`
-                    })()}
-                  </span>
-                </div>
-              </div>
+            {availModels.length > 0 ? (
+              <>
+                <Select
+                  value={llmModel}
+                  onChange={v => { setLlmModel(v); sendCommand('set_llm_model', { model: v }) }}
+                  options={availModels.map(m => ({
+                    value: m.name,
+                    label: `${m.name}${m.name === currentModel ? ' ●' : ''}`,
+                  }))}
+                />
+                {availModels.map(m => m.name === llmModel && (
+                  <div key={m.name} style={{ display:'flex', justifyContent:'space-between', marginTop:8 }}>
+                    <span style={mono(8, C.textDim)}>Compatibilidad</span>
+                    <span style={mono(8, m.compatible ? C.green : C.red)}>{m.compatibility}</span>
+                  </div>
+                ))}
+              </>
             ) : (
-              <div className="font-mono" style={{ fontSize: 9, color: '#00f0ff', padding: '10px 12px', borderRadius: 8, background: '#040c14', border: '1px solid #0a2030' }}>
-                No se encontraron modelos. Pulsa REFRESCAR o verifica Ollama.
+              <div style={{ ...mono(9, C.textDim), padding:'10px', textAlign:'center', border:`1px dashed ${C.border}`, borderRadius:6 }}>
+                Sin modelos — verifica Ollama
               </div>
             )}
-          </div>
-        </div>
+          </Panel>
 
-        <div style={{ marginTop: 16 }}>
-          <Label dim>PRUEBA DE VOZ</Label>
-          <div className="flex flex-col gap-3 mt-3" style={{ minWidth: 0 }}>
-            <input
-              value={testText}
-              onChange={e => setTestText(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && testTts()}
-              placeholder="Escribe un texto para escuchar cómo suena…"
-              className="font-mono rounded px-3 py-2 outline-none"
-              style={{ fontSize: 10, background: '#040c14', border: '1px solid #0a2030', color: '#b5f7ff', width: '100%' }}
+          {/* IA Detector */}
+          <Panel>
+            <SectionLabel>DETECTOR IA LOCAL</SectionLabel>
+            <Select
+              value="ollama"
+              onChange={() => {}}
+              options={[{ value:'ollama', label:'Ollama local (activo)' }]}
             />
-            <div className="flex gap-2 flex-wrap">
-              <button onClick={testTts} disabled={testing} style={{ ...actionButton, flex: '1 1 160px', justifyContent: 'center' }}>
-                {testing ? 'REPRODUCIENDO…' : 'PROBAR VOZ'}
-              </button>
-              <button onClick={() => setTestText('Hola, estoy usando CYRUS con voz local.')} style={{ ...actionButton, background: 'rgba(0,255,136,0.08)' }}>
-                TEXTO DE DEMO
-              </button>
+            <div style={{ marginTop:8, padding:'8px 10px', background:'#02060c', borderRadius:6, border:`1px solid ${C.border}` }}>
+              <span style={mono(8, C.textDim)}>
+                Whisper small/cpu/int8 → qwen3:8b → Edge-TTS es-PE
+              </span>
             </div>
-          </div>
-        </div>
-      </Card>
+          </Panel>
 
-      {/* ── Visualización ── */}
-      <Card>
-        <Label>VISUALIZACIÓN DEL HOLOGRAMA</Label>
-        <div style={{ marginTop: 14 }}>
-          <Slider label="BLOOM" value={bloomIntensity} min={0.5} max={2.5} step={0.05} onChange={setBloomIntensity} />
-          <Slider label="PARTÍCULAS" value={particleCount} min={100} max={400} step={10} onChange={setParticleCount} />
-          <Slider label="VELOCIDAD" value={orbSpeed} min={0.1} max={3.0} step={0.05} onChange={setOrbSpeed} />
+          {/* Visual */}
+          <Panel>
+            <SectionLabel>VISUALIZACIÓN NEURONAL</SectionLabel>
+            <SliderRow label="BLOOM" value={bloomIntensity} min={0.5} max={2.5} step={0.05} onChange={setBloomIntensity} />
+            <SliderRow label="PARTÍCULAS" value={particleCount} min={100} max={400} step={10} onChange={setParticleCount} unit="" />
+            <SliderRow label="VELOCIDAD ORB" value={orbSpeed} min={0.1} max={3.0} step={0.05} onChange={setOrbSpeed} />
+          </Panel>
         </div>
-      </Card>
 
+        {/* RIGHT column */}
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+
+          {/* TTS Engine */}
+          <Panel accent={C.purple}>
+            <SectionLabel>SÍNTESIS DE VOZ</SectionLabel>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
+              <div>
+                <div style={{ ...mono(8, C.textDim), marginBottom:5 }}>MOTOR</div>
+                <Select
+                  value={ttsEngine}
+                  onChange={v => { setTtsEngine(v); sendCommand('set_tts_engine', { engine: v }) }}
+                  options={[
+                    { value:'edge-tts',  label:'Edge-TTS (es-PE) ●' },
+                    { value:'kokoro',    label:'Kokoro (offline)' },
+                    { value:'piper',     label:'Piper (local)' },
+                    { value:'remote-tts',label:'Remote TTS' },
+                  ]}
+                />
+              </div>
+              <div>
+                <div style={{ ...mono(8, C.textDim), marginBottom:5 }}>PRESET</div>
+                <Select
+                  value={voicePreset}
+                  onChange={v => { setVoicePreset(v); sendCommand('set_voice_preset', { preset: v }) }}
+                  options={[
+                    { value:'natural',  label:'Natural' },
+                    { value:'dramatic', label:'Dramática' },
+                    { value:'suave',    label:'Suave' },
+                  ]}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom:10 }}>
+              <div style={{ ...mono(8, C.textDim), marginBottom:5 }}>VELOCIDAD</div>
+              <SliderRow label="" value={ttsSpeed} min={0.5} max={2.0} step={0.05}
+                onChange={setTtsSpeed} onCommit={v => sendCommand('set_tts_speed', { speed: v })} />
+            </div>
+
+            {sysStats?.ttsBackend && (
+              <div style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 10px', background:'#02060c', borderRadius:6, border:`1px solid ${C.border}` }}>
+                <div style={{ width:6,height:6,borderRadius:'50%',background:C.green,boxShadow:`0 0 5px ${C.green}` }} />
+                <span style={mono(8, C.green)}>ACTIVO: {sysStats.ttsBackend.toUpperCase()}</span>
+              </div>
+            )}
+          </Panel>
+
+          {/* TTS Test */}
+          <Panel>
+            <SectionLabel>PRUEBA DE VOZ</SectionLabel>
+            <Input
+              value={testText}
+              onChange={setTestText}
+              placeholder="Texto para sintetizar…"
+              onKeyDown={e => e.key === 'Enter' && testTts()}
+              style={{ marginBottom: 8 }}
+            />
+            <div style={{ display:'flex', gap:8 }}>
+              <Btn onClick={testTts} disabled={testing} color={C.purple} style={{ flex:1, justifyContent:'center' }}>
+                {testing ? '◈ REPRODUCIENDO…' : '▶ PROBAR'}
+              </Btn>
+              <Btn onClick={() => setTestText('Hola Ricardo. Sistema CYRUS operativo al cien por ciento.')} small color={C.textDim}>
+                DEMO
+              </Btn>
+            </div>
+          </Panel>
+
+          {/* Audio config summary */}
+          <Panel>
+            <SectionLabel>AUDIO — CONFIG ACTUAL</SectionLabel>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {[
+                { k:'Dispositivo mic', v:'default (laptop)' },
+                { k:'Sample rate',    v:'16 kHz' },
+                { k:'VAD',           v:'WebRTC agresividad 3' },
+                { k:'Echo tail',     v:'5.0s post-TTS' },
+                { k:'Silence thresh',v:'400 RMS' },
+              ].map(({ k, v }) => (
+                <div key={k} style={{ display:'flex', justifyContent:'space-between', padding:'5px 0', borderBottom:`1px solid #06101a` }}>
+                  <span style={mono(9, C.textDim)}>{k}</span>
+                  <span style={mono(9, C.text)}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        </div>
+      </div>
     </motion.div>
   )
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// VOICE PROFILES SECTION
+// VOICE PROFILES
 // ═══════════════════════════════════════════════════════════════════════════
 
 function VoiceProfilesSection({ sendCommand }: { sendCommand: (cmd: string, payload?: object) => void }) {
-  const speakerProfiles = useCYRUSStore(s => s.speakerProfiles)
-  const enrollmentStep  = useCYRUSStore(s => s.enrollmentStep)
-  const [guestName, setGuestName] = useState('')
-  const busy = enrollmentStep !== 'idle'
+  const profiles   = useCYRUSStore(s => s.speakerProfiles)
+  const enrollStep = useCYRUSStore(s => s.enrollmentStep)
+  const enrollN    = useCYRUSStore(s => s.enrollmentSample)
+  const enrollT    = useCYRUSStore(s => s.enrollmentTotal)
+  const [guest, setGuest] = useState('')
+  const busy = enrollStep !== 'idle' && enrollStep !== 'done'
 
   return (
-    <div className="border border-cyan-900/30 rounded p-4 space-y-3">
-      <p className="font-mono text-xs tracking-widest text-cyan-400/60">PERFILES DE VOZ</p>
+    <Panel accent={C.green}>
+      <SectionLabel>PERFILES DE HABLANTE</SectionLabel>
 
-      {/* Enrolled speakers list */}
-      {speakerProfiles.length > 0 && (
-        <div className="space-y-1">
-          {speakerProfiles.map(sp => (
-            <div key={sp.id} className="flex items-center justify-between font-mono text-xs">
-              <span style={{ color: sp.role === 'owner' ? '#00ff88' : '#00d4ff' }}>
-                {sp.role === 'owner' ? '★' : '◆'} {sp.id} ({sp.role})
+      {/* Enrolled list */}
+      {profiles.length > 0 ? (
+        <div style={{ display:'flex', flexDirection:'column', gap:5, marginBottom:10 }}>
+          {profiles.map(sp => (
+            <div key={sp.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 10px', background:'#020c08', borderRadius:6, border:`1px solid ${C.green}22` }}>
+              <span style={{ fontSize:12, color: sp.role === 'owner' ? C.green : C.cyan }}>
+                {sp.role === 'owner' ? '★' : '◆'}
               </span>
-              <button
-                disabled={busy}
-                onClick={() => sendCommand('remove_speaker', { speaker_id: sp.id })}
-                className="text-red-400/60 hover:text-red-400 px-2 disabled:opacity-40"
-                style={{ fontSize: 10, background: 'none', border: 'none', cursor: busy ? 'not-allowed' : 'pointer' }}
-              >
+              <span style={{ ...mono(10, C.text), flex:1 }}>{sp.id}</span>
+              <span style={mono(8, C.textDim)}>{sp.role}</span>
+              <button disabled={busy} onClick={() => sendCommand('remove_speaker', { speaker_id: sp.id })}
+                style={{ ...mono(10, C.red), background:'none', border:'none', cursor:'pointer', opacity: busy ? 0.3 : 1 }}>
                 ✕
               </button>
             </div>
           ))}
         </div>
-      )}
-      {speakerProfiles.length === 0 && (
-        <p className="font-mono text-xs text-cyan-900/60">Sin perfiles enrollados</p>
+      ) : (
+        <div style={{ ...mono(9, C.textDim), textAlign:'center', padding:'10px', marginBottom:10 }}>
+          Sin perfiles enrollados
+        </div>
       )}
 
-      {/* Enroll owner */}
-      <button
-        disabled={busy}
-        onClick={() => sendCommand('start_owner_enrollment', { samples: 8 })}
-        className="w-full font-mono text-xs border border-green-500/40 text-green-400/80 hover:text-green-400 rounded px-3 py-2 disabled:opacity-40"
-        style={{ background: 'none', cursor: busy ? 'not-allowed' : 'pointer' }}
-      >
-        ENROLLAR PROPIETARIO (8 muestras)
-      </button>
+      {/* Enrollment progress */}
+      {busy && (
+        <div style={{ marginBottom:10 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+            <span style={mono(9, C.green)}>Muestra {enrollN}/{enrollT}</span>
+          </div>
+          <div style={{ height:3, background:'#04080e', borderRadius:2 }}>
+            <div style={{ height:'100%', width:`${(enrollN/enrollT)*100}%`, background:`linear-gradient(90deg,${C.green}44,${C.green})`, borderRadius:2, transition:'width 0.3s' }} />
+          </div>
+        </div>
+      )}
 
-      {/* Enroll guest */}
-      <div className="flex gap-2">
-        <input
-          value={guestName}
-          onChange={e => setGuestName(e.target.value)}
-          placeholder="nombre invitado"
-          className="flex-1 font-mono text-xs bg-transparent border border-cyan-900/40 rounded px-2 py-1 text-cyan-300/70 outline-none"
-          style={{ fontSize: 10 }}
-        />
-        <button
-          disabled={busy || !guestName.trim()}
-          onClick={() => {
-            sendCommand('start_guest_enrollment', { name: guestName.trim(), samples: 5 })
-            setGuestName('')
-          }}
-          className="font-mono text-xs border border-cyan-500/40 text-cyan-400/80 hover:text-cyan-400 rounded px-3 py-1 disabled:opacity-40"
-          style={{ background: 'none', cursor: busy || !guestName.trim() ? 'not-allowed' : 'pointer', fontSize: 10 }}
-        >
-          ENROLLAR
-        </button>
+      {/* Enroll buttons */}
+      <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+        <Btn disabled={busy} color={C.green} onClick={() => sendCommand('start_owner_enrollment', { samples:8 })} style={{ justifyContent:'center' }}>
+          ENROLLAR PROPIETARIO (8 muestras)
+        </Btn>
+
+        <div style={{ display:'flex', gap:6 }}>
+          <Input value={guest} onChange={setGuest} placeholder="nombre del invitado…" />
+          <Btn disabled={busy || !guest.trim()} color={C.cyan} onClick={() => { sendCommand('start_guest_enrollment',{name:guest,samples:5}); setGuest('') }}>
+            ENROLLAR
+          </Btn>
+        </div>
+
+        <Btn disabled={busy} color={C.amber} onClick={() => sendCommand('record_tts_reference')} style={{ justifyContent:'center' }}>
+          GRABAR VOZ REFERENCIA TTS (20s)
+        </Btn>
       </div>
-
-      {/* Record TTS reference */}
-      <button
-        disabled={busy}
-        onClick={() => sendCommand('record_tts_reference')}
-        className="w-full font-mono text-xs border border-orange-500/40 text-orange-400/80 hover:text-orange-400 rounded px-3 py-2 disabled:opacity-40"
-        style={{ background: 'none', cursor: busy ? 'not-allowed' : 'pointer' }}
-      >
-        GRABAR VOZ DE REFERENCIA TTS (20s)
-      </button>
-    </div>
+    </Panel>
   )
 }
 
@@ -680,39 +743,23 @@ function VoiceProfilesSection({ sendCommand }: { sendCommand: (cmd: string, payl
 // ═══════════════════════════════════════════════════════════════════════════
 
 const mdComponents = {
-  p:      ({ children }: any) => <p style={{ margin: '2px 0', lineHeight: 1.5 }}>{children}</p>,
-  strong: ({ children }: any) => <strong style={{ color: '#00f0ffcc' }}>{children}</strong>,
-  em:     ({ children }: any) => <em style={{ color: '#00f0ff99' }}>{children}</em>,
-  code:   ({ children }: any) => (
-    <code style={{ fontFamily: 'inherit', fontSize: '0.9em', background: 'rgba(0,100,160,0.2)', borderRadius: 2, padding: '0 3px', color: '#80d4ff' }}>
-      {children}
-    </code>
-  ),
-  ul: ({ children }: any) => <ul style={{ margin: '2px 0', paddingLeft: 14 }}>{children}</ul>,
-  li: ({ children }: any) => <li style={{ margin: '1px 0' }}>{children}</li>,
+  p:      ({ children }: any) => <p style={{ margin:'2px 0', lineHeight:1.5 }}>{children}</p>,
+  strong: ({ children }: any) => <strong style={{ color:C.cyan }}>{children}</strong>,
+  code:   ({ children }: any) => <code style={{ fontFamily:'inherit', fontSize:'0.9em', background:'rgba(0,100,160,0.2)', borderRadius:2, padding:'0 3px', color:'#80d4ff' }}>{children}</code>,
 }
 
 function TabVoz({ sendCommand }: { sendCommand: (cmd: string, extra?: object) => void }) {
-  const wakeWords     = useCYRUSStore(s => s.wakeWords)
-  const logs          = useCYRUSStore(s => s.logs)
-  const transcript    = useCYRUSStore(s => s.transcript)
-  const enrollStep    = useCYRUSStore(s => s.enrollmentStep)
-  const enrollSample  = useCYRUSStore(s => s.enrollmentSample)
-  const enrollTotal   = useCYRUSStore(s => s.enrollmentTotal)
-  const enrollResults = useCYRUSStore(s => s.enrollmentResults)
-  const wsConnected   = useCYRUSStore(s => s.wsConnected)
+  const wakeWords  = useCYRUSStore(s => s.wakeWords)
+  const transcript = useCYRUSStore(s => s.transcript)
+  const logs       = useCYRUSStore(s => s.logs)
+  const wsOn       = useCYRUSStore(s => s.wsConnected)
   const [newWord, setNewWord] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
 
-  const isEnrolling = enrollStep !== 'idle' && enrollStep !== 'done'
+  useEffect(() => { if (wsOn) sendCommand('list_speakers') }, [wsOn, sendCommand])
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior:'smooth' }) }, [transcript])
 
-  useEffect(() => {
-    if (wsConnected) {
-      sendCommand('list_speakers')
-    }
-  }, [wsConnected, sendCommand])
-
-  const asrLines = logs.filter(l => l.message.startsWith('ASR ')).slice(-5).reverse()
+  const recentASR = logs.filter(l => l.message.includes('ASR [')).slice(-6).reverse()
 
   const addWord = () => {
     const w = newWord.trim().toLowerCase()
@@ -721,171 +768,85 @@ function TabVoz({ sendCommand }: { sendCommand: (cmd: string, extra?: object) =>
     setNewWord('')
   }
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [transcript])
-
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
+    <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ duration:0.25 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
 
-      {/* ── Enrollamiento ── */}
-      <Card style={{ marginBottom: 8, border: '1px solid #00ff881a' }}>
-        <div className="flex items-center justify-between mb-3">
-          <Label>PERFIL DE VOZ</Label>
-          {enrollStep === 'done' && (
-            <span className="font-mono" style={{ fontSize: 8, color: '#00ff8877', letterSpacing: '0.15em' }}>✓ ACTIVO</span>
-          )}
-        </div>
+        {/* LEFT — Voice profiles */}
+        <VoiceProfilesSection sendCommand={sendCommand} />
 
-        <p className="font-mono mb-3" style={{ fontSize: 9, color: '#1e3a4a', lineHeight: 1.6 }}>
-          Graba {enrollTotal} muestras de tu voz para que CYRUS solo responda a ti
-          y el barge-in no se active con otros sonidos.
-        </p>
-
-        {/* Progress */}
-        {isEnrolling && (
-          <div className="mb-3">
-            <div className="flex justify-between mb-1.5">
-              <span className="font-mono" style={{ fontSize: 9, color: '#00ff88' }}>
-                {enrollStep === 'prompt' ? `Escuchando muestra ${enrollSample}…` : 'Procesando…'}
-              </span>
-              <span className="font-mono" style={{ fontSize: 9, color: '#00ff8866' }}>
-                {enrollSample}/{enrollTotal}
-              </span>
-            </div>
-            <div style={{ height: 3, background: '#071218', borderRadius: 2, overflow: 'hidden' }}>
-              <div style={{
-                height: '100%', borderRadius: 2,
-                width: `${(enrollSample / enrollTotal) * 100}%`,
-                background: 'linear-gradient(90deg, #00ff8844, #00ff88)',
-                transition: 'width 0.4s ease',
-              }} />
-            </div>
-            <div className="flex flex-wrap gap-1 mt-2">
-              {enrollResults.map((r, i) => (
-                <span key={i} className="font-mono rounded px-1.5 py-0.5"
-                  style={{ fontSize: 8, background: '#001810', border: '1px solid #00ff8820', color: '#00ff8866' }}>
-                  {r || '(silencio)'}
+        {/* RIGHT — Wake words + ASR */}
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          <Panel>
+            <SectionLabel>PALABRAS CLAVE</SectionLabel>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:6, minHeight:32, marginBottom:10 }}>
+              {wakeWords.map(w => (
+                <span key={w} onClick={() => sendCommand('remove_wake_word',{word:w})} style={{
+                  ...mono(9, C.cyan), padding:'4px 10px', borderRadius:999,
+                  background:`${C.cyan}12`, border:`1px solid ${C.cyan}33`, cursor:'pointer',
+                }}>
+                  {w} ×
                 </span>
               ))}
             </div>
-          </div>
-        )}
+            <div style={{ display:'flex', gap:6 }}>
+              <Input value={newWord} onChange={setNewWord} onKeyDown={e => e.key==='Enter'&&addWord()} placeholder="agregar variante…" />
+              <Btn onClick={addWord} small color={C.cyan}>+ ADD</Btn>
+            </div>
+          </Panel>
 
-        {enrollStep === 'done' && (
-          <div className="mb-3 rounded p-2" style={{ background: '#001810', border: '1px solid #00ff8825' }}>
-            <p className="font-mono" style={{ fontSize: 9, color: '#00ff8899' }}>Perfil guardado — barge-in personalizado activo</p>
-          </div>
-        )}
-
-        <button
-          disabled={isEnrolling}
-          onClick={() => sendCommand('start_enrollment', { samples: 5 })}
-          className="font-mono w-full rounded py-2"
-          style={{
-            fontSize: 10, letterSpacing: '0.18em',
-            background: isEnrolling ? 'transparent' : '#00ff8815',
-            border: `1px solid ${isEnrolling ? '#00ff8815' : '#00ff8855'}`,
-            color: isEnrolling ? '#00ff8833' : '#00ff88',
-            cursor: isEnrolling ? 'not-allowed' : 'pointer',
-          }}
-        >
-          {isEnrolling ? `GRABANDO ${enrollSample}/${enrollTotal}…` : 'INICIAR ENROLLAMIENTO'}
-        </button>
-      </Card>
-
-      {/* ── Perfiles de Voz (neural enrollment) ── */}
-      <div style={{ marginBottom: 8 }}>
-        <VoiceProfilesSection sendCommand={sendCommand} />
-      </div>
-
-      {/* ── Palabras activas + ASR ── */}
-      <Card style={{ marginBottom: 8 }}>
-        <Label>PALABRAS ACTIVAS</Label>
-
-        {/* Wake words chips */}
-        <div className="flex flex-wrap gap-1.5 mt-3 mb-4" style={{ minHeight: 28 }}>
-          {wakeWords.length === 0
-            ? <span className="font-mono" style={{ fontSize: 9, color: '#0e1e28' }}>Cargando…</span>
-            : wakeWords.map(w => (
-              <span key={w} className="font-mono rounded px-2 py-1 cursor-pointer"
-                style={{
-                  fontSize: 9, background: '#001828',
-                  border: '1px solid #00f0ff1a', color: '#00f0ff55',
-                  transition: 'border-color 0.15s, color 0.15s',
-                }}
-                onClick={() => sendCommand('remove_wake_word', { word: w })}>
-                {w} ×
-              </span>
-            ))
-          }
-        </div>
-
-        <Divider />
-
-        {/* Manual add */}
-        <div className="flex gap-2 mt-3 mb-3">
-          <input value={newWord} onChange={e => setNewWord(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addWord()}
-            placeholder="agregar variante…"
-            className="font-mono flex-1 rounded px-2 py-1 outline-none"
-            style={{ fontSize: 10, background: '#040c14', border: '1px solid #0a2030', color: '#00f0ff77' }}
-          />
-          <button onClick={addWord} className="font-mono rounded px-3"
-            style={{ fontSize: 9, background: '#00f0ff0d', border: '1px solid #00f0ff22', color: '#00f0ff66', cursor: 'pointer' }}>
-            + ADD
-          </button>
-        </div>
-
-        {/* Recent ASR */}
-        {asrLines.length > 0 && (
-          <>
-            <Label dim>TRANSCRIPCIONES RECIENTES — clic para agregar</Label>
-            <div style={{ marginTop: 6, background: '#040c14', borderRadius: 4, border: '1px solid #071218', padding: '6px 8px' }}>
-              {asrLines.map(l => {
+          {/* Recent ASR */}
+          <Panel>
+            <SectionLabel>ASR RECIENTE</SectionLabel>
+            <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+              {recentASR.length === 0 ? (
+                <div style={mono(9, C.textDim)}>Sin transcripciones recientes</div>
+              ) : recentASR.map(l => {
                 const m = l.message.match(/"([^"]+)"/)
-                const word = m?.[1] ?? ''
                 return (
-                  <div key={l.id} className="flex gap-2 font-mono"
-                    onClick={() => word && setNewWord(word)}
-                    style={{ fontSize: 9, lineHeight: 1.6, cursor: word ? 'pointer' : 'default' }}>
-                    <span style={{ color: '#152530', flexShrink: 0 }}>{l.timestamp}</span>
-                    <span style={{ color: '#00ff8866' }}>{l.message}</span>
+                  <div key={l.id} onClick={() => m?.[1] && setNewWord(m[1])} style={{
+                    display:'flex', gap:8, padding:'5px 8px', borderRadius:5,
+                    background:'#02060c', border:`1px solid ${C.border}`,
+                    cursor: m?.[1] ? 'pointer' : 'default',
+                  }}>
+                    <span style={mono(8, C.textDim)}>{l.timestamp}</span>
+                    <span style={mono(9, C.green)}>{l.message.replace('ASR [es]: ','')}</span>
                   </div>
                 )
               })}
             </div>
-          </>
-        )}
-      </Card>
+            {recentASR.length > 0 && (
+              <div style={{ ...mono(8, C.textDim), marginTop:6 }}>↑ clic para agregar como wake word</div>
+            )}
+          </Panel>
+        </div>
+      </div>
 
-      {/* ── Historial ── */}
+      {/* Conversation history — full width */}
       {transcript.length > 0 && (
-        <Card>
-          <Label>HISTORIAL DE CONVERSACIÓN</Label>
-          <div style={{ marginTop: 10, maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {transcript.map(entry => (
-              <div key={entry.id} style={{ display: 'flex', flexDirection: 'column', alignItems: entry.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                <span className="font-mono" style={{ fontSize: 8, color: '#152530', letterSpacing: '0.18em', marginBottom: 3 }}>
-                  {entry.role === 'user' ? 'TÚ' : 'CYRUS'}{' '}
-                  {entry.timestamp.toLocaleTimeString('es-PE', { hour12: false })}
+        <Panel>
+          <SectionLabel>HISTORIAL DE CONVERSACIÓN</SectionLabel>
+          <div style={{ maxHeight:280, overflowY:'auto', display:'flex', flexDirection:'column', gap:8 }}>
+            {transcript.map(e => (
+              <div key={e.id} style={{ display:'flex', flexDirection:'column', alignItems: e.role==='user'?'flex-end':'flex-start' }}>
+                <span style={{ ...mono(7, C.textDim), marginBottom:3 }}>
+                  {e.role==='user'?'TÚ':'CYRUS'} · {e.timestamp.toLocaleTimeString('es-PE',{hour12:false})}
                 </span>
-                <div className="font-mono rounded px-3 py-1.5"
-                  style={{
-                    fontSize: 10, maxWidth: '90%', lineHeight: 1.5,
-                    ...(entry.role === 'user'
-                      ? { background: 'rgba(0,80,130,0.25)', border: '1px solid #0a3a55', color: '#70b8d8' }
-                      : { background: 'rgba(0,30,60,0.5)',  border: '1px solid #0a2840', color: '#a0d8f0' }),
-                  }}>
-                  {entry.role === 'cyrus'
-                    ? <ReactMarkdown components={mdComponents}>{entry.text}</ReactMarkdown>
-                    : entry.text}
+                <div style={{
+                  ...mono(10, e.role==='user' ? '#70b8d8' : '#a0d8f0'),
+                  maxWidth:'90%', lineHeight:1.5,
+                  padding:'8px 12px', borderRadius:8,
+                  background: e.role==='user' ? 'rgba(0,80,130,0.2)' : 'rgba(0,30,60,0.4)',
+                  border: `1px solid ${e.role==='user' ? '#0a3a5588' : '#0a284088'}`,
+                }}>
+                  {e.role==='cyrus' ? <ReactMarkdown components={mdComponents}>{e.text}</ReactMarkdown> : e.text}
                 </div>
               </div>
             ))}
             <div ref={endRef} />
           </div>
-        </Card>
+        </Panel>
       )}
-
     </motion.div>
   )
 }
@@ -895,128 +856,95 @@ function TabVoz({ sendCommand }: { sendCommand: (cmd: string, extra?: object) =>
 // ═══════════════════════════════════════════════════════════════════════════
 
 function TabAPI({ sendCommand }: { sendCommand: (cmd: string, extra?: object) => void }) {
-  const serviceStatus = useCYRUSStore(s => s.serviceStatus)
+  const svc = useCYRUSStore(s => s.serviceStatus)
+  useEffect(() => { sendCommand('probe_services') }, [sendCommand])
 
-  useEffect(() => {
-    sendCommand('probe_services')
-  }, [sendCommand])
-
-  const services: { key: keyof ServiceStatus; label: string; port: string }[] = [
-    { key: 'tts',      label: 'TTS Server',    port: '8020' },
-    { key: 'asr',      label: 'ASR Server',    port: '8000' },
-    { key: 'vision',   label: 'Vision Server', port: '8001' },
-    { key: 'embedder', label: 'Embedder',       port: '8002' },
+  const services: { key: keyof ServiceStatus; label: string; port: string; note: string }[] = [
+    { key:'tts',      label:'TTS Server',    port:'8020', note:'Kokoro / Piper / XTTS' },
+    { key:'asr',      label:'ASR Server',    port:'8000', note:'faster-whisper large' },
+    { key:'vision',   label:'Vision Server', port:'8001', note:'YOLO + DeepFace' },
+    { key:'embedder', label:'Embedder',      port:'8002', note:'sentence-transformers' },
   ]
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
-
-      <Card style={{ marginBottom: 10, border: '1px solid #003a5a', background: 'rgba(0,14,26,0.9)' }}>
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <Label>SERVICIOS API</Label>
-          <button
-            onClick={() => sendCommand('probe_services')}
-            style={{
-              fontSize: 9, letterSpacing: '0.14em', fontFamily: 'monospace',
-              padding: '6px 12px', borderRadius: 6,
-              border: '1px solid #00f0ff33', background: 'rgba(0,240,255,0.07)',
-              color: '#b5f7ff', cursor: 'pointer',
-            }}
-          >
-            COMPROBAR
-          </button>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {services.map(({ key, label, port }) => {
-            const info = serviceStatus?.[key]
-            const isActive    = info?.enabled && info?.online
-            const isAvailable = !info?.enabled && info?.online
-            const isOffline   = info?.enabled && !info?.online
-            const dotColor = !info ? '#2a3a4a'
-              : isActive    ? '#00ff88'
-              : isAvailable ? '#ffaa00'
-              : isOffline   ? '#ff4444'
-              : '#2a3a4a'
-            const statusLabel = !info ? 'DESCONOCIDO'
-              : isActive    ? 'ACTIVO'
-              : isAvailable ? 'DISPONIBLE'
-              : isOffline   ? 'OFFLINE'
-              : 'DESACTIVADO'
-            const statusColor = !info ? '#1e3a4acc'
-              : isActive    ? '#008272cc'
-              : isAvailable ? '#7a5a00cc'
-              : isOffline   ? '#8b1a1acc'
-              : '#1e3a4acc'
-            const host = info?.host ?? `http://localhost:${port}`
-
-            return (
-              <div key={key} style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '10px 12px', borderRadius: 6,
-                background: 'rgba(0,8,16,0.6)', border: '1px solid #071828',
-              }}>
-                <div style={{
-                  width: 8, height: 8, borderRadius: '50%',
-                  background: dotColor, flexShrink: 0,
-                  boxShadow: info?.online ? `0 0 6px ${dotColor}` : 'none',
-                }} />
-                <span className="font-mono" style={{ fontSize: 9, color: '#7ab8cc', letterSpacing: '0.12em', minWidth: 94 }}>
-                  {label}
-                </span>
-                <span className="font-mono" style={{ fontSize: 8, color: '#1e3a4a', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {host}
-                </span>
-                <span className="font-mono" style={{
-                  fontSize: 7, letterSpacing: '0.18em',
-                  padding: '3px 8px', borderRadius: 999,
-                  background: statusColor, color: '#e8f8ff',
-                  flexShrink: 0,
-                }}>
-                  {statusLabel}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-
-        <p className="font-mono" style={{ fontSize: 8, color: '#1e3a4a', marginTop: 10, lineHeight: 1.6 }}>
-          {!serviceStatus
-            ? 'Pulsa COMPROBAR para verificar el estado de los servicios'
-            : 'DISPONIBLE = servidor activo pero desactivado en config.yaml · ACTIVO = en uso por CYRUS'}
-        </p>
-      </Card>
-
-      {/* ── Port reference ── */}
-      <Card style={{ border: '1px solid #001a2a', background: 'rgba(0,10,20,0.85)' }}>
-        <Label>REFERENCIA DE PUERTOS</Label>
-        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {[
-            { port: '8020', service: 'TTS Server',    cmd: 'services/tts_server/start.bat',      note: 'Kokoro / Piper' },
-            { port: '8000', service: 'ASR Server',    cmd: 'services/asr_server/start.bat',      note: 'faster-whisper' },
-            { port: '8001', service: 'Vision Server', cmd: 'services/vision_server/start.bat',   note: 'YOLO + DeepFace' },
-            { port: '8002', service: 'Embedder',      cmd: 'services/embedder_server/start.bat', note: 'sentence-transformers' },
-          ].map(({ port, service, cmd, note }) => (
-            <div key={port} style={{ display: 'grid', gridTemplateColumns: '40px 90px 1fr', gap: 8, alignItems: 'start' }}>
-              <span className="font-mono" style={{ fontSize: 9, color: '#00f0ff55' }}>{port}</span>
-              <span className="font-mono" style={{ fontSize: 9, color: '#4a8a9a' }}>{service}</span>
-              <div>
-                <div className="font-mono" style={{ fontSize: 8, color: '#1e3a4a', wordBreak: 'break-all' }}>{cmd}</div>
-                <div className="font-mono" style={{ fontSize: 7, color: '#0e2230', marginTop: 1 }}>{note}</div>
-              </div>
+    <motion.div initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} transition={{ duration:0.25 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+        <div>
+          <Panel>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+              <SectionLabel>MICROSERVICIOS</SectionLabel>
+              <Btn onClick={() => sendCommand('probe_services')} small color={C.cyan}>VERIFICAR</Btn>
             </div>
-          ))}
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              {services.map(({ key, label, port, note }) => {
+                const info = svc?.[key]
+                const online = info?.online
+                const enabled = info?.enabled
+                const col2 = !info ? C.textDim : online && enabled ? C.green : online ? C.amber : C.red
+                const status = !info ? 'DESCONOCIDO' : online && enabled ? 'ACTIVO' : online ? 'DISPONIBLE' : 'OFFLINE'
+                return (
+                  <div key={key} style={{ padding:'10px 12px', borderRadius:8, background:'#02060c', border:`1px solid ${col2}22` }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                      <div style={{ width:7,height:7,borderRadius:'50%',background:col2,boxShadow:online?`0 0 5px ${col2}`:'none',flexShrink:0 }} />
+                      <span style={mono(10, C.text)}>{label}</span>
+                      <span style={{ ...mono(7, col2), marginLeft:'auto', letterSpacing:'0.2em' }}>{status}</span>
+                    </div>
+                    <div style={{ display:'flex', justifyContent:'space-between' }}>
+                      <span style={mono(8, C.textDim)}>:{port}</span>
+                      <span style={mono(8, C.textDim)}>{note}</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ ...mono(8, C.textDim), marginTop:10 }}>
+              DISPONIBLE = activo pero desactivado en config · ACTIVO = en uso
+            </div>
+          </Panel>
         </div>
-      </Card>
 
+        <div>
+          <Panel>
+            <SectionLabel>ESTADO DEL BACKEND</SectionLabel>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {[
+                { k:'WebSocket', v:'ws://localhost:8765', ok:true },
+                { k:'Backend',  v:'Python 3.11 asyncio', ok:true },
+                { k:'Ollama',   v:'http://localhost:11434', ok:true },
+                { k:'Modelo',   v:'qwen3:8b Q4_K_M', ok:true },
+                { k:'ASR',      v:'Whisper small/cpu/int8', ok:true },
+                { k:'TTS',      v:'Edge-TTS es-PE-AlexNeural', ok:true },
+                { k:'Qdrant',   v:'disabled (no vector DB)', ok:false },
+                { k:'HomeAssist',v:'disabled (no token)', ok:false },
+              ].map(({ k, v, ok }) => (
+                <div key={k} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0', borderBottom:`1px solid #06101a` }}>
+                  <div style={{ width:5,height:5,borderRadius:'50%',background:ok?C.green:C.textDim,flexShrink:0 }} />
+                  <span style={{ ...mono(9, C.textDim), width:88, flexShrink:0 }}>{k}</span>
+                  <span style={mono(9, C.text)}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </Panel>
+
+          <Panel style={{ marginTop:12 }}>
+            <SectionLabel>ACCIONES RÁPIDAS</SectionLabel>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              <Btn onClick={() => sendCommand('probe_services')} color={C.cyan} style={{ justifyContent:'center' }}>
+                VERIFICAR TODOS LOS SERVICIOS
+              </Btn>
+              <Btn onClick={() => sendCommand('list_ollama_models')} color={C.amber} style={{ justifyContent:'center' }}>
+                LISTAR MODELOS OLLAMA
+              </Btn>
+            </div>
+          </Panel>
+        </div>
+      </div>
     </motion.div>
   )
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ROOT
-// ═══════════════════════════════════════════════════════════════════════════
-// TAB 5 — AGENDA (Briefing + Planner + Scheduler)
+// TAB 5 — AGENDA
 // ═══════════════════════════════════════════════════════════════════════════
 
 interface PlannerTask { id: number; description: string; status: string; due_hint?: string }
@@ -1027,168 +955,138 @@ function TabAgenda({ sendCommand }: { sendCommand: (cmd: string, extra?: object)
   const [dueHint,      setDueHint]      = useState('')
   const [briefingTime, setBriefingTime] = useState('07:00')
   const [jobs,         setJobs]         = useState<any[]>([])
-  const wsConnected = useCYRUSStore(s => s.wsConnected)
+  const wsOn   = useCYRUSStore(s => s.wsConnected)
+  const logs   = useCYRUSStore(s => s.logs)
 
-  // Listen for planner + scheduler events via debug log (re-use existing store)
-  const logs = useCYRUSStore(s => s.logs)
-
-  useEffect(() => {
-    if (!wsConnected) return
-    sendCommand('planner_list')
-    sendCommand('scheduler_list')
-  }, [wsConnected, sendCommand])
-
-  useEffect(() => {
-    const raw = (window as any).__cyrus_planner_tasks
-    if (raw) setTasks(raw)
-  }, [logs])
-
-  useEffect(() => {
-    const raw = (window as any).__cyrus_scheduler_jobs
-    if (raw) setJobs(raw)
-  }, [logs])
+  useEffect(() => { if (!wsOn) return; sendCommand('planner_list'); sendCommand('scheduler_list') }, [wsOn, sendCommand])
+  useEffect(() => { const raw = (window as any).__cyrus_planner_tasks;  if (raw) setTasks(raw) }, [logs])
+  useEffect(() => { const raw = (window as any).__cyrus_scheduler_jobs; if (raw) setJobs(raw)  }, [logs])
 
   const addTask = () => {
     if (!newTask.trim()) return
     sendCommand('planner_add', { description: newTask.trim(), due_hint: dueHint.trim() || undefined })
-    setNewTask('')
-    setDueHint('')
+    setNewTask(''); setDueHint('')
     setTimeout(() => sendCommand('planner_list'), 400)
   }
 
-  const completeTask = (id: number) => {
-    sendCommand('planner_complete', { task_id: id })
-    setTimeout(() => sendCommand('planner_list'), 400)
-  }
-
-  const monoBtn: React.CSSProperties = {
-    fontFamily: 'monospace', fontSize: 9, letterSpacing: '0.15em',
-    padding: '5px 10px', borderRadius: 5, cursor: 'pointer',
-    border: '1px solid #00f0ff33', background: 'rgba(0,240,255,0.06)', color: '#b5f7ff',
-  }
-
-  const input: React.CSSProperties = {
-    fontFamily: 'monospace', fontSize: 11, background: 'rgba(0,20,40,0.8)',
-    border: '1px solid #1a3a5a', borderRadius: 6, color: '#b5f7ff',
-    padding: '7px 10px', outline: 'none', width: '100%',
-  }
+  const pending = tasks.filter(t => t.status === 'pending')
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
-      style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <motion.div initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} transition={{ duration:0.25 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
 
-      {/* ── Briefing ── */}
-      <Card style={{ border: '1px solid #2a1a00', background: 'rgba(20,10,0,0.85)' }}>
-        <div className="flex items-center justify-between mb-3">
-          <Label>☀ BRIEFING MATUTINO</Label>
-          <button style={{ ...monoBtn, background: 'rgba(255,140,0,0.15)', borderColor: '#ff8c0055', color: '#ffaa55' }}
-            onClick={() => sendCommand('briefing_now')}>
-            BRIEFING AHORA
-          </button>
-        </div>
-        <div className="flex items-center gap-3">
-          <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#ff8c0077', letterSpacing: '0.2em' }}>
-            HORA DIARIA
-          </span>
-          <input
-            type="time"
-            value={briefingTime}
-            onChange={e => setBriefingTime(e.target.value)}
-            style={{ ...input, width: 120 }}
-          />
-          <button style={monoBtn}
-            onClick={() => sendCommand('scheduler_set_time', { time: briefingTime })}>
-            GUARDAR
-          </button>
-        </div>
-        {jobs.length > 0 && (
-          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {/* LEFT — Briefing scheduler */}
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          <Panel accent={C.amber}>
+            <SectionLabel>BRIEFING MATUTINO</SectionLabel>
+
+            <Btn onClick={() => sendCommand('briefing_now')} color={C.amber} style={{ justifyContent:'center', width:'100%', marginBottom:12 }}>
+              ☀ EJECUTAR BRIEFING AHORA
+            </Btn>
+
+            <div style={{ marginBottom:10 }}>
+              <div style={{ ...mono(8, C.textDim), marginBottom:6 }}>HORA DE EJECUCIÓN DIARIA</div>
+              <div style={{ display:'flex', gap:8 }}>
+                <input type="time" value={briefingTime} onChange={e => setBriefingTime(e.target.value)} style={{
+                  ...mono(12, C.textBright), background:'#04080e', border:`1px solid ${C.border}`,
+                  borderRadius:7, padding:'8px 10px', outline:'none', flex:1,
+                }} />
+                <Btn onClick={() => sendCommand('scheduler_set_time',{time:briefingTime})} color={C.cyan}>
+                  GUARDAR
+                </Btn>
+              </div>
+            </div>
+
+            {/* Job status */}
             {jobs.map((j: any) => (
-              <div key={j.job_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontFamily: 'monospace', fontSize: 9, color: '#ff8c0066', letterSpacing: '0.1em' }}>
-                  {j.label.toUpperCase()}
-                </span>
-                <span style={{ fontFamily: 'monospace', fontSize: 9, color: '#ff8c0044' }}>
-                  {j.next_fire ? `próximo: ${new Date(j.next_fire).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}` : j.status}
-                </span>
+              <div key={j.job_id} style={{ padding:'10px 12px', background:'#04080e', borderRadius:8, border:`1px solid ${C.amber}22` }}>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                  <span style={mono(9, C.text)}>{j.label}</span>
+                  <span style={mono(8, j.status==='running'?C.amber:C.green)}>{j.status.toUpperCase()}</span>
+                </div>
+                <div style={{ display:'flex', justifyContent:'space-between' }}>
+                  <span style={mono(8, C.textDim)}>Ejecuciones: {j.run_count}</span>
+                  {j.next_fire && (
+                    <span style={mono(8, C.textDim)}>
+                      Próximo: {new Date(j.next_fire).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'})}
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
-          </div>
-        )}
-      </Card>
 
-      {/* ── Planner ── */}
-      <Card style={{ border: '1px solid #003a2a', background: 'rgba(0,14,10,0.85)' }}>
-        <Label>📋 TAREAS PENDIENTES</Label>
-
-        {/* Add task */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
-          <input
-            placeholder="Nueva tarea…"
-            value={newTask}
-            onChange={e => setNewTask(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addTask()}
-            style={input}
-          />
-          <div className="flex gap-2">
-            <input
-              placeholder="Fecha/hint (opcional: mañana, viernes…)"
-              value={dueHint}
-              onChange={e => setDueHint(e.target.value)}
-              style={{ ...input, fontSize: 10 }}
-            />
-            <button style={{ ...monoBtn, whiteSpace: 'nowrap', color: '#00ff88', borderColor: '#00ff8844' }}
-              onClick={addTask}>
-              + AGREGAR
-            </button>
-          </div>
+            {/* Briefing content preview */}
+            <div style={{ marginTop:10, padding:'10px', background:'#02060c', borderRadius:8, border:`1px solid ${C.border}` }}>
+              <div style={{ ...mono(8, C.textDim), marginBottom:6 }}>CONTENIDO DEL BRIEFING</div>
+              {[
+                '📅 Fecha y hora actual',
+                '⛅ Clima en Lima (wttr.in)',
+                '📋 Tareas pendientes del planner',
+                '💻 Estado del sistema (CPU/RAM)',
+              ].map(item => (
+                <div key={item} style={{ ...mono(9, C.text), padding:'3px 0', borderBottom:`1px solid #060e18` }}>{item}</div>
+              ))}
+            </div>
+          </Panel>
         </div>
 
-        {/* Task list */}
-        {tasks.length === 0 ? (
-          <p style={{ fontFamily: 'monospace', fontSize: 10, color: '#00f0ff22', textAlign: 'center', padding: '8px 0' }}>
-            Sin tareas pendientes
-          </p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            {tasks.filter((t: PlannerTask) => t.status === 'pending').map((t: PlannerTask) => (
-              <div key={t.id} style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '6px 8px', borderRadius: 5,
-                background: 'rgba(0,255,136,0.04)', border: '1px solid #00ff8822',
-              }}>
-                <button
-                  onClick={() => completeTask(t.id)}
-                  style={{
-                    width: 14, height: 14, borderRadius: '50%', border: '1px solid #00ff8844',
-                    background: 'none', cursor: 'pointer', flexShrink: 0,
-                  }}
-                  title="Marcar como completada"
-                />
-                <span style={{ flex: 1, fontFamily: 'monospace', fontSize: 10, color: '#b5f7ff99' }}>
-                  {t.description}
-                </span>
-                {t.due_hint && (
-                  <span style={{ fontFamily: 'monospace', fontSize: 8, color: '#ff8c0066', letterSpacing: '0.1em' }}>
-                    {t.due_hint}
-                  </span>
-                )}
+        {/* RIGHT — Task planner */}
+        <div>
+          <Panel accent={C.green}>
+            <SectionLabel>PLANIFICADOR DE TAREAS</SectionLabel>
+
+            {/* Add task form */}
+            <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:12 }}>
+              <Input value={newTask} onChange={setNewTask} placeholder="Descripción de la tarea…" onKeyDown={e => e.key==='Enter'&&addTask()} />
+              <div style={{ display:'flex', gap:6 }}>
+                <Input value={dueHint} onChange={setDueHint} placeholder="Fecha / hint (mañana, viernes…)" style={{ fontSize:9 }} />
+                <Btn onClick={addTask} color={C.green} style={{ flexShrink:0 }}>+ AGREGAR</Btn>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
 
-        <div className="flex justify-end mt-3">
-          <button style={monoBtn} onClick={() => sendCommand('planner_list')}>
-            ACTUALIZAR
-          </button>
+            {/* Stats row */}
+            <div style={{ display:'flex', gap:8, marginBottom:10 }}>
+              <div style={{ flex:1, textAlign:'center', padding:'8px', background:'#02060c', borderRadius:7, border:`1px solid ${C.border}` }}>
+                <div style={mono(18, C.green)}>{pending.length}</div>
+                <div style={mono(7, C.textDim)}>PENDIENTES</div>
+              </div>
+              <div style={{ flex:1, textAlign:'center', padding:'8px', background:'#02060c', borderRadius:7, border:`1px solid ${C.border}` }}>
+                <div style={mono(18, C.textDim)}>{tasks.filter(t=>t.status==='done').length}</div>
+                <div style={mono(7, C.textDim)}>COMPLETADAS</div>
+              </div>
+            </div>
+
+            {/* Task list */}
+            <div style={{ maxHeight:280, overflowY:'auto', display:'flex', flexDirection:'column', gap:5 }}>
+              {pending.length === 0 ? (
+                <div style={{ ...mono(10, C.textDim), textAlign:'center', padding:'20px 0' }}>
+                  Sin tareas pendientes
+                </div>
+              ) : pending.map(t => (
+                <div key={t.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:7, background:'#020c08', border:`1px solid ${C.green}22` }}>
+                  <button onClick={() => { sendCommand('planner_complete',{task_id:t.id}); setTimeout(()=>sendCommand('planner_list'),400) }}
+                    title="Marcar completada"
+                    style={{ width:16, height:16, borderRadius:'50%', border:`1px solid ${C.green}55`, background:'none', cursor:'pointer', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <span style={{ fontSize:8, color:C.green }}>✓</span>
+                  </button>
+                  <span style={{ ...mono(10, C.text), flex:1 }}>#{t.id} {t.description}</span>
+                  {t.due_hint && <span style={mono(8, C.amber)}>{t.due_hint}</span>}
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display:'flex', justifyContent:'flex-end', marginTop:10 }}>
+              <Btn onClick={() => sendCommand('planner_list')} small color={C.textDim}>ACTUALIZAR</Btn>
+            </div>
+          </Panel>
         </div>
-      </Card>
-
+      </div>
     </motion.div>
   )
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ROOT
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function ControlView() {
@@ -1197,45 +1095,42 @@ export function ControlView() {
   const [tab, setTab] = useState<Tab>('SISTEMA')
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.preventDefault(); navigate('/') }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') navigate('/') }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
   }, [navigate])
 
   return (
     <motion.div
-      initial={{ opacity: 0, filter: 'blur(8px)' }}
-      animate={{ opacity: 1, filter: 'blur(0px)' }}
-      transition={{ duration: 0.5, ease: 'easeOut' }}
-      className="page-scroll"
-      style={{ background: '#03050a', minHeight: '100vh' }}
+      initial={{ opacity:0, filter:'blur(8px)' }}
+      animate={{ opacity:1, filter:'blur(0px)' }}
+      transition={{ duration:0.4, ease:'easeOut' }}
+      style={{ background: C.bg, minHeight:'100vh' }}
     >
-      <div className="mx-auto px-4 pb-12" style={{ maxWidth: 520 }}>
+      {/* ── Header ── */}
+      <div style={{
+        position:'sticky', top:0, zIndex:20,
+        background: C.bg,
+        borderBottom:`1px solid ${C.border}`,
+        padding:'12px 24px',
+        display:'flex', alignItems:'center', justifyContent:'space-between',
+      }}>
+        <button onClick={() => navigate('/')} style={{ ...mono(10, C.textDim), background:'none', border:'none', cursor:'pointer', letterSpacing:'0.2em' }}>
+          ← VOLVER  <span style={{ ...mono(7, C.textDim) }}>ESC</span>
+        </button>
 
-        {/* ── Header ── */}
-        <div className="flex items-center justify-between py-4 mb-3 sticky top-0"
-          style={{ background: '#03050a', zIndex: 10, borderBottom: '1px solid #081820' }}>
-          <button onClick={() => navigate('/')} className="font-mono"
-            style={{ fontSize: 10, color: '#00f0ff44', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.2em' }}>
-            ← BACK
-            <span style={{ fontSize: 7, color: '#00f0ff1a', marginLeft: 6 }}>ESC</span>
-          </button>
-          <div className="flex items-center gap-2">
-            <span className="font-mono font-bold"
-              style={{ fontSize: 13, letterSpacing: '0.4em', color: '#00f0ff', textShadow: '0 0 14px #00f0ff33' }}>
-              C.Y.R.U.S
-            </span>
-            <span className="font-mono" style={{ fontSize: 8, color: '#00f0ff22', letterSpacing: '0.12em' }}>CONTROL</span>
-          </div>
-          <div style={{ width: 70 }} />
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <span style={{ ...mono(14, C.cyan), letterSpacing:'0.5em', textShadow:`0 0 18px ${C.cyan}44` }}>C.Y.R.U.S</span>
+          <span style={mono(8, C.textDim)}>CONTROL PANEL</span>
         </div>
 
-        {/* ── Tabs ── */}
+        <div style={{ width:80 }} />
+      </div>
+
+      {/* ── Content ── */}
+      <div style={{ maxWidth:960, margin:'0 auto', padding:'16px 20px 40px' }}>
         <TabBar active={tab} onChange={setTab} />
 
-        {/* ── Content ── */}
         <AnimatePresence mode="wait">
           {tab === 'SISTEMA' && <TabSistema key="sistema" />}
           {tab === 'CONFIG'  && <TabConfig  key="config"  sendCommand={sendCommand} />}
@@ -1244,13 +1139,11 @@ export function ControlView() {
           {tab === 'AGENDA'  && <TabAgenda  key="agenda"  sendCommand={sendCommand} />}
         </AnimatePresence>
 
-        {/* ── Footer ── */}
-        <div className="text-center mt-6">
-          <span className="font-mono" style={{ fontSize: 7, color: '#06101a', letterSpacing: '0.2em' }}>
-            C.Y.R.U.S v1.0 — COGNITIVE SYSTEM FOR REAL-TIME UTILITY & SERVICES
+        <div style={{ textAlign:'center', marginTop:24 }}>
+          <span style={mono(7, C.textDim)}>
+            C.Y.R.U.S v1.0 · COGNITIVE SYSTEM FOR REAL-TIME UTILITY & SERVICES
           </span>
         </div>
-
       </div>
     </motion.div>
   )
