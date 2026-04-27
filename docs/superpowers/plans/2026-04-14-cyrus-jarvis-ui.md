@@ -1,4 +1,4 @@
-# C.Y.R.U.S JARVIS UI — Implementation Plan
+# JARVIS JARVIS UI — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -47,7 +47,7 @@ git commit -m "chore(frontend): add three, framer-motion, react-router-dom"
 
 **Files:**
 - Modify: `frontend/index.html`
-- Modify: `frontend/src/styles/cyrus-theme.css`
+- Modify: `frontend/src/styles/jarvis-theme.css`
 - Modify: `frontend/tailwind.config.js`
 
 - [ ] **Step 1: Add Google Fonts to index.html**
@@ -61,7 +61,7 @@ Replace the `<head>` section of `frontend/index.html` with:
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>C.Y.R.U.S</title>
+    <title>JARVIS</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
@@ -73,10 +73,10 @@ Replace the `<head>` section of `frontend/index.html` with:
 </html>
 ```
 
-- [ ] **Step 2: Rewrite cyrus-theme.css**
+- [ ] **Step 2: Rewrite jarvis-theme.css**
 
 ```css
-/* frontend/src/styles/cyrus-theme.css */
+/* frontend/src/styles/jarvis-theme.css */
 :root {
   --c-primary:   #00f0ff;
   --c-secondary: #0077ff;
@@ -152,7 +152,7 @@ Expected: `✓ built in` — no errors.
 - [ ] **Step 5: Commit**
 
 ```bash
-cd .. && git add frontend/index.html frontend/src/styles/cyrus-theme.css frontend/tailwind.config.js
+cd .. && git add frontend/index.html frontend/src/styles/jarvis-theme.css frontend/tailwind.config.js
 git commit -m "style: Orbitron font, CSS vars, tailwind color tokens"
 ```
 
@@ -161,16 +161,16 @@ git commit -m "style: Orbitron font, CSS vars, tailwind color tokens"
 ### Task 3: Update Zustand store
 
 **Files:**
-- Modify: `frontend/src/store/useCYRUSStore.ts`
+- Modify: `frontend/src/store/useJARVISStore.ts`
 
 - [ ] **Step 1: Read current store**
 
-Read `frontend/src/store/useCYRUSStore.ts` to understand existing shape before editing.
+Read `frontend/src/store/useJARVISStore.ts` to understand existing shape before editing.
 
 - [ ] **Step 2: Rewrite store with new fields**
 
 ```typescript
-// frontend/src/store/useCYRUSStore.ts
+// frontend/src/store/useJARVISStore.ts
 import { create } from 'zustand'
 
 export type SystemState =
@@ -187,7 +187,7 @@ export interface LogEntry {
   message:   string
 }
 
-interface CYRUSStore {
+interface JARVISStore {
   // Existing
   systemState:  SystemState
   wsConnected:  boolean
@@ -214,7 +214,7 @@ interface CYRUSStore {
 
 let logSeq = 0
 
-export const useCYRUSStore = create<CYRUSStore>((set) => ({
+export const useJARVISStore = create<JARVISStore>((set) => ({
   systemState:    'offline',
   wsConnected:    false,
   transcript:     [],
@@ -258,7 +258,7 @@ Expected: no errors.
 - [ ] **Step 4: Commit**
 
 ```bash
-cd .. && git add frontend/src/store/useCYRUSStore.ts
+cd .. && git add frontend/src/store/useJARVISStore.ts
 git commit -m "feat(store): add logs, particleCount, bloomIntensity, orbSpeed"
 ```
 
@@ -396,7 +396,7 @@ This is the main visual component. It owns the Three.js scene lifecycle entirely
 // frontend/src/components/ParticleNetwork.tsx
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
-import { useCYRUSStore, SystemState } from '../store/useCYRUSStore'
+import { useJARVISStore, SystemState } from '../store/useJARVISStore'
 import { AudioAnalyserHandle } from '../hooks/useAudioAnalyser'
 
 // ── State → animation params ──────────────────────────────────────────────
@@ -480,10 +480,10 @@ interface Props {
 
 export function ParticleNetwork({ analyser }: Props) {
   const mountRef     = useRef<HTMLDivElement>(null)
-  const systemState  = useCYRUSStore((s) => s.systemState)
-  const particleCount = useCYRUSStore((s) => s.particleCount)
-  const bloomIntensity = useCYRUSStore((s) => s.bloomIntensity)
-  const orbSpeed      = useCYRUSStore((s) => s.orbSpeed)
+  const systemState  = useJARVISStore((s) => s.systemState)
+  const particleCount = useJARVISStore((s) => s.particleCount)
+  const bloomIntensity = useJARVISStore((s) => s.bloomIntensity)
+  const orbSpeed      = useJARVISStore((s) => s.orbSpeed)
 
   // Store refs so the render loop always reads latest values
   const stateRef    = useRef(systemState)
@@ -843,7 +843,7 @@ git commit -m "feat(ui): ParticleNetwork — Three.js neural mesh with GLSL shad
 ```tsx
 // frontend/src/components/AudioVisualizer.tsx
 import { motion, AnimatePresence } from 'framer-motion'
-import { useCYRUSStore } from '../store/useCYRUSStore'
+import { useJARVISStore } from '../store/useJARVISStore'
 import { AudioAnalyserHandle } from '../hooks/useAudioAnalyser'
 import { useEffect, useRef, useState } from 'react'
 
@@ -860,7 +860,7 @@ const STATE_COLOR: Record<string, string> = {
 }
 
 export function AudioVisualizer({ analyser }: Props) {
-  const systemState = useCYRUSStore((s) => s.systemState)
+  const systemState = useJARVISStore((s) => s.systemState)
   const [heights, setHeights] = useState<number[]>(Array(BARS).fill(2))
   const rafRef  = useRef<number>(0)
   const simT    = useRef(0)
@@ -946,7 +946,7 @@ git commit -m "feat(ui): AudioVisualizer — reactive FFT bar visualizer"
 ```tsx
 // frontend/src/components/VoiceButton.tsx
 import { motion } from 'framer-motion'
-import { useCYRUSStore } from '../store/useCYRUSStore'
+import { useJARVISStore } from '../store/useJARVISStore'
 
 const STATE_COLOR: Record<string, string> = {
   listening: '#00ff88',
@@ -956,7 +956,7 @@ const STATE_COLOR: Record<string, string> = {
 }
 
 export function VoiceButton() {
-  const systemState = useCYRUSStore((s) => s.systemState)
+  const systemState = useJARVISStore((s) => s.systemState)
   const isActive    = ['listening', 'speaking', 'thinking'].includes(systemState)
   const color       = STATE_COLOR[systemState] ?? '#00f0ff'
 
@@ -1068,7 +1068,7 @@ git commit -m "feat(ui): VoiceButton, HUDPanel components"
 // frontend/src/components/SystemLog.tsx
 import { useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useCYRUSStore, LogEntry } from '../store/useCYRUSStore'
+import { useJARVISStore, LogEntry } from '../store/useJARVISStore'
 import { HUDPanel } from './HUDPanel'
 
 const LEVEL_COLOR: Record<string, string> = {
@@ -1102,7 +1102,7 @@ function LogLine({ entry }: { entry: LogEntry }) {
 }
 
 export function SystemLog({ delay = 0 }: { delay?: number }) {
-  const logs    = useCYRUSStore((s) => s.logs)
+  const logs    = useJARVISStore((s) => s.logs)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -1152,7 +1152,7 @@ git commit -m "feat(ui): SystemLog — auto-scrolling WebSocket log feed"
 ```tsx
 // frontend/src/components/StatusPanel.tsx
 import { motion, useSpring, useTransform } from 'framer-motion'
-import { useCYRUSStore, SystemState } from '../store/useCYRUSStore'
+import { useJARVISStore, SystemState } from '../store/useJARVISStore'
 import { HUDPanel } from './HUDPanel'
 
 const STATE_COLOR: Record<SystemState, string> = {
@@ -1203,7 +1203,7 @@ function StatBar({ label, value, unit, max = 100, delay = 0 }: {
 }
 
 export function StatusPanel({ delay = 0 }: { delay?: number }) {
-  const systemState = useCYRUSStore((s) => s.systemState)
+  const systemState = useJARVISStore((s) => s.systemState)
   const color = STATE_COLOR[systemState]
 
   return (
@@ -1229,7 +1229,7 @@ export function StatusPanel({ delay = 0 }: { delay?: number }) {
           <span className="mono" style={{ fontSize: 9, letterSpacing: '0.25em', color }}>
             {STATE_LABEL[systemState]}
           </span>
-          <span className="mono" style={{ fontSize: 7, color: 'rgba(0,240,255,0.2)' }}>CYRUS</span>
+          <span className="mono" style={{ fontSize: 7, color: 'rgba(0,240,255,0.2)' }}>JARVIS</span>
         </motion.div>
       </HUDPanel>
 
@@ -1291,13 +1291,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ParticleNetwork } from '../components/ParticleNetwork'
 import { AudioVisualizer } from '../components/AudioVisualizer'
 import { useAudioAnalyser } from '../hooks/useAudioAnalyser'
-import { useCYRUSStore } from '../store/useCYRUSStore'
+import { useJARVISStore } from '../store/useJARVISStore'
 
 export function AgentView() {
   const navigate    = useNavigate()
   const analyser    = useAudioAnalyser()
-  const systemState = useCYRUSStore((s) => s.systemState)
-  const lastResponse= useCYRUSStore((s) => s.lastResponse)
+  const systemState = useJARVISStore((s) => s.systemState)
+  const lastResponse= useJARVISStore((s) => s.lastResponse)
   const [hintVisible, setHintVisible] = useState(true)
 
   // Keyboard nav
@@ -1393,7 +1393,7 @@ git commit -m "feat(ui): AgentView — full-screen immersive particle network vi
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { useCYRUSStore } from '../store/useCYRUSStore'
+import { useJARVISStore } from '../store/useJARVISStore'
 import { StatusPanel } from '../components/StatusPanel'
 import { SystemLog }   from '../components/SystemLog'
 import { HUDPanel }    from '../components/HUDPanel'
@@ -1451,12 +1451,12 @@ function SliderRow({ label, value, min, max, step, onChange }: {
 
 export function ControlView() {
   const navigate       = useNavigate()
-  const particleCount  = useCYRUSStore((s) => s.particleCount)
-  const bloomIntensity = useCYRUSStore((s) => s.bloomIntensity)
-  const orbSpeed       = useCYRUSStore((s) => s.orbSpeed)
-  const setPC  = useCYRUSStore((s) => s.setParticleCount)
-  const setBI  = useCYRUSStore((s) => s.setBloomIntensity)
-  const setOS  = useCYRUSStore((s) => s.setOrbSpeed)
+  const particleCount  = useJARVISStore((s) => s.particleCount)
+  const bloomIntensity = useJARVISStore((s) => s.bloomIntensity)
+  const orbSpeed       = useJARVISStore((s) => s.orbSpeed)
+  const setPC  = useJARVISStore((s) => s.setParticleCount)
+  const setBI  = useJARVISStore((s) => s.setBloomIntensity)
+  const setOS  = useJARVISStore((s) => s.setOrbSpeed)
 
   // Keyboard nav
   useEffect(() => {
@@ -1487,7 +1487,7 @@ export function ControlView() {
             ← BACK
           </button>
           <span className="font-orbitron font-black" style={{ fontSize: 14, letterSpacing: '0.45em', color: '#00f0ff', textShadow: '0 0 14px #00f0ff55' }}>
-            C.Y.R.U.S
+            JARVIS
           </span>
           <span className="mono" style={{ fontSize: 7, color: 'rgba(0,240,255,0.2)' }}>CONTROL</span>
         </motion.div>
@@ -1502,7 +1502,7 @@ export function ControlView() {
               <ConfigRow label="LLM MODEL"   value="phi3:medium" />
               <ConfigRow label="TTS ENGINE"  value="edge-tts"    />
               <ConfigRow label="VAD"         value="ON"          />
-              <ConfigRow label="WAKE WORD"   value="hey cyrus"   />
+              <ConfigRow label="WAKE WORD"   value="hey jarvis"   />
               <SliderRow label="BLOOM"       value={bloomIntensity} min={0.5} max={2.5} step={0.1} onChange={setBI} />
               <SliderRow label="PARTICLES"   value={particleCount}  min={100} max={400} step={10}  onChange={setPC} />
               <SliderRow label="ORB SPEED"   value={orbSpeed}       min={0.1} max={3.0} step={0.1} onChange={setOS} />
@@ -1549,7 +1549,7 @@ Find where the WebSocket `onmessage` handler is. Add log population. The exact c
 
 ```typescript
 // Inside the message handler, after setting systemState/transcript:
-const { addLog } = useCYRUSStore.getState()
+const { addLog } = useJARVISStore.getState()
 
 // Log state transitions
 if (data.type === 'state_change') {

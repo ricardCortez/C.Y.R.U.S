@@ -1,4 +1,4 @@
-"""C.Y.R.U.S — Local USB webcam capture."""
+"""JARVIS — Local USB webcam capture."""
 from __future__ import annotations
 
 import asyncio
@@ -6,10 +6,10 @@ from typing import Optional
 
 import numpy as np
 
-from backend.utils.exceptions import CYRUSError
+from backend.utils.exceptions import JARVISError
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.vision.local")
+logger = get_logger("jarvis.vision.local")
 
 
 class LocalCamera:
@@ -39,26 +39,26 @@ class LocalCamera:
         """Open the camera device.
 
         Raises:
-            CYRUSError: If the device cannot be opened.
+            JARVISError: If the device cannot be opened.
         """
         import cv2
 
         self._cap = cv2.VideoCapture(self._idx)
         if not self._cap.isOpened():
             self._cap = None
-            raise CYRUSError(f"[C.Y.R.U.S] Cannot open camera device {self._idx}")
+            raise JARVISError(f"[JARVIS] Cannot open camera device {self._idx}")
 
         self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
         self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
         self._cap.set(cv2.CAP_PROP_FPS, self._fps)
-        logger.info(f"[C.Y.R.U.S] Camera {self._idx} opened ({self._width}x{self._height}@{self._fps}fps)")
+        logger.info(f"[JARVIS] Camera {self._idx} opened ({self._width}x{self._height}@{self._fps}fps)")
 
     def close(self) -> None:
         """Release the camera device."""
         if self._cap:
             self._cap.release()
             self._cap = None
-        logger.info(f"[C.Y.R.U.S] Camera {self._idx} closed")
+        logger.info(f"[JARVIS] Camera {self._idx} closed")
 
     def read_frame(self) -> Optional[np.ndarray]:
         """Read a single BGR frame synchronously.
@@ -70,7 +70,7 @@ class LocalCamera:
             return None
         ret, frame = self._cap.read()
         if not ret:
-            logger.warning(f"[C.Y.R.U.S] Camera {self._idx} frame read failed")
+            logger.warning(f"[JARVIS] Camera {self._idx} frame read failed")
             return None
         return frame
 

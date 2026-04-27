@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — TTS Microservice (port 8020).
+JARVIS — TTS Microservice (port 8020).
 
 Standalone FastAPI server that exposes Kokoro / Piper / Edge-TTS as an HTTP API.
 Drop-in compatible with xtts-api-server so RemoteTTS needs zero changes.
@@ -23,6 +23,7 @@ from __future__ import annotations
 import io
 import os
 import wave
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -31,7 +32,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-app = FastAPI(title="C.Y.R.U.S TTS Server", version="1.0.0")
+from backend.utils.logger import configure_file_logging, get_logger
+
+_LOG_DIR = Path(__file__).resolve().parents[2] / "logs"
+configure_file_logging(_LOG_DIR, level="INFO", process_name="tts")
+logger = get_logger("jarvis.tts.server")
+
+app = FastAPI(title="JARVIS TTS Server", version="1.0.0")
 
 # ---------------------------------------------------------------------------
 # Engine wrappers (loaded lazily on startup)

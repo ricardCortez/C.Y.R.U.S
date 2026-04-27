@@ -23,7 +23,7 @@ logs/
 *.pt
 *.bin
 *.safetensors
-~/.cyrus/models/
+~/.jarvis/models/
 
 # Frontend
 frontend/node_modules/
@@ -62,4 +62,4 @@ test_piper.wav
 test_*.wav
 
 # Launcher state cache
-.cyrus_launcher_state
+.jarvis_launcher_state

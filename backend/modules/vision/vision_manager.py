@@ -1,4 +1,4 @@
-"""C.Y.R.U.S — VisionManager: orchestrates camera + YOLO + face pipeline."""
+"""JARVIS — VisionManager: orchestrates camera + YOLO + face pipeline."""
 from __future__ import annotations
 
 import asyncio
@@ -14,7 +14,7 @@ from backend.modules.vision.models import VisionContext
 from backend.modules.vision.yolo_detector import YOLODetector
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.vision.manager")
+logger = get_logger("jarvis.vision.manager")
 
 
 class VisionManager:
@@ -77,7 +77,7 @@ class VisionManager:
 
         self._running = True
         self._task = asyncio.create_task(self._loop())
-        logger.info(f"[C.Y.R.U.S] VisionManager started (source={self._source})")
+        logger.info(f"[JARVIS] VisionManager started (source={self._source})")
 
     async def stop(self) -> None:
         """Stop the background loop and release resources."""
@@ -93,7 +93,7 @@ class VisionManager:
         if self._source == "local":
             self._local.close()
 
-        logger.info("[C.Y.R.U.S] VisionManager stopped")
+        logger.info("[JARVIS] VisionManager stopped")
 
     # ── Internal loop ─────────────────────────────────────────────────────────
 
@@ -104,7 +104,7 @@ class VisionManager:
                 if frame is not None:
                     self._context = await self._analyse(frame)
             except Exception as exc:
-                logger.error(f"[C.Y.R.U.S] VisionManager loop error: {exc}")
+                logger.error(f"[JARVIS] VisionManager loop error: {exc}")
             await asyncio.sleep(self._interval)
 
     async def _capture_frame(self) -> Optional[np.ndarray]:

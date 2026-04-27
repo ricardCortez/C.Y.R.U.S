@@ -1,7 +1,7 @@
 """
-C.Y.R.U.S — Remote ASR backend.
+JARVIS — Remote ASR backend.
 
-HTTP client for the C.Y.R.U.S ASR microservice (services/asr_server).
+HTTP client for the JARVIS ASR microservice (services/asr_server).
 Compatible with the OpenAI /v1/audio/transcriptions API format.
 
 Usage
@@ -36,7 +36,7 @@ except ImportError:
 
 
 class RemoteASR:
-    """HTTP client for the C.Y.R.U.S ASR microservice.
+    """HTTP client for the JARVIS ASR microservice.
 
     Args:
         host:        Base URL (e.g. ``http://localhost:8000``).
@@ -72,10 +72,10 @@ class RemoteASR:
                 self._available = r.status_code == 200
                 if self._available:
                     data = r.json()
-                    logger.info(f"[C.Y.R.U.S] RemoteASR: server ready — model={data.get('model','?')}")
+                    logger.info(f"[JARVIS] RemoteASR: server ready — model={data.get('model','?')}")
                 return self._available
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] RemoteASR: server not reachable at {self._host} ({exc})")
+            logger.warning(f"[JARVIS] RemoteASR: server not reachable at {self._host} ({exc})")
             self._available = False
             return False
 
@@ -101,7 +101,7 @@ class RemoteASR:
             ASRError: On server error or network failure.
         """
         if not _HTTPX_OK:
-            raise ASRError("[C.Y.R.U.S] RemoteASR: httpx not installed")
+            raise ASRError("[JARVIS] RemoteASR: httpx not installed")
 
         sr = sample_rate or self._sample_rate
         wav_bytes = self._pcm_to_wav(pcm_bytes, sr)
@@ -119,12 +119,12 @@ class RemoteASR:
                     data=data,
                 )
                 if r.status_code != 200:
-                    raise ASRError(f"[C.Y.R.U.S] RemoteASR: server returned {r.status_code}: {r.text[:200]}")
+                    raise ASRError(f"[JARVIS] RemoteASR: server returned {r.status_code}: {r.text[:200]}")
 
                 result = r.json()
                 text = result.get("text", "").strip()
                 lang = result.get("language", self._language or "es")
-                logger.info(f"[C.Y.R.U.S] RemoteASR: '{text[:60]}' (lang={lang})")
+                logger.info(f"[JARVIS] RemoteASR: '{text[:60]}' (lang={lang})")
                 self._available = True
                 return text, lang
 
@@ -132,7 +132,7 @@ class RemoteASR:
             raise
         except Exception as exc:
             self._available = False
-            raise ASRError(f"[C.Y.R.U.S] RemoteASR: request failed: {exc}") from exc
+            raise ASRError(f"[JARVIS] RemoteASR: request failed: {exc}") from exc
 
     def transcribe(self, pcm_bytes: bytes, sample_rate: int = 16000) -> Tuple[str, str]:
         """Sync wrapper — runs the async version in a new event loop.
@@ -152,7 +152,7 @@ class RemoteASR:
         except ASRError:
             raise
         except Exception as exc:
-            raise ASRError(f"[C.Y.R.U.S] RemoteASR sync wrapper failed: {exc}") from exc
+            raise ASRError(f"[JARVIS] RemoteASR sync wrapper failed: {exc}") from exc
 
     # ------------------------------------------------------------------
     # Helpers

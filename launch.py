@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""C.Y.R.U.S — Smart Launcher.
+"""JARVIS — Smart Launcher.
 
 Installs deps, starts services in order, waits for all to be healthy,
 then opens the browser. Uses only Python stdlib — no venv required to run.
@@ -19,7 +19,7 @@ from urllib.error import URLError
 from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parent
-STATE_FILE = ROOT / ".cyrus_launcher_state"
+STATE_FILE = ROOT / ".jarvis_launcher_state"
 
 # ── ANSI colors (Windows 10+ supports them) ──────────────────────────────────
 def _ansi(code: str) -> str:
@@ -42,7 +42,7 @@ def dim(msg: str)  -> None: print(f"  {DIM}    {msg}{RESET}")
 def banner() -> None:
     print()
     print(f"  {BOLD}┌─────────────────────────────────────┐{RESET}")
-    print(f"  {BOLD}│  C.Y.R.U.S  —  INICIANDO SISTEMA   │{RESET}")
+    print(f"  {BOLD}│  JARVIS  —  INICIANDO SISTEMA   │{RESET}")
     print(f"  {BOLD}└─────────────────────────────────────┘{RESET}")
     print()
 
@@ -209,7 +209,7 @@ def kill_port(port: int, label: str) -> None:
 def kill_all_ports() -> None:
     print()
     kill_port(8020, "TTS Server   ")
-    kill_port(8765, "CYRUS Backend")
+    kill_port(8765, "JARVIS Backend")
     kill_port(3007, "Frontend     ")
     kill_port(8000, "ASR Server   ")
     kill_port(8001, "Vision Server")

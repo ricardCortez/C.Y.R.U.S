@@ -1,1 +1,1 @@
-"""C.Y.R.U.S LLM subsystem."""
+"""JARVIS LLM subsystem."""

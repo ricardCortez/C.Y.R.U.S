@@ -1,8 +1,8 @@
 """
-C.Y.R.U.S — Tests for WhisperASR.
+JARVIS — Tests for WhisperASR.
 
 The model-loading tests are marked slow and skipped in CI unless
-CYRUS_RUN_SLOW_TESTS=1 is set.
+JARVIS_RUN_SLOW_TESTS=1 is set.
 """
 
 import io
@@ -29,8 +29,8 @@ def _generate_silent_wav(duration_s: float = 1.0, rate: int = 16000) -> bytes:
 
 
 SLOW = pytest.mark.skipif(
-    __import__("os").getenv("CYRUS_RUN_SLOW_TESTS") != "1",
-    reason="Skipped: set CYRUS_RUN_SLOW_TESTS=1 to run model-load tests",
+    __import__("os").getenv("JARVIS_RUN_SLOW_TESTS") != "1",
+    reason="Skipped: set JARVIS_RUN_SLOW_TESTS=1 to run model-load tests",
 )
 
 

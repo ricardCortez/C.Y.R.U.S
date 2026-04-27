@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Tests for LLM clients and LLMManager.
+JARVIS — Tests for LLM clients and LLMManager.
 
 Network-dependent tests are mocked to run without a live Ollama/Claude service.
 """
@@ -98,7 +98,7 @@ class TestLLMManager:
         return LLMManager(
             ollama=ollama,
             claude=claude,
-            soul_text="You are C.Y.R.U.S.",
+            soul_text="You are JARVIS.",
             mode="HYBRID",
         )
 
@@ -130,4 +130,4 @@ class TestLLMManager:
     async def test_system_prompt_includes_soul(self):
         mgr = self._make_manager("ok")
         prompt = mgr._build_system_prompt("en", 1)
-        assert "C.Y.R.U.S" in prompt
+        assert "JARVIS" in prompt

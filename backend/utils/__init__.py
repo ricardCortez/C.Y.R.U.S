@@ -1,1 +1,1 @@
-"""C.Y.R.U.S utility helpers."""
+"""JARVIS utility helpers."""

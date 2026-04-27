@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Ollama LLM client.
+JARVIS — Ollama LLM client.
 
 Communicates with the local Ollama service to run Mistral 7B inference.
 Supports streaming responses and detects service unavailability.
@@ -15,7 +15,7 @@ import httpx
 from backend.utils.exceptions import OllamaUnavailableError, LLMError
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.llm.ollama")
+logger = get_logger("jarvis.llm.ollama")
 
 
 class OllamaClient:
@@ -74,7 +74,7 @@ class OllamaClient:
                     return [item for item in data["models"] if isinstance(item, dict)]
                 return []
         except Exception as exc:
-            raise OllamaUnavailableError(f"[C.Y.R.U.S] Could not list Ollama models: {exc}") from exc
+            raise OllamaUnavailableError(f"[JARVIS] Could not list Ollama models: {exc}") from exc
 
     # ------------------------------------------------------------------
     # Chat
@@ -118,12 +118,17 @@ class OllamaClient:
                 return data.get("message", {}).get("content", "")
         except httpx.ConnectError as exc:
             raise OllamaUnavailableError(
-                f"[C.Y.R.U.S] Ollama unavailable at {self._host}"
+                f"[JARVIS] Ollama unavailable at {self._host}"
             ) from exc
         except httpx.HTTPStatusError as exc:
-            raise LLMError(f"[C.Y.R.U.S] Ollama HTTP error: {exc}") from exc
+            body = ""
+            try:
+                body = exc.response.text[:400]
+            except Exception:
+                pass
+            raise LLMError(f"[JARVIS] Ollama HTTP error: {exc} | body: {body}") from exc
         except Exception as exc:
-            raise LLMError(f"[C.Y.R.U.S] Ollama unexpected error: {exc}") from exc
+            raise LLMError(f"[JARVIS] Ollama unexpected error: {type(exc).__name__}: {exc}") from exc
 
     async def chat_stream(
         self,
@@ -171,10 +176,17 @@ class OllamaClient:
                             continue
         except httpx.ConnectError as exc:
             raise OllamaUnavailableError(
-                f"[C.Y.R.U.S] Ollama unavailable at {self._host}"
+                f"[JARVIS] Ollama unavailable at {self._host}"
             ) from exc
         except httpx.HTTPStatusError as exc:
-            raise LLMError(f"[C.Y.R.U.S] Ollama HTTP error: {exc}") from exc
+            body = ""
+            try:
+                body = exc.response.text[:400]
+            except Exception:
+                pass
+            raise LLMError(f"[JARVIS] Ollama HTTP error: {exc} | body: {body}") from exc
+        except Exception as exc:
+            raise LLMError(f"[JARVIS] Ollama stream error: {type(exc).__name__}: {exc}") from exc
 
     # ------------------------------------------------------------------
     # Helpers

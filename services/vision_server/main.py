@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Vision Microservice (port 8001).
+JARVIS — Vision Microservice (port 8001).
 
 Standalone FastAPI server that runs YOLO object detection + face recognition
 on frames received as base64-encoded JPEG.
@@ -39,7 +39,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-app = FastAPI(title="C.Y.R.U.S Vision Server", version="1.0.0")
+app = FastAPI(title="JARVIS Vision Server", version="1.0.0")
 
 _yolo  = None
 _face_db = os.environ.get("FACE_DB_PATH", "data/faces")

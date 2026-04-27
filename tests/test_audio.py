@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Tests for AudioInput / AudioOutput.
+JARVIS — Tests for AudioInput / AudioOutput.
 
 Hardware-dependent tests are skipped unless a real microphone is detected.
 """

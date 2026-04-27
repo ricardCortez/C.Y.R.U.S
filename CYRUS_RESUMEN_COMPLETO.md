@@ -1,9 +1,9 @@
 ================================================================================
-                         C.Y.R.U.S - RESUMEN COMPLETO
+                         JARVIS - RESUMEN COMPLETO
                 Planificación, Arquitectura, Estructura y Fases
 ================================================================================
 
-PROYECTO: C.Y.R.U.S
+PROYECTO: JARVIS
 Full Name: Cognitive sYstem for Real-time Utility & Services
 Owner: Ricardo (Lima, Peru)
 Status: Planning Complete → Ready for Phase 1 Code Generation
@@ -38,7 +38,7 @@ FASE 2: DISEÑO DE ARQUITECTURA (COMPLETADO)
   - API FALLBACK: Claude + Voiceforge + Pinecone (if local fails)
 
 ✓ Mapeamos infraestructura física:
-  - PC local (RTX 2070S) como CYRUS core
+  - PC local (RTX 2070S) como JARVIS core
   - Proxmox server remoto (HA + Frigate en LAN)
   - Integración RTSP para cámaras
 
@@ -119,7 +119,7 @@ FASE 5: CONFIRMACIÓN DE USUARIO (COMPLETADO)
   ✓ USB Webcam
   ✓ Ollama + Mistral 7B running
   ✓ Proxmox/HA/Frigate en LAN
-  ✓ C:\C.Y.R.U.S folder ready
+  ✓ C:\JARVIS folder ready
   ✓ GitHub ready
   ✓ Ready to start immediately
 
@@ -147,16 +147,16 @@ FASE 6: CREACIÓN DE DOCUMENTACIÓN (COMPLETADO)
      - State machine simplificada
      - Puntos de testing por fase
 
-  3. CYRUS_NAMING_GUIDE.md (1500+ líneas)
-     - Cambios JARVIS → C.Y.R.U.S
+  3. JARVIS_NAMING_GUIDE.md (1500+ líneas)
+     - Cambios JARVIS → JARVIS
      - Archivo por archivo
-     - Personalidad de C.Y.R.U.S (soul.md)
-     - Wake words: "hola cyrus", "hey cyrus"
+     - Personalidad de JARVIS (soul.md)
+     - Wake words: "hola jarvis", "hey jarvis"
      - Logging prefixes
      - Config updates
      - Ejemplos de prompts y respuestas
 
-  4. CYRUS_CONFIRMED_READY_FOR_CODE.md (1000+ líneas)
+  4. JARVIS_CONFIRMED_READY_FOR_CODE.md (1000+ líneas)
      - Tu checklist confirmado
      - Tus 10 respuestas
      - Hardware verification
@@ -164,7 +164,7 @@ FASE 6: CREACIÓN DE DOCUMENTACIÓN (COMPLETADO)
      - Instrucciones para Code
      - Post-generación workflow
 
-  5. CYRUS_PHASE1_COMPLETE_PROMPT.md (2000+ líneas) ⭐
+  5. JARVIS_PHASE1_COMPLETE_PROMPT.md (2000+ líneas) ⭐
      - ÚNICO PROMPT para pegar en Code
      - Contiene TODO necesario
      - Confirmaciones de usuario incluidas
@@ -181,7 +181,7 @@ RESULTADO: Documentación completa, estructurada, lista
                         ESTRUCTURA DEL PROYECTO
 ================================================================================
 
-CARPETA RAÍZ: C:\C.Y.R.U.S\ (Windows) o ~/cyrus/ (Linux)
+CARPETA RAÍZ: C:\JARVIS\ (Windows) o ~/cyrus/ (Linux)
 
 ```
 cyrus/
@@ -197,7 +197,7 @@ cyrus/
 │   │
 │   ├── core/                              # Core orchestration
 │   │   ├── __init__.py
-│   │   ├── cyrus_engine.py                # Main CYRUS class
+│   │   ├── cyrus_engine.py                # Main JARVIS class
 │   │   ├── config_manager.py              # Config loader (YAML)
 │   │   ├── state_manager.py               # Session state
 │   │   └── event_bus.py                   # Event dispatcher
@@ -282,14 +282,14 @@ cyrus/
 │   │   │   └── useSystemMetrics.ts        # Metrics hook
 │   │   │
 │   │   ├── store/
-│   │   │   └── useCYRUSStore.ts           # Zustand global state
+│   │   │   └── useJARVISStore.ts           # Zustand global state
 │   │   │
 │   │   ├── utils/
 │   │   │   ├── ws-client.ts               # WebSocket client
 │   │   │   └── audio-utils.ts             # Audio helpers
 │   │   │
 │   │   └── styles/
-│   │       └── cyrus-theme.css            # Hologram styling
+│   │       └── jarvis-theme.css            # Hologram styling
 │   │
 │   └── public/
 │       └── index.html
@@ -297,7 +297,7 @@ cyrus/
 ├── config/                                # Configuration files
 │   ├── config.yaml                        # Main config (template)
 │   ├── config.local.yaml                  # LOCAL mode (example)
-│   ├── soul.md                            # C.Y.R.U.S personality
+│   ├── soul.md                            # JARVIS personality
 │   ├── prompts.yaml                       # LLM prompts
 │   ├── home_assistant.yaml                # (Phase 4+)
 │   └── .env.example                       # Environment template
@@ -385,7 +385,7 @@ COMPONENTES PRINCIPALES:
    └────────┬───────────────┘
             │ (transcript text)
             ↓
-   [Transcript: "Hola C.Y.R.U.S, ¿qué hora es?"]
+   [Transcript: "Hola JARVIS, ¿qué hora es?"]
 
 
 2. TRIGGER DETECTION
@@ -396,7 +396,7 @@ COMPONENTES PRINCIPALES:
               ↓
    ┌──────────────────────────────────┐
    │  Fuzzy String Matching           │ (CPU)
-   │  Wake words: "hola cyrus", etc   │ ~10ms
+   │  Wake words: "hola jarvis", etc   │ ~10ms
    │  Threshold: 0.85                 │
    └──────────┬───────────────────────┘
               │
@@ -496,7 +496,7 @@ DUAL-MODE ARCHITECTURE:
 ──────────────────────
 
 ┌─────────────────────────────────────────────────────────┐
-│                   C.Y.R.U.S ENGINE                      │
+│                   JARVIS ENGINE                      │
 ├─────────────────────────────────────────────────────────┤
 │                                                         │
 │  config.yaml: mode = "LOCAL"                           │
@@ -536,7 +536,7 @@ LATENCY FLOW:
 ─────────────
 
 ┌──────────────────────────────────────────────────────┐
-│  User says: "Hola C.Y.R.U.S, ¿qué hora es?"         │
+│  User says: "Hola JARVIS, ¿qué hora es?"         │
 └──────────────────────────────────────────────────────┘
                         │
                         ↓
@@ -598,12 +598,12 @@ If approaching limit:
 PHASE 1: CORE AUDIO LOOP (Semanas 1-2)
 ════════════════════════════════════════
 
-GOAL: "Hola C.Y.R.U.S" → Escucha respuesta en voz
+GOAL: "Hola JARVIS" → Escucha respuesta en voz
 
 Deliverables:
   ✓ Audio input (microphone + VAD)
   ✓ ASR (Whisper TINY GPU)
-  ✓ Trigger detection ("hola cyrus")
+  ✓ Trigger detection ("hola jarvis")
   ✓ LLM (Ollama local)
   ✓ TTS (Kokoro British English)
   ✓ WebSocket server
@@ -612,7 +612,7 @@ Deliverables:
   ✓ Config system (LOCAL/API modes)
 
 Success Criteria:
-  - Say "Hola C.Y.R.U.S, ¿qué hora es?"
+  - Say "Hola JARVIS, ¿qué hora es?"
   - Hear response in Spanish voice
   - Latency < 4 seconds
   - Works completely offline
@@ -822,12 +822,12 @@ COMPLETADO:
 ✅ Prompt para Claude Code (listo para usar)
 ✅ Plan de 8 fases de desarrollo
 ✅ Estructura de carpetas definida
-✅ Configuración de naming (C.Y.R.U.S)
+✅ Configuración de naming (JARVIS)
 
 PENDIENTE:
 ──────────
 ⏳ Phase 1 Code Generation (Claude Code)
-⏳ Instalación en C:\C.Y.R.U.S
+⏳ Instalación en C:\JARVIS
 ⏳ Testing en Windows
 ⏳ Iteración de bugs (si hay)
 ⏳ Phase 2 (Vision)
@@ -850,7 +850,7 @@ DECISIONES CLAVE:
 
 INMEDIATO (Hoy):
 ────────────────
-1. ✅ Descarga CYRUS_PHASE1_COMPLETE_PROMPT.md
+1. ✅ Descarga JARVIS_PHASE1_COMPLETE_PROMPT.md
 2. ✅ Abre Claude Code (https://claude.ai/chat)
 3. ✅ Copia CONTENIDO COMPLETO del prompt
 4. ✅ Pega en Code chat
@@ -860,14 +860,14 @@ INMEDIATO (Hoy):
 
 DESPUÉS DE GENERAR:
 ────────────────────
-8. ⏳ Copia archivos a C:\C.Y.R.U.S\
+8. ⏳ Copia archivos a C:\JARVIS\
 9. ⏳ python -m venv venv
 10. ⏳ venv\Scripts\activate
 11. ⏳ pip install -r requirements.txt
 12. ⏳ python -m backend.core.cyrus_engine
 13. ⏳ (otra terminal) cd frontend && npm install && npm run dev
 14. ⏳ Abre http://localhost:3000
-15. ⏳ Di: "Hola C.Y.R.U.S"
+15. ⏳ Di: "Hola JARVIS"
 16. ⏳ Escucha respuesta
 
 FASE 1 ÉXITO:
@@ -887,7 +887,7 @@ ENTONCES:
                             SUMMARY
 ================================================================================
 
-PROJECT:        C.Y.R.U.S (Cognitive sYstem for Real-time Utility & Services)
+PROJECT:        JARVIS (Cognitive sYstem for Real-time Utility & Services)
 OWNER:          Ricardo (Lima, Peru)
 HARDWARE:       RTX 2070S 8GB, Windows 11 → Linux
 STATUS:         Planning Complete, Ready for Phase 1
@@ -928,9 +928,9 @@ PHASES:
   Phase 8: Advanced features (optional)
 
 NEXT:
-  → Paste CYRUS_PHASE1_COMPLETE_PROMPT.md into Claude Code
+  → Paste JARVIS_PHASE1_COMPLETE_PROMPT.md into Claude Code
   → Code generates Phase 1 complete
-  → Install in C:\C.Y.R.U.S
+  → Install in C:\JARVIS
   → Run & test
   → Continue to Phase 2
 

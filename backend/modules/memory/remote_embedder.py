@@ -1,7 +1,7 @@
 """
-C.Y.R.U.S — Remote Embedder backend.
+JARVIS — Remote Embedder backend.
 
-HTTP client for the C.Y.R.U.S Embedder microservice (services/embedder_server).
+HTTP client for the JARVIS Embedder microservice (services/embedder_server).
 Replaces the in-process sentence-transformers Embedder when
 ``services.embedder.enabled: true``.
 
@@ -20,7 +20,7 @@ from typing import List, Optional
 
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.memory.remote_embedder")
+logger = get_logger("jarvis.memory.remote_embedder")
 
 try:
     import httpx
@@ -30,7 +30,7 @@ except ImportError:
 
 
 class RemoteEmbedder:
-    """HTTP client for the C.Y.R.U.S Embedder microservice.
+    """HTTP client for the JARVIS Embedder microservice.
 
     Provides the same interface as the in-process :class:`Embedder`:
     ``embed(text) -> List[float]``.
@@ -66,12 +66,12 @@ class RemoteEmbedder:
                     data = r.json()
                     self._dim = data.get("dim", 0)
                     logger.info(
-                        f"[C.Y.R.U.S] RemoteEmbedder: server ready — "
+                        f"[JARVIS] RemoteEmbedder: server ready — "
                         f"model={data.get('model','?')}, dim={self._dim}"
                     )
                 return self._available
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] RemoteEmbedder: server not reachable at {self._host} ({exc})")
+            logger.warning(f"[JARVIS] RemoteEmbedder: server not reachable at {self._host} ({exc})")
             self._available = False
             return False
 
@@ -106,12 +106,12 @@ class RemoteEmbedder:
                     json={"text": text},
                 )
                 if r.status_code != 200:
-                    logger.warning(f"[C.Y.R.U.S] RemoteEmbedder: server returned {r.status_code}")
+                    logger.warning(f"[JARVIS] RemoteEmbedder: server returned {r.status_code}")
                     return []
                 self._available = True
                 return r.json().get("vector", [])
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] RemoteEmbedder: embed failed ({exc})")
+            logger.warning(f"[JARVIS] RemoteEmbedder: embed failed ({exc})")
             self._available = False
             return []
 
@@ -130,7 +130,7 @@ class RemoteEmbedder:
                 self._available = True
                 return r.json().get("vectors", [])
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] RemoteEmbedder: batch embed failed ({exc})")
+            logger.warning(f"[JARVIS] RemoteEmbedder: batch embed failed ({exc})")
             return []
 
     def embed(self, text: str) -> List[float]:
@@ -145,7 +145,7 @@ class RemoteEmbedder:
                     return future.result(timeout=self._timeout + 2)
             return loop.run_until_complete(self.aembed(text))
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] RemoteEmbedder: sync embed failed ({exc})")
+            logger.warning(f"[JARVIS] RemoteEmbedder: sync embed failed ({exc})")
             return []
 
     # ------------------------------------------------------------------

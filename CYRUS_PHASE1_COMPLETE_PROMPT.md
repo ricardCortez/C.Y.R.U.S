@@ -1,12 +1,12 @@
 ================================================================================
-                    C.Y.R.U.S PHASE 1 - COMPLETE PROMPT
+                    JARVIS PHASE 1 - COMPLETE PROMPT
                           Para Claude Code - Copiar y Pegar
 ================================================================================
 
 PROJECT OVERVIEW
 ================================================================================
 
-Name: C.Y.R.U.S (Cognitive sYstem for Real-time Utility & Services)
+Name: JARVIS (Cognitive sYstem for Real-time Utility & Services)
 Type: Intelligent Voice-Controlled AI Assistant
 Target: Personal homelab automation & smart home control
 Primary Language: Python (backend) + React/TypeScript (frontend)
@@ -24,7 +24,7 @@ Your Setup (VERIFIED):
 ✓ USB Webcam (connected)
 ✓ Ollama daemon running with Mistral 7B
 ✓ Proxmox server on LAN (Home Assistant + Frigate at 192.168.1.50)
-✓ Project folder: C:\C.Y.R.U.S (Windows) or ~/cyrus (Linux)
+✓ Project folder: C:\JARVIS (Windows) or ~/cyrus (Linux)
 ✓ GitHub ready for version control
 ✓ Ready to start Phase 1 immediately
 
@@ -67,7 +67,7 @@ ALL REFERENCES MUST BE:
 
 Names & Classes:
   ✓ jarvis_engine.py → cyrus_engine.py
-  ✓ JarvisEngine class → CYRUSEngine class
+  ✓ JarvisEngine class → JARVISEngine class
   ✓ jarvis_* variables → cyrus_* variables
   ✓ All imports: from cyrus (not jarvis)
 
@@ -76,24 +76,24 @@ File Names:
   ✓ cyrus_client.py (API client)
   ✓ cyrus_config.py (configuration)
   ✓ cyrus_logger.py (logging)
-  ✓ cyrus-ui.jsx (frontend)
+  ✓ jarvis-ui.jsx (frontend)
 
 UI/Display:
-  ✓ Header: "C.Y.R.U.S"
-  ✓ Status: "C.Y.R.U.S COGNITIVE SYSTEM v1.0"
+  ✓ Header: "JARVIS"
+  ✓ Status: "JARVIS COGNITIVE SYSTEM v1.0"
   ✓ Subtitle: "Cognitive sYstem for Real-time Utility & Services"
-  ✓ Footer: "© Personal Automation | C.Y.R.U.S"
-  ✓ Wake words: "Hola C.Y.R.U.S", "Hey C.Y.R.U.S", "C.Y.R.U.S"
+  ✓ Footer: "© Personal Automation | JARVIS"
+  ✓ Wake words: "Hola JARVIS", "Hey JARVIS", "JARVIS"
 
 Logging:
-  ✓ All logs prefix: "[C.Y.R.U.S]" NOT "[JARVIS]"
+  ✓ All logs prefix: "[JARVIS]" NOT "[JARVIS]"
   ✓ Examples:
-    - "[C.Y.R.U.S] Starting system..."
-    - "[C.Y.R.U.S] Trigger detected: hola cyrus"
-    - "[C.Y.R.U.S] Processing voice input..."
+    - "[JARVIS] Starting system..."
+    - "[JARVIS] Trigger detected: hola jarvis"
+    - "[JARVIS] Processing voice input..."
 
 Personality (soul.md):
-  ✓ "You are C.Y.R.U.S, the Cognitive sYstem for Real-time Utility & Services"
+  ✓ "You are JARVIS, the Cognitive sYstem for Real-time Utility & Services"
   ✓ "You are professional, efficient, and deeply helpful"
   ✓ "You have been created for Ricardo, an engineer in Lima, Peru"
   ✓ "You understand infrastructure, automation, and technical systems"
@@ -101,15 +101,15 @@ Personality (soul.md):
 
 CONFIG:
   ✓ config.yaml uses "cyrus_mode", "cyrus_version", etc
-  ✓ soul.md titled "C.Y.R.U.S Personality & Rules"
-  ✓ soul.md content is C.Y.R.U.S focused
+  ✓ soul.md titled "JARVIS Personality & Rules"
+  ✓ soul.md content is JARVIS focused
 
 Paths:
   ✓ /var/log/cyrus/ (logs)
-  ✓ ~/.cyrus/ (home directory)
+  ✓ ~/.jarvis/ (home directory)
   ✓ /var/lib/cyrus/ (data)
-  ✓ CYRUS_HOME env variable
-  ✓ CYRUS_LOG_LEVEL env variable
+  ✓ JARVIS_HOME env variable
+  ✓ JARVIS_LOG_LEVEL env variable
 
 PHASE 1 SCOPE - EXACTLY THIS ONLY
 ================================================================================
@@ -129,7 +129,7 @@ INCLUDE IN PHASE 1:
    - File: modules/audio/whisper_asr.py
 
 3. Trigger Detection
-   - Wake word: "hola cyrus" / "hey cyrus" / "cyrus"
+   - Wake word: "hola jarvis" / "hey jarvis" / "jarvis"
    - Fuzzy matching (fuzzywuzzy)
    - User input extraction
    - File: modules/nlp/trigger_detector.py
@@ -188,7 +188,7 @@ INCLUDE IN PHASE 1:
 
 12. Configuration Files
     - config.yaml (with LOCAL/API modes)
-    - soul.md (C.Y.R.U.S personality)
+    - soul.md (JARVIS personality)
     - prompts.yaml (system prompts)
     - Files in config/ folder
 
@@ -289,20 +289,20 @@ cyrus/
 │   │   │   └── useWebSocket.ts          # WS connection
 │   │   │
 │   │   ├── store/
-│   │   │   └── useCYRUSStore.ts         # Zustand state
+│   │   │   └── useJARVISStore.ts         # Zustand state
 │   │   │
 │   │   ├── utils/
 │   │   │   └── ws-client.ts             # WS client
 │   │   │
 │   │   └── styles/
-│   │       └── cyrus-theme.css          # Hologram styling
+│   │       └── jarvis-theme.css          # Hologram styling
 │   │
 │   └── public/
 │       └── index.html
 │
 ├── config/
 │   ├── config.yaml                      # Main config (template)
-│   ├── soul.md                          # C.Y.R.U.S personality
+│   ├── soul.md                          # JARVIS personality
 │   ├── prompts.yaml                     # LLM prompts
 │   └── .env.example                     # Environment template
 │
@@ -325,10 +325,10 @@ WAKE WORDS CONFIGURATION
 ================================================================================
 
 Default wake words (in config.yaml):
-  - "hola cyrus" (Spanish primary)
-  - "oye cyrus" (Spanish alternative)
-  - "cyrus" (standalone, any language)
-  - "hey cyrus" (English)
+  - "hola jarvis" (Spanish primary)
+  - "oye jarvis" (Spanish alternative)
+  - "jarvis" (standalone, any language)
+  - "hey jarvis" (English)
 
 Detection algorithm:
   - Fuzzy string matching (threshold 0.85)
@@ -339,8 +339,8 @@ User input extraction:
   - Remove trigger phrase from transcript
   - Pass clean input to LLM
   - Example:
-    Input: "Hola C.Y.R.U.S, ¿qué hora es?"
-    Trigger: "hola cyrus" ✓
+    Input: "Hola JARVIS, ¿qué hora es?"
+    Trigger: "hola jarvis" ✓
     Clean: "¿qué hora es?"
 
 CONFIGURATION FILES - CONTENT TEMPLATES
@@ -349,7 +349,7 @@ CONFIGURATION FILES - CONTENT TEMPLATES
 config.yaml (TEMPLATE):
 """
 system:
-  name: "C.Y.R.U.S"
+  name: "JARVIS"
   version: "1.0"
   mode: "LOCAL"  # LOCAL or HYBRID (LOCAL + API fallback)
 
@@ -392,23 +392,23 @@ audio:
 
 trigger:
   wake_words:
-    - "hola cyrus"
-    - "hey cyrus"
-    - "cyrus"
+    - "hola jarvis"
+    - "hey jarvis"
+    - "jarvis"
   fuzzy_matching: true
   threshold: 0.85
 
 logging:
   level: "INFO"
-  file: "/var/log/cyrus/cyrus.log"
+  file: "/var/log/cyrus/jarvis.log"
 """
 
-soul.md (C.Y.R.U.S PERSONALITY):
+soul.md (JARVIS PERSONALITY):
 """
-# C.Y.R.U.S - Personality & Rules
+# JARVIS - Personality & Rules
 
 ## Identity
-You are C.Y.R.U.S, the Cognitive sYstem for Real-time Utility & Services.
+You are JARVIS, the Cognitive sYstem for Real-time Utility & Services.
 
 ## User
 Created for: Ricardo
@@ -453,7 +453,7 @@ Role: Engineer & Homelab Administrator
 prompts.yaml:
 """
 system_prompt: |
-  You are C.Y.R.U.S, the Cognitive sYstem for Real-time Utility & Services.
+  You are JARVIS, the Cognitive sYstem for Real-time Utility & Services.
   You are professional, efficient, and helpful.
   You speak in British English with a formal but warm tone.
   Be concise in your responses (1-2 sentences typically).
@@ -519,7 +519,7 @@ Network Issues:
   3. Log connection error + timestamp
 
 All errors:
-  - Log to [C.Y.R.U.S] prefix in stdout + /var/log/cyrus/cyrus.log
+  - Log to [JARVIS] prefix in stdout + /var/log/cyrus/jarvis.log
   - Provide user-friendly message
   - Never crash, always recover
 
@@ -539,9 +539,9 @@ test_whisper.py:
   ✓ Handle empty audio gracefully
 
 test_trigger.py:
-  ✓ Detect "hola cyrus" in transcript
-  ✓ Detect "hey cyrus" (English)
-  ✓ Detect standalone "cyrus"
+  ✓ Detect "hola jarvis" in transcript
+  ✓ Detect "hey jarvis" (English)
+  ✓ Detect standalone "jarvis"
   ✓ Extract user input correctly
   ✓ Handle false positives with threshold
 
@@ -596,12 +596,12 @@ Example function:
       if not transcript.strip():
           raise ValueError("Empty transcript")
       
-      logger.debug(f"[C.Y.R.U.S] Checking trigger: {transcript}")
+      logger.debug(f"[JARVIS] Checking trigger: {transcript}")
       
       for wake_word in config.trigger.wake_words:
           ratio = fuzz.partial_ratio(transcript.lower(), wake_word)
           if ratio >= config.trigger.threshold:
-              logger.info(f"[C.Y.R.U.S] Trigger detected: {wake_word}")
+              logger.info(f"[JARVIS] Trigger detected: {wake_word}")
               clean = transcript.lower().replace(wake_word, "").strip()
               return True, clean
       
@@ -645,7 +645,7 @@ Linux Compatibility (future):
   ✓ Same code works on Linux
   ✓ Systemd service file (Phase 7)
   ✓ Log directory: /var/log/cyrus/
-  ✓ Home: ~/.cyrus/
+  ✓ Home: ~/.jarvis/
 
 OUTPUT DELIVERABLES
 ================================================================================
@@ -658,7 +658,7 @@ Backend (Python):
   ✓ No missing dependencies
   ✓ Type hints on all functions
   ✓ Error handling with fallbacks
-  ✓ Logging with [C.Y.R.U.S] prefix
+  ✓ Logging with [JARVIS] prefix
 
 Frontend (React):
   ✓ App.tsx working
@@ -670,7 +670,7 @@ Frontend (React):
 
 Configuration:
   ✓ config.yaml with dual-mode support
-  ✓ soul.md with C.Y.R.U.S personality
+  ✓ soul.md with JARVIS personality
   ✓ prompts.yaml with system prompts
   ✓ .env.example template
 
@@ -703,7 +703,7 @@ Success Criteria - Phase 1:
   ✓ Download all files
   ✓ Install: pip install -r requirements.txt
   ✓ Run: python -m backend.core.cyrus_engine
-  ✓ Say: "Hola C.Y.R.U.S, ¿qué hora es?"
+  ✓ Say: "Hola JARVIS, ¿qué hora es?"
   ✓ Hear: Response in Spanish voice (British accent)
   ✓ Latency: < 4 seconds
   ✓ UI: Shows transcript + response
@@ -735,13 +735,13 @@ FINAL INSTRUCTIONS
    - Try/except on all external calls
    - Fallback mechanisms for all critical functions
    - Graceful degradation (don't crash)
-   - Log all errors with [C.Y.R.U.S] prefix
+   - Log all errors with [JARVIS] prefix
 
-5. ALL C.Y.R.U.S NAMING
+5. ALL JARVIS NAMING
    - No JARVIS references anywhere
-   - All classes/files/logs use C.Y.R.U.S
-   - Wake words: "hola cyrus", "hey cyrus"
-   - Personality in soul.md is C.Y.R.U.S
+   - All classes/files/logs use JARVIS
+   - Wake words: "hola jarvis", "hey jarvis"
+   - Personality in soul.md is JARVIS
 
 6. READY TODAY
    - Download → Install → Run → Works

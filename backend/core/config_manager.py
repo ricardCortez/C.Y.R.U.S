@@ -1,8 +1,8 @@
 """
-C.Y.R.U.S — Configuration Manager.
+JARVIS — Configuration Manager.
 
 Loads ``config/config.yaml``, merges with ``.env`` overrides, and exposes a
-single :class:`CYRUSConfig` namespace accessible throughout the application.
+single :class:`JARVISConfig` namespace accessible throughout the application.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 from backend.utils.exceptions import ConfigError
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.config")
+logger = get_logger("jarvis.config")
 
 # ---------------------------------------------------------------------------
 # Nested dataclasses — mirrors config.yaml structure
@@ -97,6 +97,7 @@ class AudioInputConfig:
     silence_duration: float = 1.5
     noise_gate_factor: float = 3.5
     noise_calibration_secs: float = 2.0
+    echo_tail_secs: float = 1.5
     speaker_gate_enabled: bool = True
 
 
@@ -124,7 +125,7 @@ class AudioConfig:
 @dataclass
 class TriggerConfig:
     wake_words: List[str] = field(
-        default_factory=lambda: ["hola cyrus", "oye cyrus", "hey cyrus", "cyrus"]
+        default_factory=lambda: ["hola jarvis", "oye jarvis", "hey jarvis", "jarvis"]
     )
     fuzzy_matching: bool = True
     threshold: int = 85
@@ -168,10 +169,11 @@ class LoggingConfig:
 
 @dataclass
 class SystemConfig:
-    name: str = "C.Y.R.U.S"
+    name: str = "JARVIS"
     version: str = "1.0.0"
     mode: str = "LOCAL"
     log_level: str = "INFO"
+    owner_name: str = "Ricardo"   # personalized greeting name
 
 
 # ---------------------------------------------------------------------------
@@ -219,7 +221,7 @@ class ServicesConfig:
 
 
 @dataclass
-class CYRUSConfig:
+class JARVISConfig:
     """Top-level config object — use this everywhere in the app."""
 
     system: SystemConfig = field(default_factory=SystemConfig)
@@ -244,7 +246,7 @@ class CYRUSConfig:
 # Loader
 # ---------------------------------------------------------------------------
 
-_CONFIG_INSTANCE: Optional[CYRUSConfig] = None
+_CONFIG_INSTANCE: Optional[JARVISConfig] = None
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
@@ -259,9 +261,9 @@ def _deep_merge(base: dict, override: dict) -> dict:
 
 
 def _apply_env_overrides(raw: dict) -> dict:
-    """Apply ``CYRUS_*`` environment variables onto *raw* dict (flat keys only)."""
+    """Apply ``JARVIS_*`` environment variables onto *raw* dict (flat keys only)."""
     for env_key, env_val in os.environ.items():
-        if not env_key.startswith("CYRUS_"):
+        if not env_key.startswith("JARVIS_"):
             continue
         parts = env_key[6:].lower().split("_")
         node = raw
@@ -271,8 +273,8 @@ def _apply_env_overrides(raw: dict) -> dict:
     return raw
 
 
-def load_config(config_path: Optional[Path] = None) -> CYRUSConfig:
-    """Load and return the global :class:`CYRUSConfig`.
+def load_config(config_path: Optional[Path] = None) -> JARVISConfig:
+    """Load and return the global :class:`JARVISConfig`.
 
     Subsequent calls return the cached instance unless *config_path* is supplied.
 
@@ -281,7 +283,7 @@ def load_config(config_path: Optional[Path] = None) -> CYRUSConfig:
             ``<project_root>/config/config.yaml``.
 
     Returns:
-        Populated :class:`CYRUSConfig` dataclass.
+        Populated :class:`JARVISConfig` dataclass.
 
     Raises:
         ConfigError: If the config file is missing or malformed.
@@ -301,11 +303,11 @@ def load_config(config_path: Optional[Path] = None) -> CYRUSConfig:
         # Also try config/.env.example as last resort during development
         dotenv_candidate = project_root / "config" / ".env.example"
         if dotenv_candidate.exists():
-            logger.debug("[C.Y.R.U.S] .env not found; loading .env.example for defaults")
+            logger.debug("[JARVIS] .env not found; loading .env.example for defaults")
 
     resolved_path = config_path or (project_root / "config" / "config.yaml")
     if not resolved_path.exists():
-        raise ConfigError(f"[C.Y.R.U.S] config.yaml not found at {resolved_path}")
+        raise ConfigError(f"[JARVIS] config.yaml not found at {resolved_path}")
 
     try:
         raw_text = resolved_path.read_text(encoding="utf-8")
@@ -314,11 +316,11 @@ def load_config(config_path: Optional[Path] = None) -> CYRUSConfig:
             raw_text = raw_text.replace(f"${{{var}}}", val)
         raw: dict = yaml.safe_load(raw_text) or {}
     except yaml.YAMLError as exc:
-        raise ConfigError(f"[C.Y.R.U.S] Malformed config.yaml: {exc}") from exc
+        raise ConfigError(f"[JARVIS] Malformed config.yaml: {exc}") from exc
 
     raw = _apply_env_overrides(raw)
 
-    cfg = CYRUSConfig(project_root=project_root)
+    cfg = JARVISConfig(project_root=project_root)
 
     # ── system ───────────────────────────────────────────────────────────────
     if s := raw.get("system"):
@@ -392,7 +394,7 @@ def load_config(config_path: Optional[Path] = None) -> CYRUSConfig:
     if soul_path.exists():
         cfg.soul_text = soul_path.read_text(encoding="utf-8")
     else:
-        logger.warning(f"[C.Y.R.U.S] soul.md not found at {soul_path}; using empty personality")
+        logger.warning(f"[JARVIS] soul.md not found at {soul_path}; using empty personality")
 
     # ── Resolve prompts.yaml ──────────────────────────────────────────────────
     prompts_path = project_root / cfg.conversation.prompts_file
@@ -400,5 +402,5 @@ def load_config(config_path: Optional[Path] = None) -> CYRUSConfig:
         cfg.prompts = yaml.safe_load(prompts_path.read_text(encoding="utf-8")) or {}
 
     _CONFIG_INSTANCE = cfg
-    logger.info(f"[C.Y.R.U.S] Configuration loaded — mode={cfg.system.mode}")
+    logger.info(f"[JARVIS] Configuration loaded — mode={cfg.system.mode}")
     return cfg

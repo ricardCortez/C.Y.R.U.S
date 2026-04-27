@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Spectral noise reduction for PCM audio.
+JARVIS — Spectral noise reduction for PCM audio.
 
 Applies stationary noise reduction (noisereduce) to int16 PCM bytes
 before VAD and Whisper transcription.
@@ -10,14 +10,14 @@ import numpy as np
 
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.audio.denoiser")
+logger = get_logger("jarvis.audio.denoiser")
 
 try:
     import noisereduce as nr
     _NR_AVAILABLE = True
 except ImportError:
     _NR_AVAILABLE = False
-    logger.warning("[C.Y.R.U.S] Denoiser: noisereduce not installed — passthrough mode")
+    logger.warning("[JARVIS] Denoiser: noisereduce not installed — passthrough mode")
 
 
 class Denoiser:
@@ -56,5 +56,5 @@ class Denoiser:
             out = np.clip(reduced * 32768.0, -32768, 32767).astype(np.int16)
             return out.tobytes()
         except Exception as exc:
-            logger.debug(f"[C.Y.R.U.S] Denoiser: failed ({exc}) — passthrough")
+            logger.debug(f"[JARVIS] Denoiser: failed ({exc}) — passthrough")
             return pcm

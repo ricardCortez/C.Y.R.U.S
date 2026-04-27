@@ -1,9 +1,9 @@
 @echo off
 REM ============================================================
-REM  C.Y.R.U.S — Arranque limpio integral
+REM  JARVIS — Arranque limpio integral
 REM
 REM  Mata todos los procesos activos y levanta desde cero:
-REM    TTS Server (8020) + Backend CYRUS (8765) + Frontend (3007)
+REM    TTS Server (8020) + Backend JARVIS (8765) + Frontend (3007)
 REM    + ASR/Vision/Embedder segun flags
 REM
 REM  Uso:
@@ -40,7 +40,7 @@ if not "%~1"=="" (
 
 echo.
 echo  ============================================
-echo   C.Y.R.U.S  --  ARRANQUE LIMPIO INTEGRAL
+echo   JARVIS  --  ARRANQUE LIMPIO INTEGRAL
 echo  ============================================
 echo.
 
@@ -49,7 +49,7 @@ echo [1/3] Apagando procesos anteriores...
 echo.
 
 call :kill_port 3007 "Frontend     "
-call :kill_port 8765 "CYRUS Backend"
+call :kill_port 8765 "JARVIS Backend"
 call :kill_port 8020 "TTS Server   "
 call :kill_port 8000 "ASR Server   "
 call :kill_port 8001 "Vision Server"
@@ -87,25 +87,25 @@ echo.
 
 if %RUN_TTS%==1 (
     echo  [+] TTS Server     puerto 8020
-    start "CYRUS TTS :8020" cmd /k "cd /d %~dp0 && venv\Scripts\activate.bat && set COQUI_TOS_AGREED=1 && python -m uvicorn services.tts_server.main:app --host 0.0.0.0 --port 8020"
+    start "JARVIS TTS :8020" cmd /k "cd /d %~dp0 && venv\Scripts\activate.bat && set COQUI_TOS_AGREED=1 && python -m uvicorn services.tts_server.main:app --host 0.0.0.0 --port 8020"
     timeout /t 2 /nobreak >nul
 )
 
 if %RUN_ASR%==1 (
     echo  [+] ASR Server     puerto 8000
-    start "CYRUS ASR :8000" cmd /k "cd /d %~dp0 && venv\Scripts\activate.bat && python -m uvicorn services.asr_server.main:app --host 0.0.0.0 --port 8000"
+    start "JARVIS ASR :8000" cmd /k "cd /d %~dp0 && venv\Scripts\activate.bat && python -m uvicorn services.asr_server.main:app --host 0.0.0.0 --port 8000"
     timeout /t 1 /nobreak >nul
 )
 
 if %RUN_VISION%==1 (
     echo  [+] Vision Server  puerto 8001
-    start "CYRUS VISION :8001" cmd /k "cd /d %~dp0 && venv\Scripts\activate.bat && python -m uvicorn services.vision_server.main:app --host 0.0.0.0 --port 8001"
+    start "JARVIS VISION :8001" cmd /k "cd /d %~dp0 && venv\Scripts\activate.bat && python -m uvicorn services.vision_server.main:app --host 0.0.0.0 --port 8001"
     timeout /t 1 /nobreak >nul
 )
 
 if %RUN_EMBEDDER%==1 (
     echo  [+] Embedder       puerto 8002
-    start "CYRUS EMBEDDER :8002" cmd /k "cd /d %~dp0 && venv\Scripts\activate.bat && python -m uvicorn services.embedder_server.main:app --host 0.0.0.0 --port 8002"
+    start "JARVIS EMBEDDER :8002" cmd /k "cd /d %~dp0 && venv\Scripts\activate.bat && python -m uvicorn services.embedder_server.main:app --host 0.0.0.0 --port 8002"
     timeout /t 1 /nobreak >nul
 )
 
@@ -114,13 +114,13 @@ echo.
 echo  Esperando 4s para que los servicios carguen modelos...
 timeout /t 4 /nobreak >nul
 
-echo  [+] CYRUS Backend  puerto 8765
-start "CYRUS BACKEND :8765" cmd /k "cd /d %~dp0 && venv\Scripts\activate.bat && set COQUI_TOS_AGREED=1 && python -m backend.core.cyrus_engine"
+echo  [+] JARVIS Backend  puerto 8765
+start "JARVIS BACKEND :8765" cmd /k "cd /d %~dp0 && venv\Scripts\activate.bat && set COQUI_TOS_AGREED=1 && python -m backend.core.cyrus_engine"
 timeout /t 2 /nobreak >nul
 
 if %RUN_FRONTEND%==1 (
     echo  [+] Frontend React puerto 3007
-    start "CYRUS FRONTEND :3007" cmd /k "cd /d %~dp0\frontend && npm run dev"
+    start "JARVIS FRONTEND :3007" cmd /k "cd /d %~dp0\frontend && npm run dev"
 )
 
 REM ── Health check ─────────────────────────────────────────────
@@ -137,7 +137,7 @@ if %RUN_VISION%==1   call :check_health 8001 "Vision Server"
 if %RUN_EMBEDDER%==1 call :check_health 8002 "Embedder     "
 
 REM Backend usa WebSocket — verificar puerto TCP en vez de HTTP
-call :check_port 8765 "CYRUS Backend"
+call :check_port 8765 "JARVIS Backend"
 
 if %RUN_FRONTEND%==1 call :check_port 3007 "Frontend     "
 

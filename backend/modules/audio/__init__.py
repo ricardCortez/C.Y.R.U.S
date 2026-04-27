@@ -1,1 +1,1 @@
-"""C.Y.R.U.S audio subsystem."""
+"""JARVIS audio subsystem."""

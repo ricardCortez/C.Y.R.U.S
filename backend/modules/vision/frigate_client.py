@@ -1,4 +1,4 @@
-"""C.Y.R.U.S — Frigate NVR integration.
+"""JARVIS — Frigate NVR integration.
 
 Frigate exposes:
   GET /api/<camera>/latest.jpg   — latest JPEG snapshot
@@ -13,7 +13,7 @@ import httpx
 
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.vision.frigate")
+logger = get_logger("jarvis.vision.frigate")
 
 
 class FrigateClient:
@@ -57,11 +57,11 @@ class FrigateClient:
                 if r.status_code == 200:
                     return r.content
                 logger.warning(
-                    f"[C.Y.R.U.S] Frigate snapshot returned HTTP {r.status_code}"
+                    f"[JARVIS] Frigate snapshot returned HTTP {r.status_code}"
                 )
                 return None
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] Frigate unreachable: {exc}")
+            logger.warning(f"[JARVIS] Frigate unreachable: {exc}")
             return None
 
     async def get_snapshot_array(self):

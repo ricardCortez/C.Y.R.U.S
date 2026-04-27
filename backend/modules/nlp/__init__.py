@@ -1,1 +1,1 @@
-"""C.Y.R.U.S NLP subsystem."""
+"""JARVIS NLP subsystem."""

@@ -1,17 +1,17 @@
 @echo off
 REM ============================================================
-REM  C.Y.R.U.S — Detener todos los procesos
+REM  JARVIS — Detener todos los procesos
 REM  Libera puertos: 8765 (backend), 8020/8000/8001/8002 (servicios)
 REM ============================================================
 
 cd /d "%~dp0"
 
 echo.
-echo [*] Deteniendo C.Y.R.U.S...
+echo [*] Deteniendo JARVIS...
 echo.
 
 call :kill_port 3007 "Frontend     "
-call :kill_port 8765 "CYRUS Backend"
+call :kill_port 8765 "JARVIS Backend"
 call :kill_port 8020 "TTS Server   "
 call :kill_port 8000 "ASR Server   "
 call :kill_port 8001 "Vision Server"

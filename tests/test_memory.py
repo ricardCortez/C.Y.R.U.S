@@ -1,4 +1,4 @@
-"""C.Y.R.U.S — Tests for the Memory pipeline (Phase 3).
+"""JARVIS — Tests for the Memory pipeline (Phase 3).
 
 All tests are infrastructure-free — Qdrant and sentence-transformers are mocked.
 """
@@ -35,9 +35,9 @@ def test_embedder_returns_vector():
 
 def test_embedder_not_loaded_raises():
     from backend.modules.memory.embedder import Embedder
-    from backend.utils.exceptions import CYRUSError
+    from backend.utils.exceptions import JARVISError
     emb = Embedder()
-    with pytest.raises(CYRUSError):
+    with pytest.raises(JARVISError):
         emb.embed("test")
 
 

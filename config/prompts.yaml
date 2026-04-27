@@ -1,4 +1,4 @@
-# C.Y.R.U.S — Plantillas de Prompts LLM
+# JARVIS — Plantillas de Prompts LLM
 
 system_prompt_override: null   # dejar null para usar soul.md
 
@@ -20,4 +20,4 @@ canned:
   repeat_request: >
     No entendí bien. ¿Puedes repetir tu solicitud?
   greeting: >
-    C.Y.R.U.S en línea. ¿En qué puedo asistirte, Ricardo?
+    JARVIS en línea. ¿En qué puedo asistirte, Ricardo?

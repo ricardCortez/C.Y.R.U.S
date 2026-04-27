@@ -1,4 +1,4 @@
-# C.Y.R.U.S — Quick Start
+# JARVIS — Quick Start
 
 > Asume Python 3.11, Node.js 18+ y Ollama ya instalados.
 > Para instalación desde cero ver [INSTALLATION.md](INSTALLATION.md).
@@ -8,7 +8,7 @@
 ## 1. Entorno Python
 
 ```bat
-cd D:\Archivos\Desarrollo\C.Y.R.U.S
+cd D:\Archivos\Desarrollo\JARVIS
 
 py -3.11 -m venv venv
 venv\Scripts\activate
@@ -40,7 +40,7 @@ ollama serve
 
 **Terminal 2 — Todo lo demás** (mata procesos previos, levanta limpio)
 ```bat
-REM TTS + backend CYRUS  (modo por defecto)
+REM TTS + backend JARVIS  (modo por defecto)
 start_services.bat
 
 REM Todo: TTS + ASR + Vision + Embedder + backend + frontend
@@ -53,7 +53,7 @@ REM Todo sin frontend
 start_services.bat all nofrontend
 ```
 
-El script abre una ventana CMD por servicio (`CYRUS TTS :8020`, `CYRUS BACKEND :8765`, etc.)  
+El script abre una ventana CMD por servicio (`JARVIS TTS :8020`, `JARVIS BACKEND :8765`, etc.)  
 y hace health-check automático al terminar.
 
 **Apagar todo de golpe:**
@@ -76,7 +76,7 @@ venv\Scripts\activate
 python -m uvicorn services.tts_server.main:app --host 0.0.0.0 --port 8020
 ```
 
-**Terminal 3 — Backend CYRUS**
+**Terminal 3 — Backend JARVIS**
 ```bat
 venv\Scripts\activate
 python -m backend.core.cyrus_engine
@@ -93,7 +93,7 @@ Abre **http://localhost:3007** en el navegador.
 
 ## 4. Comandos de línea de comandos
 
-### Ver procesos activos de C.Y.R.U.S
+### Ver procesos activos de JARVIS
 ```bat
 :: Todos los procesos Python relacionados
 tasklist /fi "imagename eq python.exe" /v | findstr /i "cyrus uvicorn ollama"
@@ -111,7 +111,7 @@ for /f "tokens=5" %a in ('netstat -ano ^| findstr ":8020 "') do tasklist /fi "pi
 # Procesos Python + puerto que usan
 Get-Process python | Select-Object Id, Name, CPU, @{n='Mem(MB)';e={[math]::Round($_.WorkingSet64/1MB,1)}}
 
-# Ver qué escucha en cada puerto de CYRUS
+# Ver qué escucha en cada puerto de JARVIS
 @(8020, 8000, 8002, 8765, 11434, 3007) | ForEach-Object {
     $conn = Get-NetTCPConnection -LocalPort $_ -ErrorAction SilentlyContinue
     if ($conn) { "Puerto $_ -> PID $($conn.OwningProcess)" }
@@ -143,10 +143,10 @@ curl http://localhost:8765
 ### Logs en tiempo real
 ```bat
 :: Backend principal
-type logs\cyrus.log
+type logs\jarvis.log
 
 :: Seguir el log en vivo (PowerShell)
-Get-Content logs\cyrus.log -Wait -Tail 50
+Get-Content logs\jarvis.log -Wait -Tail 50
 ```
 
 ---

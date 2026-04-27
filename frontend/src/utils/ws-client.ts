@@ -1,5 +1,5 @@
 /**
- * C.Y.R.U.S — WebSocket client utility.
+ * JARVIS — WebSocket client utility.
  * Manages connection, reconnection, and message parsing.
  */
 
@@ -32,7 +32,7 @@ export type WSEventHandler = (evt: WSEvent) => void
 const RECONNECT_DELAY_MS = 2000
 const MAX_RECONNECT_ATTEMPTS = Infinity   // always retry — local backend may start late
 
-export class CYRUSWebSocketClient {
+export class JARVISWebSocketClient {
   private ws: WebSocket | null = null
   private handlers: WSEventHandler[] = []
   private reconnectAttempts = 0
@@ -71,7 +71,7 @@ export class CYRUSWebSocketClient {
       this.ws.send(JSON.stringify(payload))
     } else {
       this.queue.push(payload)
-      console.info('[C.Y.R.U.S] WS not open yet, queued command', payload)
+      console.info('[JARVIS] WS not open yet, queued command', payload)
     }
   }
 
@@ -87,7 +87,7 @@ export class CYRUSWebSocketClient {
       this.ws = new WebSocket(this.url)
 
       this.ws.onopen = () => {
-        console.info('[C.Y.R.U.S] WebSocket connected')
+        console.info('[JARVIS] WebSocket connected')
         this.reconnectAttempts = 0
         this._flushQueue()
       }
@@ -97,20 +97,20 @@ export class CYRUSWebSocketClient {
           const parsed = JSON.parse(ev.data as string) as WSEvent
           this.handlers.forEach(h => h(parsed))
         } catch {
-          console.warn('[C.Y.R.U.S] Could not parse WS message:', ev.data)
+          console.warn('[JARVIS] Could not parse WS message:', ev.data)
         }
       }
 
       this.ws.onclose = () => {
-        console.warn('[C.Y.R.U.S] WebSocket disconnected')
+        console.warn('[JARVIS] WebSocket disconnected')
         this._scheduleReconnect()
       }
 
       this.ws.onerror = () => {
-        console.error('[C.Y.R.U.S] WebSocket error')
+        console.error('[JARVIS] WebSocket error')
       }
     } catch (err) {
-      console.error('[C.Y.R.U.S] WebSocket open error:', err)
+      console.error('[JARVIS] WebSocket open error:', err)
       this._scheduleReconnect()
     }
   }
@@ -118,12 +118,12 @@ export class CYRUSWebSocketClient {
   private _scheduleReconnect(): void {
     if (!this.shouldReconnect) return
     if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      console.error('[C.Y.R.U.S] Max reconnect attempts reached')
+      console.error('[JARVIS] Max reconnect attempts reached')
       return
     }
     this.reconnectAttempts++
     const delay = RECONNECT_DELAY_MS * Math.min(this.reconnectAttempts, 5)
-    console.info(`[C.Y.R.U.S] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`)
+    console.info(`[JARVIS] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`)
     this.reconnectTimer = setTimeout(() => this._open(), delay)
   }
 }

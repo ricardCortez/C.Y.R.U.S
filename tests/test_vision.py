@@ -1,4 +1,4 @@
-"""C.Y.R.U.S — Tests for the Vision pipeline (Phase 2).
+"""JARVIS — Tests for the Vision pipeline (Phase 2).
 
 All tests are hardware-free — cameras and ML models are mocked.
 """
@@ -67,10 +67,10 @@ def test_local_camera_open_fail():
     sys.modules["cv2"] = mock_cv2
 
     from backend.modules.vision.camera_local import LocalCamera
-    from backend.utils.exceptions import CYRUSError
+    from backend.utils.exceptions import JARVISError
 
     cam = LocalCamera(device_index=99)
-    with pytest.raises(CYRUSError):
+    with pytest.raises(JARVISError):
         cam.open()
 
 

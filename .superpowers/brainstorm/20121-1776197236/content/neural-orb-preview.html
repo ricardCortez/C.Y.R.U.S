@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>C.Y.R.U.S — Neural Orb Preview</title>
+<title>JARVIS — Neural Orb Preview</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -21,7 +21,7 @@ body { background: #05070d; color: #00f0ff; font-family: 'Orbitron', sans-serif;
   <button onclick="setState('thinking')" id="btn-thinking"  style="font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:0.2em;padding:6px 14px;background:#00f0ff0a;border:1px solid #00f0ff33;color:#00f0ff55;border-radius:4px;cursor:pointer;">THINKING</button>
   <button onclick="setState('speaking')" id="btn-speaking"  style="font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:0.2em;padding:6px 14px;background:#00f0ff0a;border:1px solid #00f0ff33;color:#00f0ff55;border-radius:4px;cursor:pointer;">SPEAKING</button>
 </div>
-<div id="state-label" style="position:fixed;top:20px;left:50%;transform:translateX(-50%);font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:0.4em;color:#00f0ff44;z-index:10;">C.Y.R.U.S</div>
+<div id="state-label" style="position:fixed;top:20px;left:50%;transform:translateX(-50%);font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:0.4em;color:#00f0ff44;z-index:10;">JARVIS</div>
 <div id="hint" style="position:fixed;bottom:70px;left:50%;transform:translateX(-50%);font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:0.2em;color:#00f0ff22;z-index:10;">[ Tab ] → control panel</div>
 
 <script>
@@ -64,7 +64,7 @@ function setState(s) {
     btn.style.borderColor = '#00f0ff88';
     btn.style.background = '#00f0ff15';
   }
-  document.getElementById('state-label').textContent = 'C.Y.R.U.S — ' + s.toUpperCase();
+  document.getElementById('state-label').textContent = 'JARVIS — ' + s.toUpperCase();
 }
 setState('idle');
 

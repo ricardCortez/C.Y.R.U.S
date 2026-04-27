@@ -1,4 +1,4 @@
-# C.Y.R.U.S — Cognitive sYstem for Real-time Utility & Services
+# JARVIS — Cognitive sYstem for Real-time Utility & Services
 
 > A local-first, voice-driven AI assistant for your homelab. JARVIS-style neural hologram UI, Spanish voice, Piper TTS, semantic memory.
 
@@ -21,7 +21,7 @@ cd frontend && npm run dev
 # → http://localhost:5173
 ```
 
-Say **"Hola C.Y.R.U.S"** to activate.
+Say **"Hola JARVIS"** to activate.
 
 > **Note:** The microphone only activates once the web UI is open and connected. Running the backend alone keeps the mic silent.
 
@@ -33,7 +33,7 @@ Say **"Hola C.Y.R.U.S"** to activate.
 Browser UI (React + Three.js)
         ↕  WebSocket :8765
 ┌─────────────────────────────────┐
-│  CYRUSEngine                    │
+│  JARVISEngine                    │
 │  ┌──────────┐  ┌─────────────┐  │
 │  │ AudioIn  │  │  EventBus   │  │
 │  │ PyAudio  │  │  (async)    │  │
@@ -146,7 +146,7 @@ system:
   mode: LOCAL          # LOCAL | HYBRID
 
 trigger:
-  wake_words: ["hola cyrus", "oye cyrus", "hey cyrus"]
+  wake_words: ["hola jarvis", "oye jarvis", "hey jarvis"]
 
 local:
   llm:
@@ -208,7 +208,7 @@ cd frontend && npm install
 
 ```bash
 pytest tests/ -v
-CYRUS_RUN_SLOW_TESTS=1 pytest tests/ -v   # includes model-load tests
+JARVIS_RUN_SLOW_TESTS=1 pytest tests/ -v   # includes model-load tests
 ```
 
 ---
@@ -232,12 +232,12 @@ frontend/src/
   views/         — AgentView (hologram), ControlView (panel)
   components/    — ParticleNetwork (Three.js), AudioVisualizer
   hooks/         — useWebSocket, useAudioAnalyser
-  store/         — Zustand state (useCYRUSStore)
+  store/         — Zustand state (useJARVISStore)
   utils/         — WebSocket client (ws-client.ts)
 
 config/
   config.yaml    — main configuration
-  soul.md        — C.Y.R.U.S personality / system prompt
+  soul.md        — JARVIS personality / system prompt
   prompts.yaml   — LLM prompt templates
 
 models/
@@ -254,4 +254,4 @@ models/
 
 ---
 
-*C.Y.R.U.S — Personal Homelab AI | Lima, PE | Ricardo*
+*JARVIS — Personal Homelab AI | Lima, PE | Ricardo*

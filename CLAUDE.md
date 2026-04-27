@@ -1,4 +1,4 @@
-# C.Y.R.U.S — Context for Claude
+# JARVIS — Context for Claude
 
 ## Project
 
@@ -152,7 +152,7 @@ asr:
   device: cpu    # cuda for GPU machine
   compute_type: float16
   language: es
-  initial_prompt: "Habla en español. C.Y.R.U.S es un asistente de IA personal."
+  initial_prompt: "Habla en español. JARVIS es un asistente de IA personal."
   beam_size: 5
 
 llm:
@@ -195,7 +195,7 @@ local:
 | Ollama 7b (first request) | ~12s |
 | **Total cold boot** | **~61s** |
 
-VRAM budget: ~2.8-3GB CYRUS models + ~4.4GB Ollama 7B = ~7.2-7.4GB (fits in 8GB).
+VRAM budget: ~2.8-3GB JARVIS models + ~4.4GB Ollama 7B = ~7.2-7.4GB (fits in 8GB).
 
 ---
 
@@ -222,12 +222,12 @@ sys.modules["qdrant_client.models"] = MagicMock()
 ```
 
 
-Comparación: C.Y.R.U.S vs OpenJarvis vs JARVIS (ethanplusai)
+Comparación: JARVIS vs OpenJarvis vs JARVIS (ethanplusai)
 
   Servicios Core
 
   ┌───────────────────┬──────────────────────────┬─────────────────────────────────────────┬────────────────────────┐
-  │     Servicio      │        C.Y.R.U.S         │               OpenJarvis                │     JARVIS (ethan)     │
+  │     Servicio      │        JARVIS         │               OpenJarvis                │     JARVIS (ethan)     │
   ├───────────────────┼──────────────────────────┼─────────────────────────────────────────┼────────────────────────┤
   │ ASR / Voz → Texto │ faster-whisper (local,   │ ❌ no mencionado                        │ Web Speech API         │
   │                   │ CUDA)                    │                                         │ (Google, cloud)        │

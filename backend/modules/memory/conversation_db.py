@@ -1,4 +1,4 @@
-"""C.Y.R.U.S — SQLite conversation history."""
+"""JARVIS — SQLite conversation history."""
 from __future__ import annotations
 import sqlite3
 import uuid
@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, Generator, List
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.memory.db")
+logger = get_logger("jarvis.memory.db")
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS turns (
@@ -34,7 +34,7 @@ class ConversationDB:
             conn.executescript(_SCHEMA)
         finally:
             conn.close()
-        logger.info(f"[C.Y.R.U.S] ConversationDB initialised at {self._path}")
+        logger.info(f"[JARVIS] ConversationDB initialised at {self._path}")
 
     def save_turn(
         self,

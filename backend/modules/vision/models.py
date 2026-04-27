@@ -1,4 +1,4 @@
-"""C.Y.R.U.S — Vision data models."""
+"""JARVIS — Vision data models."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -22,7 +22,7 @@ class DetectedFace:
 
 @dataclass
 class VisionContext:
-    """Snapshot of what C.Y.R.U.S currently sees."""
+    """Snapshot of what JARVIS currently sees."""
 
     source: str                                          # "local" | "frigate"
     objects: List[DetectedObject] = field(default_factory=list)

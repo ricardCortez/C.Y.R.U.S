@@ -1,4 +1,4 @@
-"""C.Y.R.U.S — YOLOv8n real-time object detection."""
+"""JARVIS — YOLOv8n real-time object detection."""
 from __future__ import annotations
 
 from typing import List
@@ -8,7 +8,7 @@ import numpy as np
 from backend.modules.vision.models import DetectedObject
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.vision.yolo")
+logger = get_logger("jarvis.vision.yolo")
 
 _MODEL_NAME = "yolov8n.pt"   # auto-downloaded by ultralytics on first use
 
@@ -38,7 +38,7 @@ class YOLODetector:
         from ultralytics import YOLO
 
         self._model = YOLO(self._model_name)
-        logger.info(f"[C.Y.R.U.S] YOLOv8 model loaded: {self._model_name}")
+        logger.info(f"[JARVIS] YOLOv8 model loaded: {self._model_name}")
 
     def detect(self, frame: np.ndarray) -> List[DetectedObject]:
         """Run inference on a BGR numpy frame.
@@ -51,7 +51,7 @@ class YOLODetector:
             Returns empty list if model is not loaded or inference fails.
         """
         if self._model is None:
-            logger.warning("[C.Y.R.U.S] YOLO model not loaded — call load() first")
+            logger.warning("[JARVIS] YOLO model not loaded — call load() first")
             return []
 
         try:
@@ -73,7 +73,7 @@ class YOLODetector:
             return objects
 
         except Exception as exc:
-            logger.error(f"[C.Y.R.U.S] YOLO inference failed: {exc}")
+            logger.error(f"[JARVIS] YOLO inference failed: {exc}")
             return []
 
     @property

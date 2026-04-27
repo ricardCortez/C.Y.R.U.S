@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Embedder Microservice (port 8002).
+JARVIS — Embedder Microservice (port 8002).
 
 Standalone FastAPI server that produces sentence embeddings via
 sentence-transformers.  Used by the Memory module instead of loading the
@@ -37,7 +37,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-app = FastAPI(title="C.Y.R.U.S Embedder Server", version="1.0.0")
+app = FastAPI(title="JARVIS Embedder Server", version="1.0.0")
 
 _model = None
 _model_name = os.environ.get("EMBEDDER_MODEL", "all-MiniLM-L6-v2")

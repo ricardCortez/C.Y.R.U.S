@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Faster-Whisper ASR module.
+JARVIS — Faster-Whisper ASR module.
 
 Loads the Whisper TINY model on CUDA (or CPU as fallback) and transcribes
 raw PCM utterances.  The model is lazy-loaded on first use.
@@ -22,7 +22,7 @@ try:
     _WHISPER_AVAILABLE = True
 except ImportError:
     _WHISPER_AVAILABLE = False
-    logger.warning("[C.Y.R.U.S] faster-whisper not installed; ASR unavailable")
+    logger.warning("[JARVIS] faster-whisper not installed; ASR unavailable")
 
 
 class WhisperASR:
@@ -53,7 +53,7 @@ class WhisperASR:
         self._language = language
         self._beam_size = beam_size
         self._vad_filter = vad_filter
-        self._initial_prompt = initial_prompt or "Habla en español. C.Y.R.U.S es un asistente de IA personal."
+        self._initial_prompt = initial_prompt or "Habla en español. JARVIS es un asistente de IA personal."
         self._model: Optional["WhisperModel"] = None  # lazy load
 
     # ------------------------------------------------------------------
@@ -119,7 +119,7 @@ class WhisperASR:
             ASRError: If the model cannot be loaded.
         """
         if not _WHISPER_AVAILABLE:
-            raise ASRError("[C.Y.R.U.S] faster-whisper is not installed")
+            raise ASRError("[JARVIS] faster-whisper is not installed")
 
         device       = self._device
         compute_type = self._compute_type
@@ -130,7 +130,7 @@ class WhisperASR:
             model_size, device, compute_type = self._select_model_and_device()
         elif device == "cuda" and not self._cuda_usable():
             logger.warning(
-                "[C.Y.R.U.S] ASR: CUDA requested but cuDNN not available — "
+                "[JARVIS] ASR: CUDA requested but cuDNN not available — "
                 "falling back to CPU/int8 (install cuDNN to enable GPU)"
             )
             model_size, device, compute_type = self._select_model_and_device(force_cpu=True)
@@ -139,33 +139,33 @@ class WhisperASR:
 
         try:
             logger.info(
-                f"[C.Y.R.U.S] ASR: loading whisper/{model_size} on {device} ({compute_type})..."
+                f"[JARVIS] ASR: loading whisper/{model_size} on {device} ({compute_type})..."
             )
             self._model = WhisperModel(
                 model_size,
                 device=device,
                 compute_type=compute_type,
             )
-            logger.info("[C.Y.R.U.S] ASR: model ready")
+            logger.info("[JARVIS] ASR: model ready")
         except Exception as exc:
             if device == "cuda":
                 logger.warning(
-                    f"[C.Y.R.U.S] ASR: CUDA load failed ({exc}); retrying on CPU with int8"
+                    f"[JARVIS] ASR: CUDA load failed ({exc}); retrying on CPU with int8"
                 )
                 try:
                     self._model        = WhisperModel(model_size, device="cpu", compute_type="int8")
                     self._device       = "cpu"
                     self._compute_type = "int8"
-                    logger.info("[C.Y.R.U.S] ASR: model ready (CPU fallback)")
+                    logger.info("[JARVIS] ASR: model ready (CPU fallback)")
                 except Exception as exc2:
-                    raise ASRError(f"[C.Y.R.U.S] ASR: model load failed: {exc2}") from exc2
+                    raise ASRError(f"[JARVIS] ASR: model load failed: {exc2}") from exc2
             else:
-                raise ASRError(f"[C.Y.R.U.S] ASR: model load failed: {exc}") from exc
+                raise ASRError(f"[JARVIS] ASR: model load failed: {exc}") from exc
 
     def unload(self) -> None:
         """Release the model from memory."""
         self._model = None
-        logger.info("[C.Y.R.U.S] ASR: model unloaded")
+        logger.info("[JARVIS] ASR: model unloaded")
 
     # ------------------------------------------------------------------
     # Transcription
@@ -186,10 +186,10 @@ class WhisperASR:
             ASRError: On transcription failure.
         """
         if self._model is None:
-            raise ASRModelNotLoadedError("[C.Y.R.U.S] ASR: call load() before transcribe()")
+            raise ASRModelNotLoadedError("[JARVIS] ASR: call load() before transcribe()")
 
         if not pcm_bytes:
-            logger.warning("[C.Y.R.U.S] ASR: empty audio; skipping transcription")
+            logger.warning("[JARVIS] ASR: empty audio; skipping transcription")
             return "", "en"
 
         # faster-whisper can accept a file path or a numpy array.
@@ -214,7 +214,7 @@ class WhisperASR:
                 text = " ".join(seg.text.strip() for seg in segments).strip()
             except Exception as vad_exc:
                 # Silero VAD model download may fail on offline machines; retry without VAD
-                logger.warning(f"[C.Y.R.U.S] ASR: segment iteration failed ({vad_exc}); retrying vad_filter=False")
+                logger.warning(f"[JARVIS] ASR: segment iteration failed ({vad_exc}); retrying vad_filter=False")
                 wav_buf.seek(0)
                 segments2, info = self._model.transcribe(
                     wav_buf,
@@ -226,13 +226,13 @@ class WhisperASR:
                 text = " ".join(seg.text.strip() for seg in segments2).strip()
                 self._vad_filter = False  # disable permanently to avoid repeated failures
             lang = info.language if info.language else "es"
-            logger.info(f"[C.Y.R.U.S] ASR: transcript='{text}' lang={lang}")
+            logger.info(f"[JARVIS] ASR: transcript='{text}' lang={lang}")
             return text, lang
         except Exception as exc:
             # CUDA inference may fail even if model loaded — fallback to CPU
             if self._device != "cpu":
                 logger.warning(
-                    f"[C.Y.R.U.S] ASR: CUDA transcription failed ({exc}); reloading on CPU"
+                    f"[JARVIS] ASR: CUDA transcription failed ({exc}); reloading on CPU"
                 )
                 try:
                     self._model = WhisperModel(
@@ -240,7 +240,7 @@ class WhisperASR:
                     )
                     self._device = "cpu"
                     self._compute_type = "int8"
-                    logger.info("[C.Y.R.U.S] ASR: CPU reload OK — retrying transcription")
+                    logger.info("[JARVIS] ASR: CPU reload OK — retrying transcription")
                     wav_buf.seek(0)
                     segments, info = self._model.transcribe(
                         wav_buf,
@@ -251,10 +251,10 @@ class WhisperASR:
                     )
                     text = " ".join(seg.text.strip() for seg in segments).strip()
                     lang = info.language if info.language else "es"
-                    logger.info(f"[C.Y.R.U.S] ASR: transcript='{text}' lang={lang}")
+                    logger.info(f"[JARVIS] ASR: transcript='{text}' lang={lang}")
                     return text, lang
                 except Exception as exc2:
                     raise ASRError(
-                        f"[C.Y.R.U.S] ASR: transcription failed on CPU too: {exc2}"
+                        f"[JARVIS] ASR: transcription failed on CPU too: {exc2}"
                     ) from exc2
-            raise ASRError(f"[C.Y.R.U.S] ASR: transcription failed: {exc}") from exc
+            raise ASRError(f"[JARVIS] ASR: transcription failed: {exc}") from exc

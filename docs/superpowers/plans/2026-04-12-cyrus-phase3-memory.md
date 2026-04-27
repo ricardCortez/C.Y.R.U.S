@@ -1,8 +1,8 @@
-# C.Y.R.U.S Phase 3 — Memory & Context Implementation Plan
+# JARVIS Phase 3 — Memory & Context Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement task-by-task.
 
-**Goal:** Give C.Y.R.U.S persistent long-term memory using Qdrant vector search + SQLite conversation history, so it remembers past interactions across sessions.
+**Goal:** Give JARVIS persistent long-term memory using Qdrant vector search + SQLite conversation history, so it remembers past interactions across sessions.
 
 **Architecture:** Each conversation turn is embedded with `sentence-transformers` and stored in Qdrant. SQLite holds full conversation logs. Before each LLM call, `MemoryManager` does a semantic search to retrieve relevant past context and injects it into the system prompt.
 
@@ -51,12 +51,12 @@ def test_embedder_returns_vector():
 
 def test_embedder_not_loaded_raises():
     from backend.modules.memory.embedder import Embedder
-    from backend.utils.exceptions import CYRUSError
+    from backend.utils.exceptions import JARVISError
     emb = Embedder()
     try:
         emb.embed("test")
         assert False
-    except CYRUSError:
+    except JARVISError:
         pass
 ```
 
@@ -68,13 +68,13 @@ pytest tests/test_memory.py -v
 - [ ] **Step 3: Implement `embedder.py`**
 
 ```python
-"""C.Y.R.U.S — Sentence embedding for semantic memory search."""
+"""JARVIS — Sentence embedding for semantic memory search."""
 from __future__ import annotations
 from typing import List
-from backend.utils.exceptions import CYRUSError
+from backend.utils.exceptions import JARVISError
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.memory.embedder")
+logger = get_logger("jarvis.memory.embedder")
 
 
 class Embedder:
@@ -85,11 +85,11 @@ class Embedder:
     def load(self) -> None:
         from sentence_transformers import SentenceTransformer
         self._model = SentenceTransformer(self._model_name)
-        logger.info(f"[C.Y.R.U.S] Embedder loaded: {self._model_name}")
+        logger.info(f"[JARVIS] Embedder loaded: {self._model_name}")
 
     def embed(self, text: str) -> List[float]:
         if self._model is None:
-            raise CYRUSError("[C.Y.R.U.S] Embedder not loaded — call load() first")
+            raise JARVISError("[JARVIS] Embedder not loaded — call load() first")
         vec = self._model.encode(text, normalize_embeddings=True)
         return vec.tolist()
 
@@ -137,12 +137,12 @@ def test_qdrant_store_upsert_and_search():
 - [ ] **Step 2: Implement `qdrant_store.py`**
 
 ```python
-"""C.Y.R.U.S — Qdrant vector store for semantic memory."""
+"""JARVIS — Qdrant vector store for semantic memory."""
 from __future__ import annotations
 from typing import Any, Dict, List, Optional
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.memory.qdrant")
+logger = get_logger("jarvis.memory.qdrant")
 _VECTOR_SIZE = 384  # all-MiniLM-L6-v2 output dimension
 
 
@@ -151,7 +151,7 @@ class QdrantStore:
         self,
         host: str = "localhost",
         port: int = 6333,
-        collection: str = "cyrus_memory",
+        collection: str = "jarvis_memory",
     ) -> None:
         self._host = host
         self._port = port
@@ -169,9 +169,9 @@ class QdrantStore:
                 collection_name=self._collection,
                 vectors_config=VectorParams(size=_VECTOR_SIZE, distance=Distance.COSINE),
             )
-            logger.info(f"[C.Y.R.U.S] Qdrant collection '{self._collection}' created")
+            logger.info(f"[JARVIS] Qdrant collection '{self._collection}' created")
         else:
-            logger.info(f"[C.Y.R.U.S] Qdrant collection '{self._collection}' ready")
+            logger.info(f"[JARVIS] Qdrant collection '{self._collection}' ready")
 
     def upsert(self, point_id: str, vector: List[float], payload: Dict[str, Any]) -> None:
         from qdrant_client.models import PointStruct
@@ -241,7 +241,7 @@ def test_conversation_db_save_and_retrieve():
 - [ ] **Step 2: Implement `conversation_db.py`**
 
 ```python
-"""C.Y.R.U.S — SQLite conversation history."""
+"""JARVIS — SQLite conversation history."""
 from __future__ import annotations
 import sqlite3
 import uuid
@@ -250,7 +250,7 @@ from pathlib import Path
 from typing import List, Dict
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.memory.db")
+logger = get_logger("jarvis.memory.db")
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS turns (
@@ -273,7 +273,7 @@ class ConversationDB:
         Path(self._path).parent.mkdir(parents=True, exist_ok=True)
         with self._conn() as conn:
             conn.executescript(_SCHEMA)
-        logger.info(f"[C.Y.R.U.S] ConversationDB initialised at {self._path}")
+        logger.info(f"[JARVIS] ConversationDB initialised at {self._path}")
 
     def save_turn(self, session_id: str, role: str, content: str, language: str = "en") -> str:
         turn_id = str(uuid.uuid4())
@@ -323,7 +323,7 @@ git commit -m "feat(memory): add SQLite ConversationDB"
 - [ ] **Step 1: Implement `memory_manager.py`**
 
 ```python
-"""C.Y.R.U.S — Memory orchestrator: store turns, search relevant context."""
+"""JARVIS — Memory orchestrator: store turns, search relevant context."""
 from __future__ import annotations
 import uuid
 from typing import List, Dict, Optional
@@ -332,7 +332,7 @@ from backend.modules.memory.qdrant_store import QdrantStore
 from backend.modules.memory.conversation_db import ConversationDB
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.memory")
+logger = get_logger("jarvis.memory")
 
 
 class MemoryManager:
@@ -442,7 +442,7 @@ memory:
   qdrant:
     host: "localhost"
     port: 6333
-    collection: "cyrus_memory"
+    collection: "jarvis_memory"
   embedder:
     model: "all-MiniLM-L6-v2"
   db_path: "data/conversations.db"

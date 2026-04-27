@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Upgrade C.Y.R.U.S audio pipeline with noise reduction, better ASR, neural speaker recognition (multi-role), and XTTS v2 voice cloning.
+**Goal:** Upgrade JARVIS audio pipeline with noise reduction, better ASR, neural speaker recognition (multi-role), and XTTS v2 voice cloning.
 
 **Architecture:** Denoiser cleans PCM before Whisper. SpeakerIntelligence (ECAPA-TDNN) replaces the PSD cosine SpeakerProfile and identifies owner/guest/unknown. XTTS v2 caches conditioning latents for fast cloned-voice synthesis. CyrusEngine routes responses per speaker role.
 
@@ -127,7 +127,7 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'backend.modules.audio
 
 ```python
 """
-C.Y.R.U.S — Spectral noise reduction for PCM audio.
+JARVIS — Spectral noise reduction for PCM audio.
 
 Applies stationary noise reduction (noisereduce) to int16 PCM bytes
 before VAD and Whisper transcription.
@@ -138,14 +138,14 @@ import numpy as np
 
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.audio.denoiser")
+logger = get_logger("jarvis.audio.denoiser")
 
 try:
     import noisereduce as nr
     _NR_AVAILABLE = True
 except ImportError:
     _NR_AVAILABLE = False
-    logger.warning("[C.Y.R.U.S] Denoiser: noisereduce not installed — passthrough mode")
+    logger.warning("[JARVIS] Denoiser: noisereduce not installed — passthrough mode")
 
 
 class Denoiser:
@@ -182,7 +182,7 @@ class Denoiser:
             out = np.clip(reduced * 32768.0, -32768, 32767).astype(np.int16)
             return out.tobytes()
         except Exception as exc:
-            logger.debug(f"[C.Y.R.U.S] Denoiser: failed ({exc}) — passthrough")
+            logger.debug(f"[JARVIS] Denoiser: failed ({exc}) — passthrough")
             return pcm
 ```
 
@@ -222,11 +222,11 @@ class SpeakerConfig:
     model_dir: str = "models/speaker/ecapa"  # local SpeechBrain model cache
 ```
 
-Then add `speaker` field to `CYRUSConfig` (around line 215, after `services`):
+Then add `speaker` field to `JARVISConfig` (around line 215, after `services`):
 
 ```python
 @dataclass
-class CYRUSConfig:
+class JARVISConfig:
     system: SystemConfig = field(default_factory=SystemConfig)
     local: LocalConfig = field(default_factory=LocalConfig)
     api: APIConfig = field(default_factory=APIConfig)
@@ -276,7 +276,7 @@ asr:
   language: es
   beam_size: 5
   vad_filter: false
-  initial_prompt: "Habla en español. C.Y.R.U.S es un asistente de IA personal."
+  initial_prompt: "Habla en español. JARVIS es un asistente de IA personal."
 ```
 
 And update the XTTS config under `local.tts.xtts`:
@@ -452,7 +452,7 @@ Expected: FAIL with `ModuleNotFoundError`
 
 ```python
 """
-C.Y.R.U.S — Neural speaker recognition with role-based access control.
+JARVIS — Neural speaker recognition with role-based access control.
 
 Uses SpeechBrain ECAPA-TDNN to compute 192-dim speaker embeddings.
 Supports multi-speaker enrollment (owner / guests) with online adaptive learning.
@@ -470,7 +470,7 @@ import numpy as np
 
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.audio.speaker_intelligence")
+logger = get_logger("jarvis.audio.speaker_intelligence")
 
 try:
     import torch
@@ -484,7 +484,7 @@ try:
     _SB_OK = True
 except ImportError:
     _SB_OK = False
-    logger.warning("[C.Y.R.U.S] SpeakerIntelligence: speechbrain not installed — fallback to UNKNOWN")
+    logger.warning("[JARVIS] SpeakerIntelligence: speechbrain not installed — fallback to UNKNOWN")
 
 
 class SpeakerRole(Enum):
@@ -538,19 +538,19 @@ class SpeakerIntelligence:
     def load(self) -> None:
         """Download (first run) and load the ECAPA-TDNN speaker encoder."""
         if not _SB_OK or not _TORCH_OK:
-            logger.warning("[C.Y.R.U.S] SpeakerIntelligence: speechbrain/torch unavailable — UNKNOWN fallback active")
+            logger.warning("[JARVIS] SpeakerIntelligence: speechbrain/torch unavailable — UNKNOWN fallback active")
             return
         try:
-            logger.info("[C.Y.R.U.S] SpeakerIntelligence: loading ECAPA-TDNN...")
+            logger.info("[JARVIS] SpeakerIntelligence: loading ECAPA-TDNN...")
             self._model_dir.mkdir(parents=True, exist_ok=True)
             self._classifier = EncoderClassifier.from_hparams(
                 source="speechbrain/spkrec-ecapa-voxceleb",
                 savedir=str(self._model_dir),
                 run_opts={"device": "cpu"},  # embedder always on CPU to save VRAM
             )
-            logger.info("[C.Y.R.U.S] SpeakerIntelligence: ECAPA-TDNN ready")
+            logger.info("[JARVIS] SpeakerIntelligence: ECAPA-TDNN ready")
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] SpeakerIntelligence: load failed ({exc}) — UNKNOWN fallback")
+            logger.warning(f"[JARVIS] SpeakerIntelligence: load failed ({exc}) — UNKNOWN fallback")
             self._classifier = None
 
         self._data_dir.mkdir(parents=True, exist_ok=True)
@@ -575,7 +575,7 @@ class SpeakerIntelligence:
                 return None
             return vec / norm
         except Exception as exc:
-            logger.debug(f"[C.Y.R.U.S] SpeakerIntelligence: embed error ({exc})")
+            logger.debug(f"[JARVIS] SpeakerIntelligence: embed error ({exc})")
             return None
 
     # ── Enrollment ────────────────────────────────────────────────────────────
@@ -591,7 +591,7 @@ class SpeakerIntelligence:
         embeddings = [self._embed(p) for p in pcm_samples]
         embeddings = [e for e in embeddings if e is not None]
         if not embeddings:
-            raise ValueError(f"[C.Y.R.U.S] SpeakerIntelligence: no usable audio for '{name}'")
+            raise ValueError(f"[JARVIS] SpeakerIntelligence: no usable audio for '{name}'")
 
         centroid = np.mean(embeddings, axis=0).astype(np.float32)
         norm = np.linalg.norm(centroid)
@@ -600,7 +600,7 @@ class SpeakerIntelligence:
 
         speaker_id = name.lower().strip()
         self._profiles[speaker_id] = {"role": role, "embedding": centroid}
-        logger.info(f"[C.Y.R.U.S] SpeakerIntelligence: enrolled '{speaker_id}' as {role.value} ({len(embeddings)} samples)")
+        logger.info(f"[JARVIS] SpeakerIntelligence: enrolled '{speaker_id}' as {role.value} ({len(embeddings)} samples)")
         self.save()
 
     # ── Identification ────────────────────────────────────────────────────────
@@ -629,12 +629,12 @@ class SpeakerIntelligence:
                 best_id    = spk_id
 
         if best_score < self._threshold:
-            logger.debug(f"[C.Y.R.U.S] SpeakerIntelligence: best={best_score:.3f} < {self._threshold} → UNKNOWN")
+            logger.debug(f"[JARVIS] SpeakerIntelligence: best={best_score:.3f} < {self._threshold} → UNKNOWN")
             return unknown
 
         profile = self._profiles[best_id]
         role    = profile["role"]
-        logger.info(f"[C.Y.R.U.S] SpeakerIntelligence: '{best_id}' ({role.value}) score={best_score:.3f}")
+        logger.info(f"[JARVIS] SpeakerIntelligence: '{best_id}' ({role.value}) score={best_score:.3f}")
 
         # Online adaptive learning: update centroid toward current embedding
         if best_score > 0.92:
@@ -662,7 +662,7 @@ class SpeakerIntelligence:
             npz = self._data_dir / f"{sid}.npz"
             if npz.exists():
                 npz.unlink()
-            logger.info(f"[C.Y.R.U.S] SpeakerIntelligence: removed '{sid}'")
+            logger.info(f"[JARVIS] SpeakerIntelligence: removed '{sid}'")
 
     # ── Persistence ───────────────────────────────────────────────────────────
 
@@ -672,7 +672,7 @@ class SpeakerIntelligence:
         for sid, profile in self._profiles.items():
             path = self._data_dir / f"{sid}.npz"
             np.savez(str(path), embedding=profile["embedding"], role=profile["role"].value)
-        logger.debug(f"[C.Y.R.U.S] SpeakerIntelligence: saved {len(self._profiles)} profiles")
+        logger.debug(f"[JARVIS] SpeakerIntelligence: saved {len(self._profiles)} profiles")
 
     def load_profiles(self) -> None:
         """Load all .npz profiles from data_dir."""
@@ -685,9 +685,9 @@ class SpeakerIntelligence:
                 role   = SpeakerRole(str(data["role"]))
                 emb    = data["embedding"].astype(np.float32)
                 self._profiles[sid] = {"role": role, "embedding": emb}
-                logger.info(f"[C.Y.R.U.S] SpeakerIntelligence: loaded '{sid}' ({role.value})")
+                logger.info(f"[JARVIS] SpeakerIntelligence: loaded '{sid}' ({role.value})")
             except Exception as exc:
-                logger.warning(f"[C.Y.R.U.S] SpeakerIntelligence: could not load {npz_path}: {exc}")
+                logger.warning(f"[JARVIS] SpeakerIntelligence: could not load {npz_path}: {exc}")
 ```
 
 - [ ] **Step 4: Run tests**
@@ -780,7 +780,7 @@ In `load()`, replace the section starting at `device = self._device` with:
                 device       = sel_device
                 compute_type = sel_compute
                 logger.warning(
-                    f"[C.Y.R.U.S] ASR: CUDA requested but cuDNN not available — "
+                    f"[JARVIS] ASR: CUDA requested but cuDNN not available — "
                     f"falling back to {device}/{compute_type}"
                 )
 ```
@@ -800,7 +800,7 @@ Also update the `WhisperModel` call to use `model_size` instead of `self._model_
 Change the default `initial_prompt` in `WhisperASR.__init__`:
 
 ```python
-        self._initial_prompt = initial_prompt or "Habla en español. C.Y.R.U.S es un asistente de IA personal."
+        self._initial_prompt = initial_prompt or "Habla en español. JARVIS es un asistente de IA personal."
 ```
 
 - [ ] **Step 6: Run test**
@@ -873,7 +873,7 @@ Replace the entire file with:
 
 ```python
 """
-C.Y.R.U.S — XTTS v2 TTS backend (Coqui AI) with voice cloning and latent caching.
+JARVIS — XTTS v2 TTS backend (Coqui AI) with voice cloning and latent caching.
 
 Offline neural TTS.  Reference WAV conditioning latents are cached after first
 computation so subsequent synthesis calls are fast (no repeated WAV loading).
@@ -890,7 +890,7 @@ import numpy as np
 from backend.utils.exceptions import TTSError
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.tts.xtts")
+logger = get_logger("jarvis.tts.xtts")
 
 _XTTS_MODEL = "tts_models/multilingual/multi-dataset/xtts_v2"
 
@@ -937,7 +937,7 @@ class XTTTS:
             _os.environ.setdefault("COQUI_TOS_AGREED", "1")
 
             dev = self._device or ("cuda" if torch.cuda.is_available() else "cpu")
-            logger.info(f"[C.Y.R.U.S] TTS XTTS: loading {_XTTS_MODEL} on {dev}...")
+            logger.info(f"[JARVIS] TTS XTTS: loading {_XTTS_MODEL} on {dev}...")
 
             manager = ModelManager()
             model_path, config_path, _ = manager.download_model(_XTTS_MODEL)
@@ -950,23 +950,23 @@ class XTTTS:
             self._tts.load_checkpoint(config, checkpoint_dir=model_path, eval=True)
             self._tts.to(dev)
             self._available = True
-            logger.info(f"[C.Y.R.U.S] TTS XTTS: ready on {dev}")
+            logger.info(f"[JARVIS] TTS XTTS: ready on {dev}")
 
             # Pre-compute latents if reference WAV already configured
             if self._reference_wav and Path(self._reference_wav).is_file():
                 self._precompute_latents()
 
         except ImportError as exc:
-            logger.warning(f"[C.Y.R.U.S] TTS XTTS: TTS package not available ({exc})")
+            logger.warning(f"[JARVIS] TTS XTTS: TTS package not available ({exc})")
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] TTS XTTS: load failed — {exc}")
+            logger.warning(f"[JARVIS] TTS XTTS: load failed — {exc}")
 
     def unload(self) -> None:
         """Release model and cached latents from memory."""
         self._tts            = None
         self._available      = False
         self._cached_latents = None
-        logger.info("[C.Y.R.U.S] TTS XTTS: unloaded")
+        logger.info("[JARVIS] TTS XTTS: unloaded")
 
     @property
     def available(self) -> bool:
@@ -982,7 +982,7 @@ class XTTTS:
         """
         self._reference_wav  = wav_path
         self._cached_latents = None   # force recompute on next synthesis
-        logger.info(f"[C.Y.R.U.S] TTS XTTS: reference voice set to {wav_path}")
+        logger.info(f"[JARVIS] TTS XTTS: reference voice set to {wav_path}")
         if self._available:
             self._precompute_latents()
 
@@ -991,16 +991,16 @@ class XTTTS:
         if not self._available or self._tts is None:
             return
         if not self._reference_wav or not Path(self._reference_wav).is_file():
-            logger.warning(f"[C.Y.R.U.S] TTS XTTS: reference WAV not found: {self._reference_wav}")
+            logger.warning(f"[JARVIS] TTS XTTS: reference WAV not found: {self._reference_wav}")
             return
         try:
             gpt_cond_latent, speaker_embedding = self._tts.get_conditioning_latents(
                 audio_path=[self._reference_wav]
             )
             self._cached_latents = (gpt_cond_latent, speaker_embedding)
-            logger.info("[C.Y.R.U.S] TTS XTTS: conditioning latents cached from reference WAV")
+            logger.info("[JARVIS] TTS XTTS: conditioning latents cached from reference WAV")
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] TTS XTTS: latent precompute failed ({exc})")
+            logger.warning(f"[JARVIS] TTS XTTS: latent precompute failed ({exc})")
             self._cached_latents = None
 
     # ── Synthesis ─────────────────────────────────────────────────────────────
@@ -1015,7 +1015,7 @@ class XTTTS:
             TTSError: If synthesis fails or the model is not loaded.
         """
         if not self._available or self._tts is None:
-            raise TTSError("[C.Y.R.U.S] XTTS: model not loaded")
+            raise TTSError("[JARVIS] XTTS: model not loaded")
 
         try:
             # Use cached latents (fast) or compute on demand
@@ -1052,13 +1052,13 @@ class XTTTS:
                 wf.writeframes(pcm.tobytes())
 
             wav_bytes = buf.getvalue()
-            logger.info(f"[C.Y.R.U.S] TTS XTTS: {len(wav_bytes)} bytes synthesised")
+            logger.info(f"[JARVIS] TTS XTTS: {len(wav_bytes)} bytes synthesised")
             return wav_bytes
 
         except TTSError:
             raise
         except Exception as exc:
-            raise TTSError(f"[C.Y.R.U.S] XTTS synthesis failed: {exc}") from exc
+            raise TTSError(f"[JARVIS] XTTS synthesis failed: {exc}") from exc
 ```
 
 - [ ] **Step 4: Run tests**
@@ -1163,22 +1163,22 @@ In `_init_models()`, replace the voice profile loading block:
                 profile = SpeakerProfile.load(profile_path, sample_rate=self._cfg.audio.input.sample_rate)
                 self._audio_in.set_voice_profile(profile)
             except Exception as exc:
-                logger.warning(f"[C.Y.R.U.S] Could not load voice profile: {exc}")
+                logger.warning(f"[JARVIS] Could not load voice profile: {exc}")
         else:
-            logger.info("[C.Y.R.U.S] No voice profile found — barge-in accepts any voice (run enrollment to set up)")
+            logger.info("[JARVIS] No voice profile found — barge-in accepts any voice (run enrollment to set up)")
 ```
 
 with:
 
 ```python
         # ── Speaker Intelligence (ECAPA-TDNN) ─────────────────────────────
-        logger.info("[C.Y.R.U.S] Loading speaker intelligence model...")
+        logger.info("[JARVIS] Loading speaker intelligence model...")
         await loop.run_in_executor(None, self._speaker_intel.load)
         enrolled = self._speaker_intel.list_speakers()
         if enrolled:
-            logger.info(f"[C.Y.R.U.S] Speaker profiles loaded: {[s['id'] for s in enrolled]}")
+            logger.info(f"[JARVIS] Speaker profiles loaded: {[s['id'] for s in enrolled]}")
         else:
-            logger.info("[C.Y.R.U.S] No speaker profiles enrolled — all voices accepted as UNKNOWN")
+            logger.info("[JARVIS] No speaker profiles enrolled — all voices accepted as UNKNOWN")
 ```
 
 - [ ] **Step 5: Apply Denoiser and SpeakerIntelligence in `_process_one_turn()`**
@@ -1205,7 +1205,7 @@ Find and replace the speaker gate section:
 ```python
         # Speaker gate — discard if voice doesn't match enrolled profile
         if not self._audio_in.verify_speaker(pcm):
-            logger.debug("[C.Y.R.U.S] Speaker gate: voice mismatch — discarding utterance")
+            logger.debug("[JARVIS] Speaker gate: voice mismatch — discarding utterance")
             await self._state.set_status(SystemStatus.LISTENING)
             await asyncio.sleep(0.05)
             return
@@ -1218,7 +1218,7 @@ with:
         speaker_result = await asyncio.get_event_loop().run_in_executor(
             None, self._speaker_intel.identify, pcm
         )
-        logger.debug(f"[C.Y.R.U.S] Speaker: {speaker_result.speaker_id} ({speaker_result.role.value}) conf={speaker_result.confidence:.2f}")
+        logger.debug(f"[JARVIS] Speaker: {speaker_result.speaker_id} ({speaker_result.role.value}) conf={speaker_result.confidence:.2f}")
 
         # UNKNOWN speakers can only ask general questions — flag for role-based response
         _speaker_role = speaker_result.role
@@ -1293,7 +1293,7 @@ with:
 
 - [ ] **Step 7: Add `_run_neural_enrollment()` method**
 
-Add this method to `CYRUSEngine` after `_run_enrollment()`:
+Add this method to `JARVISEngine` after `_run_enrollment()`:
 
 ```python
     async def _run_neural_enrollment(self, role: "SpeakerRole", name: str, samples: int = 5) -> None:
@@ -1333,7 +1333,7 @@ Add this method to `CYRUSEngine` after `_run_enrollment()`:
                     pcm_samples.append(pcm)
                 await self._bus.emit("enrollment", {"step": "result", "sample": i, "heard": f"Muestra {i} {'OK' if pcm else '(silencio)'}"})
             except Exception as exc:
-                logger.warning(f"[C.Y.R.U.S] Neural enrollment recording failed: {exc}")
+                logger.warning(f"[JARVIS] Neural enrollment recording failed: {exc}")
 
         if pcm_samples:
             try:
@@ -1348,7 +1348,7 @@ Add this method to `CYRUSEngine` after `_run_enrollment()`:
                 await self._bus.emit("debug", {"text": f"✓ {summary}", "level": "ok"})
             except Exception as exc:
                 summary = f"No se pudo registrar el perfil: {exc}"
-                logger.warning(f"[C.Y.R.U.S] Neural enrollment failed: {exc}")
+                logger.warning(f"[JARVIS] Neural enrollment failed: {exc}")
         else:
             summary = "No se detectó audio. Intenta en un ambiente más silencioso."
 
@@ -1437,7 +1437,7 @@ Add after `_run_neural_enrollment()`:
 - [ ] **Step 9: Verify the engine starts without errors**
 
 ```bash
-python -c "from backend.core.cyrus_engine import CYRUSEngine; e = CYRUSEngine(); print('Engine init OK')"
+python -c "from backend.core.cyrus_engine import JARVISEngine; e = JARVISEngine(); print('Engine init OK')"
 ```
 
 Expected: `Engine init OK`
@@ -1464,7 +1464,7 @@ Add a "Perfiles de Voz" section to the Control view that allows:
 
 - [ ] **Step 1: Add `speakerProfiles` to the Zustand store**
 
-In `frontend/src/store/useCYRUSStore.ts`, add to the store interface:
+In `frontend/src/store/useJARVISStore.ts`, add to the store interface:
 
 ```typescript
   speakerProfiles: { id: string; role: string }[]
@@ -1484,7 +1484,7 @@ In the WebSocket client file (wherever other events like `wake_words` are handle
 
 ```typescript
 case 'speaker_profiles':
-  useCYRUSStore.getState().setSpeakerProfiles(data.speakers ?? [])
+  useJARVISStore.getState().setSpeakerProfiles(data.speakers ?? [])
   break
 ```
 
@@ -1494,8 +1494,8 @@ Find the existing enrollment section in `ControlView.tsx` and add this new compo
 
 ```tsx
 function VoiceProfilesSection({ sendCommand }: { sendCommand: (cmd: string, payload?: object) => void }) {
-  const speakerProfiles = useCYRUSStore(s => s.speakerProfiles)
-  const enrollmentStep  = useCYRUSStore(s => s.enrollmentStep)
+  const speakerProfiles = useJARVISStore(s => s.speakerProfiles)
+  const enrollmentStep  = useJARVISStore(s => s.enrollmentStep)
   const [guestName, setGuestName] = useState('')
   const busy = enrollmentStep !== 'idle'
 
@@ -1598,7 +1598,7 @@ Expected: No errors
 - [ ] **Step 6: Commit**
 
 ```bash
-git add frontend/src/views/ControlView.tsx frontend/src/store/useCYRUSStore.ts
+git add frontend/src/views/ControlView.tsx frontend/src/store/useJARVISStore.ts
 git commit -m "feat(ui): add voice profile enrollment UI with owner/guest/TTS reference recording"
 ```
 
@@ -1614,10 +1614,10 @@ python -m backend.core.cyrus_engine
 
 Expected log lines:
 ```
-[C.Y.R.U.S] ASR: loading whisper/small on cpu (int8)...
-[C.Y.R.U.S] SpeakerIntelligence: loading ECAPA-TDNN...
-[C.Y.R.U.S] SpeakerIntelligence: ECAPA-TDNN ready
-[C.Y.R.U.S] All models initialised
+[JARVIS] ASR: loading whisper/small on cpu (int8)...
+[JARVIS] SpeakerIntelligence: loading ECAPA-TDNN...
+[JARVIS] SpeakerIntelligence: ECAPA-TDNN ready
+[JARVIS] All models initialised
 ```
 
 - [ ] **Run full test suite**

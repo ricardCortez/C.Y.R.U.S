@@ -1,7 +1,7 @@
 """
-C.Y.R.U.S — Remote Vision backend.
+JARVIS — Remote Vision backend.
 
-HTTP client for the C.Y.R.U.S Vision microservice (services/vision_server).
+HTTP client for the JARVIS Vision microservice (services/vision_server).
 Sends base64-encoded JPEG frames and receives detected objects + faces.
 
 Usage
@@ -21,7 +21,7 @@ from typing import Optional
 from backend.modules.vision.models import DetectedFace, DetectedObject, VisionContext
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.vision.remote")
+logger = get_logger("jarvis.vision.remote")
 
 try:
     import httpx
@@ -31,7 +31,7 @@ except ImportError:
 
 
 class RemoteVision:
-    """HTTP client for the C.Y.R.U.S Vision microservice.
+    """HTTP client for the JARVIS Vision microservice.
 
     Replaces the in-process VisionManager when ``services.vision.enabled: true``.
     Provides the same interface: ``get_context()`` returns a :class:`VisionContext`.
@@ -66,12 +66,12 @@ class RemoteVision:
                 if self._available:
                     data = r.json()
                     logger.info(
-                        f"[C.Y.R.U.S] RemoteVision: server ready — "
+                        f"[JARVIS] RemoteVision: server ready — "
                         f"yolo={data.get('yolo')}, face={data.get('face')}"
                     )
                 return self._available
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] RemoteVision: server not reachable at {self._host} ({exc})")
+            logger.warning(f"[JARVIS] RemoteVision: server not reachable at {self._host} ({exc})")
             self._available = False
             return False
 
@@ -102,7 +102,7 @@ class RemoteVision:
                     json={"frame_b64": frame_b64},
                 )
                 if r.status_code != 200:
-                    logger.warning(f"[C.Y.R.U.S] RemoteVision: server returned {r.status_code}")
+                    logger.warning(f"[JARVIS] RemoteVision: server returned {r.status_code}")
                     return VisionContext(source="remote")
 
                 data = r.json()
@@ -128,7 +128,7 @@ class RemoteVision:
                 return ctx
 
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] RemoteVision: analysis failed ({exc})")
+            logger.warning(f"[JARVIS] RemoteVision: analysis failed ({exc})")
             self._available = False
             return VisionContext(source="remote")
 

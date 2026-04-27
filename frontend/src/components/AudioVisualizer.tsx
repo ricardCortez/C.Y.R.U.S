@@ -1,6 +1,6 @@
 // frontend/src/components/AudioVisualizer.tsx
 import { motion, AnimatePresence } from 'framer-motion'
-import { useCYRUSStore } from '../store/useCYRUSStore'
+import { useJARVISStore } from '../store/useJARVISStore'
 import { AudioAnalyserHandle } from '../hooks/useAudioAnalyser'
 import { useEffect, useRef, useState } from 'react'
 
@@ -17,7 +17,7 @@ const STATE_COLOR: Record<string, string> = {
 }
 
 export function AudioVisualizer({ analyser }: Props) {
-  const systemState = useCYRUSStore((s) => s.systemState)
+  const systemState = useJARVISStore((s) => s.systemState)
   const [heights, setHeights] = useState<number[]>(Array(BARS).fill(2))
   const [audioAmp, setAudioAmp] = useState(0)
   const rafRef  = useRef<number>(0)

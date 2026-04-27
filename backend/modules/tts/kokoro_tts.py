@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Kokoro TTS local synthesis.
+JARVIS — Kokoro TTS local synthesis.
 
 Uses the ``kokoro`` Python package for offline British-English TTS.
 The model is lazy-loaded on first use.
@@ -16,14 +16,14 @@ import numpy as np
 from backend.utils.exceptions import KokoroUnavailableError, TTSError
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.tts.kokoro")
+logger = get_logger("jarvis.tts.kokoro")
 
 try:
     from kokoro import KPipeline
     _KOKORO_AVAILABLE = True
 except ImportError:
     _KOKORO_AVAILABLE = False
-    logger.warning("[C.Y.R.U.S] kokoro package not installed; local TTS unavailable")
+    logger.warning("[JARVIS] kokoro package not installed; local TTS unavailable")
 
 
 class KokoroTTS:
@@ -61,18 +61,18 @@ class KokoroTTS:
             KokoroUnavailableError: If the package is not installed or load fails.
         """
         if not _KOKORO_AVAILABLE:
-            raise KokoroUnavailableError("[C.Y.R.U.S] kokoro package not installed")
+            raise KokoroUnavailableError("[JARVIS] kokoro package not installed")
         try:
-            logger.info(f"[C.Y.R.U.S] TTS: loading Kokoro pipeline (voice={self._voice}, lang={self._lang_code})…")
+            logger.info(f"[JARVIS] TTS: loading Kokoro pipeline (voice={self._voice}, lang={self._lang_code})…")
             self._pipeline = KPipeline(lang_code=self._lang_code, repo_id="hexgrad/Kokoro-82M")
-            logger.info("[C.Y.R.U.S] TTS: Kokoro ready")
+            logger.info("[JARVIS] TTS: Kokoro ready")
         except Exception as exc:
-            raise KokoroUnavailableError(f"[C.Y.R.U.S] Kokoro load failed: {exc}") from exc
+            raise KokoroUnavailableError(f"[JARVIS] Kokoro load failed: {exc}") from exc
 
     def unload(self) -> None:
         """Release pipeline resources."""
         self._pipeline = None
-        logger.info("[C.Y.R.U.S] TTS: Kokoro unloaded")
+        logger.info("[JARVIS] TTS: Kokoro unloaded")
 
     # ------------------------------------------------------------------
     # Synthesis
@@ -92,9 +92,9 @@ class KokoroTTS:
             TTSError: On synthesis failure.
         """
         if self._pipeline is None:
-            raise KokoroUnavailableError("[C.Y.R.U.S] Kokoro not loaded; call load() first")
+            raise KokoroUnavailableError("[JARVIS] Kokoro not loaded; call load() first")
         if not text.strip():
-            logger.warning("[C.Y.R.U.S] TTS: empty text; returning silence")
+            logger.warning("[JARVIS] TTS: empty text; returning silence")
             return self._silence_wav(0.5)
 
         try:
@@ -110,14 +110,14 @@ class KokoroTTS:
                     audio_segments.append(audio)
 
             if not audio_segments:
-                raise TTSError("[C.Y.R.U.S] Kokoro returned no audio segments")
+                raise TTSError("[JARVIS] Kokoro returned no audio segments")
 
             combined = np.concatenate(audio_segments)
             return self._to_wav(combined)
         except (KokoroUnavailableError, TTSError):
             raise
         except Exception as exc:
-            raise TTSError(f"[C.Y.R.U.S] Kokoro synthesis error: {exc}") from exc
+            raise TTSError(f"[JARVIS] Kokoro synthesis error: {exc}") from exc
 
     # ------------------------------------------------------------------
     # Helpers

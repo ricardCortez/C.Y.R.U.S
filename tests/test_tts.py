@@ -1,7 +1,7 @@
 """
-C.Y.R.U.S — Tests for TTS modules.
+JARVIS — Tests for TTS modules.
 
-KokoroTTS model tests are skipped unless CYRUS_RUN_SLOW_TESTS=1.
+KokoroTTS model tests are skipped unless JARVIS_RUN_SLOW_TESTS=1.
 VoiceforgeTTS (edge-tts) tests require network and are also skipped in CI.
 """
 
@@ -18,12 +18,12 @@ from backend.utils.exceptions import KokoroUnavailableError, TTSError
 
 
 SLOW = pytest.mark.skipif(
-    os.getenv("CYRUS_RUN_SLOW_TESTS") != "1",
-    reason="Skipped: set CYRUS_RUN_SLOW_TESTS=1 to run model-load tests",
+    os.getenv("JARVIS_RUN_SLOW_TESTS") != "1",
+    reason="Skipped: set JARVIS_RUN_SLOW_TESTS=1 to run model-load tests",
 )
 NETWORK = pytest.mark.skipif(
-    os.getenv("CYRUS_RUN_NETWORK_TESTS") != "1",
-    reason="Skipped: set CYRUS_RUN_NETWORK_TESTS=1 to run network tests",
+    os.getenv("JARVIS_RUN_NETWORK_TESTS") != "1",
+    reason="Skipped: set JARVIS_RUN_NETWORK_TESTS=1 to run network tests",
 )
 
 
@@ -65,7 +65,7 @@ class TestKokoroModelLoad:
         tts = KokoroTTS(voice="af_sarah", speed=1.0)
         tts.load()
         assert tts._pipeline is not None
-        wav = tts.synthesise("Testing C.Y.R.U.S.")
+        wav = tts.synthesise("Testing JARVIS.")
         assert len(wav) > 0
         buf = io.BytesIO(wav)
         with wave.open(buf, "rb") as wf:
@@ -79,7 +79,7 @@ class TestVoiceforgeTTS:
     @pytest.mark.asyncio
     async def test_synthesise_returns_bytes(self):
         tts = VoiceforgeTTS(voice="en-GB-RyanNeural")
-        result = await tts.synthesise("Hello from C.Y.R.U.S.")
+        result = await tts.synthesise("Hello from JARVIS.")
         assert isinstance(result, bytes)
         assert len(result) > 0
 

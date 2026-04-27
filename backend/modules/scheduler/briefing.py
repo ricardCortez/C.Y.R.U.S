@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Morning Briefing Agent.
+JARVIS — Morning Briefing Agent.
 
 Collects data from multiple sources, asks the LLM to synthesize a concise
 Spanish audio briefing, then returns the text for TTS playback.
@@ -22,7 +22,7 @@ import httpx
 
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.scheduler.briefing")
+logger = get_logger("jarvis.scheduler.briefing")
 
 _DAYS_ES   = ["lunes","martes","miércoles","jueves","viernes","sábado","domingo"]
 _MONTHS_ES = ["enero","febrero","marzo","abril","mayo","junio",
@@ -71,7 +71,7 @@ async def _fetch_system_info() -> str:
         return "no disponible"
 
 
-_BRIEFING_PROMPT = """Eres CYRUS. Genera un briefing matutino en español para Ricardo.
+_BRIEFING_PROMPT = """Eres JARVIS. Genera un briefing matutino en español para Ricardo.
 Sé conciso — máximo 5 oraciones. Sin markdown. Habla como si lo saludaras al comenzar el día.
 Estructura: saludo con la fecha → clima → tareas pendientes → estado del sistema → cierre motivador breve.
 """

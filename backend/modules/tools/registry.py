@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Tool Registry.
+JARVIS — Tool Registry.
 
 Tools are async functions decorated with @tool.  The registry exposes them
 to the LLM orchestrator as a callable catalog.  Each tool has a name,
@@ -62,7 +62,7 @@ _REGISTRY = ToolRegistry()
 
 
 def tool(name: str, description: str, params: Optional[Dict[str, str]] = None):
-    """Decorator to register a function as a CYRUS tool.
+    """Decorator to register a function as a JARVIS tool.
 
     Usage::
 

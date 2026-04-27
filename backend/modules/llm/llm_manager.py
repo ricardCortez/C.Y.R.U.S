@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — LLM Manager.
+JARVIS — LLM Manager.
 
 Orchestrates LOCAL (Ollama) and API (Claude) backends with automatic
 fallback.  Injects the system prompt from ``soul.md`` and the conversation
@@ -19,7 +19,7 @@ from backend.utils.exceptions import LLMError, OllamaUnavailableError
 from backend.utils.helpers import retry_async
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.llm.manager")
+logger = get_logger("jarvis.llm.manager")
 
 
 class LLMManager:
@@ -28,7 +28,7 @@ class LLMManager:
     Args:
         ollama: Pre-configured :class:`OllamaClient`.
         claude: Pre-configured :class:`ClaudeClient` (used as fallback).
-        soul_text: Raw markdown from ``soul.md`` — the C.Y.R.U.S personality.
+        soul_text: Raw markdown from ``soul.md`` — the JARVIS personality.
         prompts: Parsed ``prompts.yaml`` dict.
         mode: ``"LOCAL"`` or ``"HYBRID"`` (enables API fallback).
         temperature: Default sampling temperature.
@@ -57,6 +57,40 @@ class LLMManager:
     # Public API
     # ------------------------------------------------------------------
 
+    # ── Query complexity routing ───────────────────────────────────────────
+
+    @staticmethod
+    def _classify_complexity(text: str) -> str:
+        """Classify query as 'simple', 'medium', or 'complex'.
+
+        Simple  → short, conversational, no technical depth needed
+        Medium  → factual questions, moderate length
+        Complex → code, multi-step reasoning, technical configuration
+        """
+        low  = text.lower().strip()
+        wlen = len(low.split())
+
+        # Always complex if technical keywords present
+        complex_signals = [
+            "código", "código", "script", "función", "configura", "instala",
+            "error", "bug", "depura", "implementa", "arquitectura", "diseña",
+            "explica cómo", "cómo funciona", "por qué falla",
+        ]
+        if any(s in low for s in complex_signals):
+            return "complex"
+
+        # Simple: very short, greetings, status checks
+        simple_signals = [
+            "hola", "gracias", "ok", "bien", "perfecto", "entendido",
+            "qué hora", "qué día", "cómo estás", "qué tal",
+        ]
+        if wlen <= 6 or any(s in low for s in simple_signals):
+            return "simple"
+
+        if wlen <= 20:
+            return "medium"
+        return "complex"
+
     async def generate(
         self,
         user_input: str,
@@ -84,9 +118,19 @@ class LLMManager:
         Raises:
             LLMError: If both local and API backends fail.
         """
+        complexity = self._classify_complexity(user_input)
         system_prompt = self._build_system_prompt(language, turn_count, vision_context, memory_context)
         messages = list(history or [])
         messages.append({"role": "user", "content": user_input})
+
+        # Routing: simple queries get fewer max_tokens (faster response)
+        routed_max_tokens = self._max_tokens
+        if complexity == "simple":
+            routed_max_tokens = min(self._max_tokens, 120)
+        elif complexity == "complex":
+            routed_max_tokens = min(self._max_tokens * 2, 600)
+
+        logger.info(f"[JARVIS] LLM: complexity={complexity} max_tokens={routed_max_tokens}")
 
         # Try local Ollama first — retry up to 2 times on transient errors (e.g.
         # HTTP 500 during cold model load which can take 30+ seconds).
@@ -95,28 +139,28 @@ class LLMManager:
         for _attempt in range(1, _MAX_ATTEMPTS + 1):
             try:
                 logger.info(
-                    f"[C.Y.R.U.S] LLM: attempting local Ollama inference"
+                    f"[JARVIS] LLM: attempting local Ollama inference"
                     f"{f' (attempt {_attempt}/{_MAX_ATTEMPTS})' if _attempt > 1 else ''}…"
                 )
                 raw = await self._ollama.chat(
                     messages,
                     system_prompt=system_prompt,
                     temperature=self._temperature,
-                    max_tokens=self._max_tokens,
+                    max_tokens=routed_max_tokens,
                 )
                 if raw.strip():
-                    logger.info(f"[C.Y.R.U.S] LLM: Ollama responded ({len(raw)} chars)")
+                    logger.info(f"[JARVIS] LLM: Ollama responded ({len(raw)} chars)")
                     return self._split_response(raw.strip())
-                logger.warning("[C.Y.R.U.S] LLM: Ollama returned empty response")
+                logger.warning("[JARVIS] LLM: Ollama returned empty response")
                 break   # empty response is not a transient error — skip retries
             except OllamaUnavailableError as exc:
-                logger.warning(f"[C.Y.R.U.S] LLM: Ollama unavailable — {exc}")
+                logger.warning(f"[JARVIS] LLM: Ollama unavailable — {exc}")
                 break   # connection refused → no point retrying immediately
             except LLMError as exc:
-                logger.warning(f"[C.Y.R.U.S] LLM: Ollama error — {exc}")
+                logger.warning(f"[JARVIS] LLM: Ollama error — {exc}")
                 if _attempt < _MAX_ATTEMPTS:
                     logger.info(
-                        f"[C.Y.R.U.S] LLM: retrying in {_RETRY_DELAY:.0f}s "
+                        f"[JARVIS] LLM: retrying in {_RETRY_DELAY:.0f}s "
                         f"(model may still be loading)…"
                     )
                     await asyncio.sleep(_RETRY_DELAY)
@@ -131,22 +175,22 @@ class LLMManager:
             "Lo siento, en este momento no puedo procesar tu solicitud. "
             "Mi motor de razonamiento parece estar fuera de línea.",
         )
-        logger.error("[C.Y.R.U.S] LLM: all backends failed; returning canned response")
+        logger.error("[JARVIS] LLM: all backends failed; returning canned response")
         return canned, canned
 
     async def _claude_fallback(self, messages: List[dict], system_prompt: str) -> tuple[str, str]:
         """Attempt Claude API with retry."""
         try:
-            logger.info("[C.Y.R.U.S] LLM: falling back to Claude API…")
+            logger.info("[JARVIS] LLM: falling back to Claude API…")
             raw = await self._claude.chat(
                 messages,
                 system_prompt=system_prompt,
                 temperature=self._temperature,
             )
-            logger.info("[C.Y.R.U.S] LLM: Claude API responded")
+            logger.info("[JARVIS] LLM: Claude API responded")
             return self._split_response(raw.strip())
         except Exception as exc:
-            logger.error(f"[C.Y.R.U.S] LLM: Claude API also failed — {exc}")
+            logger.error(f"[JARVIS] LLM: Claude API also failed — {exc}")
             msg = (
                 "Lo siento, tengo dificultades con mis motores de razonamiento. "
                 "Por favor intenta de nuevo en un momento."
@@ -187,7 +231,7 @@ class LLMManager:
             speech = prepare_speech(speech_raw) if speech_raw else prepare_speech(display)
             if not display:
                 display = speech_raw or raw
-            logger.debug(f"[C.Y.R.U.S] LLM: VOZ marker stripped — display {len(display)}ch, speech {len(speech)}ch")
+            logger.debug(f"[JARVIS] LLM: VOZ marker stripped — display {len(display)}ch, speech {len(speech)}ch")
             return display, speech
 
         # No VOZ marker — use raw as display, clean version for speech

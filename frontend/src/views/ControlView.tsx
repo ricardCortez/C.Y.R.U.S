@@ -1,5 +1,5 @@
 /**
- * C.Y.R.U.S — Control Panel  (route "/control")
+ * JARVIS — Control Panel  (route "/control")
  * Redesigned: 2-column dashboard, real-time pipeline monitor, full-width layout
  */
 
@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, useMemo } from 'react'
 import { useNavigate }          from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import ReactMarkdown            from 'react-markdown'
-import { useCYRUSStore, SystemState, LogEntry, ServiceStatus } from '../store/useCYRUSStore'
+import { useJARVISStore, SystemState, LogEntry, ServiceStatus } from '../store/useJARVISStore'
 import { useWebSocket }         from '../hooks/useWebSocket'
 
 // ── Design tokens ────────────────────────────────────────────────────────────
@@ -230,8 +230,8 @@ function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
 interface StageInfo { label: string; state: 'idle'|'active'|'done'|'error'; latency?: string; detail?: string }
 
 function usePipelineInfo() {
-  const state = useCYRUSStore(s => s.systemState)
-  const logs  = useCYRUSStore(s => s.logs)
+  const state = useJARVISStore(s => s.systemState)
+  const logs  = useJARVISStore(s => s.logs)
 
   return useMemo(() => {
     const recent = logs.slice(-60)
@@ -286,7 +286,7 @@ function usePipelineInfo() {
 
 function PipelineMonitor() {
   const stages = usePipelineInfo()
-  const state  = useCYRUSStore(s => s.systemState)
+  const state  = useJARVISStore(s => s.systemState)
 
   const stageColor = (s: StageInfo['state']) =>
     s === 'active' ? C.amber : s === 'done' ? C.green : s === 'error' ? C.red : C.textDim
@@ -345,11 +345,11 @@ function PipelineMonitor() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function TabSistema() {
-  const state    = useCYRUSStore(s => s.systemState)
-  const wsOn     = useCYRUSStore(s => s.wsConnected)
-  const stats    = useCYRUSStore(s => s.systemStats)
-  const logs     = useCYRUSStore(s => s.logs)
-  const clearLogs= useCYRUSStore(s => s.clearLogs)
+  const state    = useJARVISStore(s => s.systemState)
+  const wsOn     = useJARVISStore(s => s.wsConnected)
+  const stats    = useJARVISStore(s => s.systemStats)
+  const logs     = useJARVISStore(s => s.logs)
+  const clearLogs= useJARVISStore(s => s.clearLogs)
   const endRef   = useRef<HTMLDivElement>(null)
 
   const [sim, setSim] = useState({ cpu: 18, ram: 55 })
@@ -476,17 +476,17 @@ function TabSistema() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function TabConfig({ sendCommand }: { sendCommand: (cmd: string, extra?: object) => void }) {
-  const ttsSpeed       = useCYRUSStore(s => s.ttsSpeed)
-  const setTtsSpeed    = useCYRUSStore(s => s.setTtsSpeed)
-  const availModels    = useCYRUSStore(s => s.availableModels)
-  const currentModel   = useCYRUSStore(s => s.currentModel)
-  const sysStats       = useCYRUSStore(s => s.systemStats)
-  const particleCount  = useCYRUSStore(s => s.particleCount)
-  const bloomIntensity = useCYRUSStore(s => s.bloomIntensity)
-  const orbSpeed       = useCYRUSStore(s => s.orbSpeed)
-  const setParticleCount  = useCYRUSStore(s => s.setParticleCount)
-  const setBloomIntensity = useCYRUSStore(s => s.setBloomIntensity)
-  const setOrbSpeed       = useCYRUSStore(s => s.setOrbSpeed)
+  const ttsSpeed       = useJARVISStore(s => s.ttsSpeed)
+  const setTtsSpeed    = useJARVISStore(s => s.setTtsSpeed)
+  const availModels    = useJARVISStore(s => s.availableModels)
+  const currentModel   = useJARVISStore(s => s.currentModel)
+  const sysStats       = useJARVISStore(s => s.systemStats)
+  const particleCount  = useJARVISStore(s => s.particleCount)
+  const bloomIntensity = useJARVISStore(s => s.bloomIntensity)
+  const orbSpeed       = useJARVISStore(s => s.orbSpeed)
+  const setParticleCount  = useJARVISStore(s => s.setParticleCount)
+  const setBloomIntensity = useJARVISStore(s => s.setBloomIntensity)
+  const setOrbSpeed       = useJARVISStore(s => s.setOrbSpeed)
 
   const [llmModel,    setLlmModel]   = useState(currentModel || '')
   const [ttsEngine,   setTtsEngine]  = useState('edge-tts')
@@ -506,7 +506,7 @@ function TabConfig({ sendCommand }: { sendCommand: (cmd: string, extra?: object)
 
   const testTts = () => {
     setTesting(true)
-    sendCommand('test_tts', { text: testText.trim() || 'Sistema CYRUS operativo.', engine: ttsEngine })
+    sendCommand('test_tts', { text: testText.trim() || 'Sistema JARVIS operativo.', engine: ttsEngine })
     setTimeout(() => setTesting(false), 4000)
   }
 
@@ -636,7 +636,7 @@ function TabConfig({ sendCommand }: { sendCommand: (cmd: string, extra?: object)
               <Btn onClick={testTts} disabled={testing} color={C.purple} style={{ flex:1, justifyContent:'center' }}>
                 {testing ? '◈ REPRODUCIENDO…' : '▶ PROBAR'}
               </Btn>
-              <Btn onClick={() => setTestText('Hola Ricardo. Sistema CYRUS operativo al cien por ciento.')} small color={C.textDim}>
+              <Btn onClick={() => setTestText('Hola Ricardo. Sistema JARVIS operativo al cien por ciento.')} small color={C.textDim}>
                 DEMO
               </Btn>
             </div>
@@ -671,10 +671,10 @@ function TabConfig({ sendCommand }: { sendCommand: (cmd: string, extra?: object)
 // ═══════════════════════════════════════════════════════════════════════════
 
 function VoiceProfilesSection({ sendCommand }: { sendCommand: (cmd: string, payload?: object) => void }) {
-  const profiles   = useCYRUSStore(s => s.speakerProfiles)
-  const enrollStep = useCYRUSStore(s => s.enrollmentStep)
-  const enrollN    = useCYRUSStore(s => s.enrollmentSample)
-  const enrollT    = useCYRUSStore(s => s.enrollmentTotal)
+  const profiles   = useJARVISStore(s => s.speakerProfiles)
+  const enrollStep = useJARVISStore(s => s.enrollmentStep)
+  const enrollN    = useJARVISStore(s => s.enrollmentSample)
+  const enrollT    = useJARVISStore(s => s.enrollmentTotal)
   const [guest, setGuest] = useState('')
   const busy = enrollStep !== 'idle' && enrollStep !== 'done'
 
@@ -749,10 +749,10 @@ const mdComponents = {
 }
 
 function TabVoz({ sendCommand }: { sendCommand: (cmd: string, extra?: object) => void }) {
-  const wakeWords  = useCYRUSStore(s => s.wakeWords)
-  const transcript = useCYRUSStore(s => s.transcript)
-  const logs       = useCYRUSStore(s => s.logs)
-  const wsOn       = useCYRUSStore(s => s.wsConnected)
+  const wakeWords  = useJARVISStore(s => s.wakeWords)
+  const transcript = useJARVISStore(s => s.transcript)
+  const logs       = useJARVISStore(s => s.logs)
+  const wsOn       = useJARVISStore(s => s.wsConnected)
   const [newWord, setNewWord] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
 
@@ -830,7 +830,7 @@ function TabVoz({ sendCommand }: { sendCommand: (cmd: string, extra?: object) =>
             {transcript.map(e => (
               <div key={e.id} style={{ display:'flex', flexDirection:'column', alignItems: e.role==='user'?'flex-end':'flex-start' }}>
                 <span style={{ ...mono(7, C.textDim), marginBottom:3 }}>
-                  {e.role==='user'?'TÚ':'CYRUS'} · {e.timestamp.toLocaleTimeString('es-PE',{hour12:false})}
+                  {e.role==='user'?'TÚ':'JARVIS'} · {e.timestamp.toLocaleTimeString('es-PE',{hour12:false})}
                 </span>
                 <div style={{
                   ...mono(10, e.role==='user' ? '#70b8d8' : '#a0d8f0'),
@@ -839,7 +839,7 @@ function TabVoz({ sendCommand }: { sendCommand: (cmd: string, extra?: object) =>
                   background: e.role==='user' ? 'rgba(0,80,130,0.2)' : 'rgba(0,30,60,0.4)',
                   border: `1px solid ${e.role==='user' ? '#0a3a5588' : '#0a284088'}`,
                 }}>
-                  {e.role==='cyrus' ? <ReactMarkdown components={mdComponents}>{e.text}</ReactMarkdown> : e.text}
+                  {e.role==='jarvis' ? <ReactMarkdown components={mdComponents}>{e.text}</ReactMarkdown> : e.text}
                 </div>
               </div>
             ))}
@@ -856,7 +856,7 @@ function TabVoz({ sendCommand }: { sendCommand: (cmd: string, extra?: object) =>
 // ═══════════════════════════════════════════════════════════════════════════
 
 function TabAPI({ sendCommand }: { sendCommand: (cmd: string, extra?: object) => void }) {
-  const svc = useCYRUSStore(s => s.serviceStatus)
+  const svc = useJARVISStore(s => s.serviceStatus)
   useEffect(() => { sendCommand('probe_services') }, [sendCommand])
 
   const services: { key: keyof ServiceStatus; label: string; port: string; note: string }[] = [
@@ -955,12 +955,12 @@ function TabAgenda({ sendCommand }: { sendCommand: (cmd: string, extra?: object)
   const [dueHint,      setDueHint]      = useState('')
   const [briefingTime, setBriefingTime] = useState('07:00')
   const [jobs,         setJobs]         = useState<any[]>([])
-  const wsOn   = useCYRUSStore(s => s.wsConnected)
-  const logs   = useCYRUSStore(s => s.logs)
+  const wsOn   = useJARVISStore(s => s.wsConnected)
+  const logs   = useJARVISStore(s => s.logs)
 
   useEffect(() => { if (!wsOn) return; sendCommand('planner_list'); sendCommand('scheduler_list') }, [wsOn, sendCommand])
-  useEffect(() => { const raw = (window as any).__cyrus_planner_tasks;  if (raw) setTasks(raw) }, [logs])
-  useEffect(() => { const raw = (window as any).__cyrus_scheduler_jobs; if (raw) setJobs(raw)  }, [logs])
+  useEffect(() => { const raw = (window as any).__jarvis_planner_tasks;  if (raw) setTasks(raw) }, [logs])
+  useEffect(() => { const raw = (window as any).__jarvis_scheduler_jobs; if (raw) setJobs(raw)  }, [logs])
 
   const addTask = () => {
     if (!newTask.trim()) return
@@ -1120,7 +1120,7 @@ export function ControlView() {
         </button>
 
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <span style={{ ...mono(14, C.cyan), letterSpacing:'0.5em', textShadow:`0 0 18px ${C.cyan}44` }}>C.Y.R.U.S</span>
+          <span style={{ ...mono(14, C.cyan), letterSpacing:'0.5em', textShadow:`0 0 18px ${C.cyan}44` }}>JARVIS</span>
           <span style={mono(8, C.textDim)}>CONTROL PANEL</span>
         </div>
 
@@ -1141,7 +1141,7 @@ export function ControlView() {
 
         <div style={{ textAlign:'center', marginTop:24 }}>
           <span style={mono(7, C.textDim)}>
-            C.Y.R.U.S v1.0 · COGNITIVE SYSTEM FOR REAL-TIME UTILITY & SERVICES
+            JARVIS v1.0 · COGNITIVE SYSTEM FOR REAL-TIME UTILITY & SERVICES
           </span>
         </div>
       </div>

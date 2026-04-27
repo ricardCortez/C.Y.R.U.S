@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Edge-TTS fallback (Microsoft Azure TTS via edge-tts package).
+JARVIS — Edge-TTS fallback (Microsoft Azure TTS via edge-tts package).
 
 Used when Kokoro is unavailable.  edge-tts requires no API key — it uses
 Microsoft's free TTS endpoint used by the Edge browser.
@@ -15,14 +15,14 @@ from typing import Optional
 from backend.utils.exceptions import TTSAPIError, TTSError
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.tts.edge")
+logger = get_logger("jarvis.tts.edge")
 
 try:
     import edge_tts
     _EDGE_TTS_AVAILABLE = True
 except ImportError:
     _EDGE_TTS_AVAILABLE = False
-    logger.warning("[C.Y.R.U.S] edge-tts not installed; API TTS fallback unavailable")
+    logger.warning("[JARVIS] edge-tts not installed; API TTS fallback unavailable")
 
 
 class VoiceforgeTTS:
@@ -60,7 +60,7 @@ class VoiceforgeTTS:
             TTSAPIError: If edge-tts is unavailable or the API call fails.
         """
         if not _EDGE_TTS_AVAILABLE:
-            raise TTSAPIError("[C.Y.R.U.S] edge-tts package not installed")
+            raise TTSAPIError("[JARVIS] edge-tts package not installed")
         if not text.strip():
             return b""
 
@@ -76,7 +76,7 @@ class VoiceforgeTTS:
                 if chunk["type"] == "audio":
                     mp3_chunks.append(chunk["data"])
             data = b"".join(mp3_chunks)
-            logger.info(f"[C.Y.R.U.S] TTS (edge): synthesised {len(data)} bytes")
+            logger.info(f"[JARVIS] TTS (edge): synthesised {len(data)} bytes")
             return data
         except Exception as exc:
-            raise TTSAPIError(f"[C.Y.R.U.S] Edge-TTS error: {exc}") from exc
+            raise TTSAPIError(f"[JARVIS] Edge-TTS error: {exc}") from exc

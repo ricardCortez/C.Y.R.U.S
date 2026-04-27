@@ -1,9 +1,9 @@
-"""C.Y.R.U.S — Qdrant vector store for semantic memory."""
+"""JARVIS — Qdrant vector store for semantic memory."""
 from __future__ import annotations
 from typing import Any, Dict, List
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.memory.qdrant")
+logger = get_logger("jarvis.memory.qdrant")
 
 _VECTOR_SIZE = 384  # all-MiniLM-L6-v2 output dimension
 
@@ -13,7 +13,7 @@ class QdrantStore:
         self,
         host: str = "localhost",
         port: int = 6333,
-        collection: str = "cyrus_memory",
+        collection: str = "jarvis_memory",
     ) -> None:
         self._host = host
         self._port = port
@@ -30,9 +30,9 @@ class QdrantStore:
                 collection_name=self._collection,
                 vectors_config=VectorParams(size=_VECTOR_SIZE, distance=Distance.COSINE),
             )
-            logger.info(f"[C.Y.R.U.S] Qdrant collection '{self._collection}' created")
+            logger.info(f"[JARVIS] Qdrant collection '{self._collection}' created")
         else:
-            logger.info(f"[C.Y.R.U.S] Qdrant collection '{self._collection}' ready")
+            logger.info(f"[JARVIS] Qdrant collection '{self._collection}' ready")
 
     def upsert(self, point_id: str, vector: List[float], payload: Dict[str, Any]) -> None:
         if not self._client:

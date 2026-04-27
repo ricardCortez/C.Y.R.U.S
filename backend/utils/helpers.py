@@ -1,4 +1,4 @@
-"""C.Y.R.U.S — Miscellaneous utility helpers."""
+"""JARVIS — Miscellaneous utility helpers."""
 
 from __future__ import annotations
 
@@ -68,7 +68,7 @@ def timeit(label: str = "") -> Callable[[F], F]:
             result = func(*args, **kwargs)
             elapsed = (time.perf_counter() - t0) * 1000
             tag = label or func.__name__
-            print(f"[C.Y.R.U.S] {tag} took {elapsed:.1f} ms")
+            print(f"[JARVIS] {tag} took {elapsed:.1f} ms")
             return result
         return wrapper  # type: ignore[return-value]
     return decorator  # type: ignore[return-value]

@@ -1,9 +1,9 @@
 /**
- * C.Y.R.U.S — JARVIS-style holographic display.
+ * JARVIS — JARVIS-style holographic display.
  * SVG rings + orbital dots + reactive glow — all driven by WebSocket state.
  */
 
-import { useCYRUSStore, SystemState } from '../store/useCYRUSStore'
+import { useJARVISStore, SystemState } from '../store/useJARVISStore'
 
 // ── State → visual mapping ─────────────────────────────────────────────────
 
@@ -95,7 +95,7 @@ function ArcSegments({ r, color, count = 6 }: { r: number; color: string; count?
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function HologramView() {
-  const state = useCYRUSStore(s => s.systemState)
+  const state = useJARVISStore(s => s.systemState)
   const c     = COLOR[state]
   const label = LABEL[state]
   const cls   = ringClasses(state)
@@ -272,7 +272,7 @@ export function HologramView() {
               textShadow: `0 0 8px ${c}, 0 0 20px ${c}88`,
             }}
           >
-            C.Y.R.U.S
+            JARVIS
           </span>
           <div
             className="my-1"

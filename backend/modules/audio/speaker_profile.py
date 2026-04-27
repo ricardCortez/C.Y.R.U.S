@@ -1,10 +1,10 @@
 """
-C.Y.R.U.S — Lightweight speaker verification.
+JARVIS — Lightweight speaker verification.
 
 Builds a voice fingerprint from PCM enrollment samples using a mean
 power-spectral-density vector (no external ML dependencies — numpy only).
 Cosine similarity against the stored fingerprint gates barge-in detection
-so only the enrolled user's voice interrupts CYRUS mid-speech.
+so only the enrolled user's voice interrupts JARVIS mid-speech.
 
 Usage::
 
@@ -25,7 +25,7 @@ import numpy as np
 
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.audio.speaker")
+logger = get_logger("jarvis.audio.speaker")
 
 # Tuning
 _N_FFT          = 512          # FFT size for spectral analysis
@@ -85,7 +85,7 @@ class SpeakerProfile:
         threshold: float = _DEFAULT_THRESH,
     ) -> None:
         if not fingerprints:
-            raise ValueError("[C.Y.R.U.S] SpeakerProfile: need at least one fingerprint")
+            raise ValueError("[JARVIS] SpeakerProfile: need at least one fingerprint")
         self._sample_rate = sample_rate
         self._threshold   = threshold
         self._centroid    = np.mean(fingerprints, axis=0).astype(np.float32)
@@ -121,8 +121,8 @@ class SpeakerProfile:
         fps = [_compute_fingerprint(pcm, sample_rate) for pcm in pcm_list]
         fps = [fp for fp in fps if fp is not None]
         if not fps:
-            raise ValueError("[C.Y.R.U.S] SpeakerProfile: no usable audio in enrollment samples")
-        logger.info(f"[C.Y.R.U.S] SpeakerProfile: built from {len(fps)} samples")
+            raise ValueError("[JARVIS] SpeakerProfile: no usable audio in enrollment samples")
+        logger.info(f"[JARVIS] SpeakerProfile: built from {len(fps)} samples")
         return cls(fps, sample_rate=sample_rate, threshold=threshold)
 
     # ------------------------------------------------------------------
@@ -133,7 +133,7 @@ class SpeakerProfile:
         """Save profile centroid to a .npy file."""
         path.parent.mkdir(parents=True, exist_ok=True)
         np.save(str(path), self._centroid)
-        logger.info(f"[C.Y.R.U.S] SpeakerProfile: saved to {path}")
+        logger.info(f"[JARVIS] SpeakerProfile: saved to {path}")
 
     @classmethod
     def load(cls, path: Path, sample_rate: int = 16000, threshold: float = _DEFAULT_THRESH) -> "SpeakerProfile":
@@ -152,7 +152,7 @@ class SpeakerProfile:
         profile._sample_rate = sample_rate
         profile._threshold   = threshold
         profile._centroid    = centroid
-        logger.info(f"[C.Y.R.U.S] SpeakerProfile: loaded from {path}")
+        logger.info(f"[JARVIS] SpeakerProfile: loaded from {path}")
         return profile
 
     # ------------------------------------------------------------------
@@ -170,5 +170,5 @@ class SpeakerProfile:
     def is_match(self, pcm: bytes) -> bool:
         """Return True if *pcm* resembles the enrolled voice."""
         score = self.match_score(pcm)
-        logger.debug(f"[C.Y.R.U.S] SpeakerProfile: similarity={score:.3f} threshold={self._threshold}")
+        logger.debug(f"[JARVIS] SpeakerProfile: similarity={score:.3f} threshold={self._threshold}")
         return score >= self._threshold

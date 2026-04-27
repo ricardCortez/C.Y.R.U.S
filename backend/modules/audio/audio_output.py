@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Audio Output (speaker playback).
+JARVIS — Audio Output (speaker playback).
 
 Plays PCM or WAV bytes through the system speaker using PyAudio.
 Supports volume control and async non-blocking playback.
@@ -19,7 +19,7 @@ import pyaudio
 from backend.utils.exceptions import AudioOutputError
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.audio.output")
+logger = get_logger("jarvis.audio.output")
 
 
 class AudioOutput:
@@ -58,7 +58,7 @@ class AudioOutput:
         """Initialise PyAudio."""
         self._pa = pyaudio.PyAudio()
         self._device_index = self._resolve_device()
-        logger.info(f"[C.Y.R.U.S] AudioOutput: opened device index={self._device_index}")
+        logger.info(f"[JARVIS] AudioOutput: opened device index={self._device_index}")
 
     def close(self) -> None:
         """Terminate PyAudio."""
@@ -84,7 +84,7 @@ class AudioOutput:
                 and info["maxOutputChannels"] > 0
             ):
                 return i
-        logger.warning(f"[C.Y.R.U.S] AudioOutput: '{self._device_name}' not found; using default")
+        logger.warning(f"[JARVIS] AudioOutput: '{self._device_name}' not found; using default")
         return None
 
     # ------------------------------------------------------------------
@@ -122,7 +122,7 @@ class AudioOutput:
     def _play_wav_sync(self, wav_bytes: bytes) -> None:
         """Synchronous WAV playback (runs in executor)."""
         if self._pa is None:
-            raise AudioOutputError("[C.Y.R.U.S] AudioOutput not opened")
+            raise AudioOutputError("[JARVIS] AudioOutput not opened")
         self._stop_flag.clear()   # reset before each playback
         try:
             buf = io.BytesIO(wav_bytes)
@@ -144,7 +144,7 @@ class AudioOutput:
                     data = wf.readframes(chunk)
                     while data:
                         if self._stop_flag.is_set():
-                            logger.debug("[C.Y.R.U.S] AudioOutput: playback interrupted (barge-in)")
+                            logger.debug("[JARVIS] AudioOutput: playback interrupted (barge-in)")
                             break
                         data = self._apply_volume(data, sampwidth)
                         stream.write(data)
@@ -153,14 +153,14 @@ class AudioOutput:
                     stream.stop_stream()
                     stream.close()
         except wave.Error as exc:
-            raise AudioOutputError(f"[C.Y.R.U.S] Invalid WAV data: {exc}") from exc
+            raise AudioOutputError(f"[JARVIS] Invalid WAV data: {exc}") from exc
         except OSError as exc:
-            raise AudioOutputError(f"[C.Y.R.U.S] AudioOutput stream error: {exc}") from exc
+            raise AudioOutputError(f"[JARVIS] AudioOutput stream error: {exc}") from exc
 
     def _play_pcm_sync(self, pcm_bytes: bytes, sample_rate: int) -> None:
         """Synchronous PCM playback (runs in executor)."""
         if self._pa is None:
-            raise AudioOutputError("[C.Y.R.U.S] AudioOutput not opened")
+            raise AudioOutputError("[JARVIS] AudioOutput not opened")
         stream = self._pa.open(
             format=pyaudio.paInt16,
             channels=self._channels,

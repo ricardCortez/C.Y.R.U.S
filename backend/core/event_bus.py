@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Async Event Bus.
+JARVIS — Async Event Bus.
 
 Lightweight publish/subscribe dispatcher built on asyncio queues.
 Modules publish events; the WebSocket server and other listeners subscribe.
@@ -13,7 +13,7 @@ from typing import Any, Callable, Dict, List
 
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.event_bus")
+logger = get_logger("jarvis.event_bus")
 
 
 class EventBus:
@@ -30,7 +30,7 @@ class EventBus:
         async def handle(payload):
             print(payload["text"])
 
-        await bus.emit("transcript", {"text": "Hola C.Y.R.U.S"})
+        await bus.emit("transcript", {"text": "Hola JARVIS"})
     """
 
     def __init__(self) -> None:
@@ -63,7 +63,7 @@ class EventBus:
             handler: Async or sync callable receiving one ``dict`` argument.
         """
         self._listeners[event].append(handler)
-        logger.debug(f"[C.Y.R.U.S] EventBus: subscribed {handler.__name__!r} to '{event}'")
+        logger.debug(f"[JARVIS] EventBus: subscribed {handler.__name__!r} to '{event}'")
 
     # ------------------------------------------------------------------
     # Publishing
@@ -79,7 +79,7 @@ class EventBus:
         data = payload or {}
         handlers = self._listeners.get(event, [])
         if not handlers:
-            logger.debug(f"[C.Y.R.U.S] EventBus: no listeners for '{event}'")
+            logger.debug(f"[JARVIS] EventBus: no listeners for '{event}'")
             return
 
         for handler in handlers:
@@ -88,7 +88,7 @@ class EventBus:
                 if asyncio.iscoroutine(result):
                     await result
             except Exception as exc:
-                logger.error(f"[C.Y.R.U.S] EventBus: handler {handler.__name__!r} raised {exc}")
+                logger.error(f"[JARVIS] EventBus: handler {handler.__name__!r} raised {exc}")
 
 
 # Module-level singleton — import and use directly.

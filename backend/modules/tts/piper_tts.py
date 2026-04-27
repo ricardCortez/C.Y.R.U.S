@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Piper TTS local synthesis.
+JARVIS — Piper TTS local synthesis.
 
 High-quality offline TTS using Piper (https://github.com/rhasspy/piper).
 Produces significantly more natural-sounding Spanish than Kokoro.
@@ -9,7 +9,7 @@ Installation (choose one):
   # OR download piper.exe from https://github.com/rhasspy/piper/releases
 
 Recommended Spanish voice models (download .onnx + .onnx.json):
-  es_MX-claude-high   — Mexican Spanish, high quality  ← best for CYRUS
+  es_MX-claude-high   — Mexican Spanish, high quality  ← best for JARVIS
   es_MX-ald-medium    — Mexican Spanish, medium quality
   es_ES-davefx-medium — Castilian Spanish, medium quality
 
@@ -31,15 +31,15 @@ import numpy as np
 from backend.utils.exceptions import TTSError
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.tts.piper")
+logger = get_logger("jarvis.tts.piper")
 
 try:
     from piper import PiperVoice as _PiperVoice
     _PIPER_PACKAGE = True
-    logger.debug("[C.Y.R.U.S] piper-tts Python package available")
+    logger.debug("[JARVIS] piper-tts Python package available")
 except ImportError:
     _PIPER_PACKAGE = False
-    logger.debug("[C.Y.R.U.S] piper-tts package not installed; will use subprocess fallback")
+    logger.debug("[JARVIS] piper-tts package not installed; will use subprocess fallback")
 
 
 class PiperTTS:
@@ -91,21 +91,21 @@ class PiperTTS:
         """
         if self._model_path is None or not self._model_path.exists():
             raise TTSError(
-                f"[C.Y.R.U.S] Piper model not found: {self._model_path}. "
+                f"[JARVIS] Piper model not found: {self._model_path}. "
                 "Download from https://huggingface.co/rhasspy/piper-voices"
             )
 
         # Try Python package first
         if _PIPER_PACKAGE:
             try:
-                logger.info(f"[C.Y.R.U.S] TTS Piper: loading {self._model_path.name}…")
+                logger.info(f"[JARVIS] TTS Piper: loading {self._model_path.name}…")
                 self._voice = _PiperVoice.load(str(self._model_path))
                 self._use_package = True
-                logger.info("[C.Y.R.U.S] TTS Piper: ready (Python package)")
+                logger.info("[JARVIS] TTS Piper: ready (Python package)")
                 return
             except Exception as exc:
                 logger.warning(
-                    f"[C.Y.R.U.S] TTS Piper: package load failed ({exc}); "
+                    f"[JARVIS] TTS Piper: package load failed ({exc}); "
                     "falling back to subprocess"
                 )
 
@@ -122,18 +122,18 @@ class PiperTTS:
 
         if not self._use_subprocess:
             raise TTSError(
-                "[C.Y.R.U.S] Piper unavailable: neither piper-tts package nor "
+                "[JARVIS] Piper unavailable: neither piper-tts package nor "
                 f"'{self._executable}' executable found. "
                 "Run: pip install piper-tts"
             )
-        logger.info(f"[C.Y.R.U.S] TTS Piper: ready (subprocess → {self._executable})")
+        logger.info(f"[JARVIS] TTS Piper: ready (subprocess → {self._executable})")
 
     def unload(self) -> None:
         """Release model resources."""
         self._voice = None
         self._use_package = False
         self._use_subprocess = False
-        logger.info("[C.Y.R.U.S] TTS Piper: unloaded")
+        logger.info("[JARVIS] TTS Piper: unloaded")
 
     @property
     def available(self) -> bool:
@@ -157,7 +157,7 @@ class PiperTTS:
             TTSError: If Piper is not loaded or synthesis fails.
         """
         if not self.available:
-            raise TTSError("[C.Y.R.U.S] Piper not loaded; call load() first")
+            raise TTSError("[JARVIS] Piper not loaded; call load() first")
         if not text.strip():
             return self._silence_wav(0.3)
 
@@ -190,7 +190,7 @@ class PiperTTS:
             channels = chunk.sample_channels
 
         if not pcm_parts:
-            logger.warning("[C.Y.R.U.S] TTS Piper: no audio chunks produced")
+            logger.warning("[JARVIS] TTS Piper: no audio chunks produced")
             return self._silence_wav(0.5)
 
         pcm_all = b"".join(pcm_parts)
@@ -201,7 +201,7 @@ class PiperTTS:
             wf.setframerate(sample_rate)
             wf.writeframes(pcm_all)
         wav_bytes = buf.getvalue()
-        logger.debug(f"[C.Y.R.U.S] TTS Piper (pkg): synthesised {len(wav_bytes)} bytes @ {sample_rate}Hz")
+        logger.debug(f"[JARVIS] TTS Piper (pkg): synthesised {len(wav_bytes)} bytes @ {sample_rate}Hz")
         return wav_bytes
 
     def _via_subprocess(self, text: str) -> bytes:
@@ -227,13 +227,13 @@ class PiperTTS:
             )
             if proc.returncode != 0:
                 stderr = proc.stderr.decode(errors="replace").strip()
-                raise TTSError(f"[C.Y.R.U.S] Piper subprocess error: {stderr}")
+                raise TTSError(f"[JARVIS] Piper subprocess error: {stderr}")
 
             wav_bytes = tmp_path.read_bytes()
-            logger.debug(f"[C.Y.R.U.S] TTS Piper (exe): synthesised {len(wav_bytes)} bytes")
+            logger.debug(f"[JARVIS] TTS Piper (exe): synthesised {len(wav_bytes)} bytes")
             return wav_bytes
         except subprocess.TimeoutExpired as exc:
-            raise TTSError(f"[C.Y.R.U.S] Piper subprocess timed out: {exc}") from exc
+            raise TTSError(f"[JARVIS] Piper subprocess timed out: {exc}") from exc
         finally:
             tmp_path.unlink(missing_ok=True)
 

@@ -1,10 +1,10 @@
 /**
- * C.Y.R.U.S — Transcript panel.
- * Displays the conversation history (user input + C.Y.R.U.S responses).
+ * JARVIS — Transcript panel.
+ * Displays the conversation history (user input + JARVIS responses).
  */
 
 import { useEffect, useRef } from 'react'
-import { useCYRUSStore, TranscriptEntry } from '../store/useCYRUSStore'
+import { useJARVISStore, TranscriptEntry } from '../store/useJARVISStore'
 
 function EntryRow({ entry }: { entry: TranscriptEntry }) {
   const isUser = entry.role === 'user'
@@ -12,7 +12,7 @@ function EntryRow({ entry }: { entry: TranscriptEntry }) {
     <div className={`flex flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
       {/* Role label */}
       <span className="font-mono text-xs tracking-widest" style={{ color: '#406080' }}>
-        {isUser ? 'YOU' : 'C.Y.R.U.S'}{' '}
+        {isUser ? 'YOU' : 'JARVIS'}{' '}
         <span style={{ color: '#203040' }}>
           {entry.timestamp.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
         </span>
@@ -34,9 +34,9 @@ function EntryRow({ entry }: { entry: TranscriptEntry }) {
 }
 
 export function TranscriptPanel() {
-  const transcript = useCYRUSStore((s) => s.transcript)
-  const systemState = useCYRUSStore((s) => s.systemState)
-  const currentTranscript = useCYRUSStore((s) => s.currentTranscript)
+  const transcript = useJARVISStore((s) => s.transcript)
+  const systemState = useJARVISStore((s) => s.systemState)
+  const currentTranscript = useJARVISStore((s) => s.currentTranscript)
   const endRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll to bottom
@@ -64,7 +64,7 @@ export function TranscriptPanel() {
         {transcript.length === 0 ? (
           <div className="flex-1 flex items-center justify-center">
             <p className="font-mono text-xs text-center" style={{ color: '#203040' }}>
-              Say <span style={{ color: '#00d4ff' }}>"Hola C.Y.R.U.S"</span> to begin
+              Say <span style={{ color: '#00d4ff' }}>"Hola JARVIS"</span> to begin
             </p>
           </div>
         ) : (

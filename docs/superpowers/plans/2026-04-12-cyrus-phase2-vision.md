@@ -1,8 +1,8 @@
-# C.Y.R.U.S Phase 2 — Vision & Cameras Implementation Plan
+# JARVIS Phase 2 — Vision & Cameras Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add real-time vision to C.Y.R.U.S — USB webcam capture, Frigate RTSP integration, YOLOv8n object detection, DeepFace face recognition, and vision context injected into LLM responses.
+**Goal:** Add real-time vision to JARVIS — USB webcam capture, Frigate RTSP integration, YOLOv8n object detection, DeepFace face recognition, and vision context injected into LLM responses.
 
 **Architecture:** A `VisionManager` orchestrates two camera sources (local USB + Frigate RTSP). Each frame is optionally processed by YOLOv8 (objects) and DeepFace (faces). Detected entities are serialised into a `VisionContext` dataclass that `LLMManager` injects as a system message prefix. The React frontend gains a `CameraStream` component showing the live feed with overlay annotations.
 
@@ -26,7 +26,7 @@
 | Modify | `config/config.yaml` | Add `vision:` section |
 | Create | `frontend/src/components/CameraStream.tsx` | Live camera + detection overlay |
 | Modify | `frontend/src/App.tsx` | Add CameraStream tab |
-| Modify | `frontend/src/store/useCYRUSStore.ts` | Add vision state |
+| Modify | `frontend/src/store/useJARVISStore.ts` | Add vision state |
 | Create | `tests/test_vision.py` | Vision module tests |
 | Modify | `requirements.txt` | Add opencv, ultralytics, deepface |
 
@@ -41,7 +41,7 @@
 - [ ] **Step 1: Create `models.py`**
 
 ```python
-"""C.Y.R.U.S — Vision data models."""
+"""JARVIS — Vision data models."""
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
@@ -64,7 +64,7 @@ class DetectedFace:
 
 @dataclass
 class VisionContext:
-    """Snapshot of what C.Y.R.U.S currently sees."""
+    """Snapshot of what JARVIS currently sees."""
     source: str                              # "local" | "frigate"
     objects: List[DetectedObject] = field(default_factory=list)
     faces: List[DetectedFace] = field(default_factory=list)
@@ -154,15 +154,15 @@ git commit -m "feat(vision): add VisionContext data models"
 - [ ] **Step 1: Create `camera_local.py`**
 
 ```python
-"""C.Y.R.U.S — Local USB webcam capture."""
+"""JARVIS — Local USB webcam capture."""
 from __future__ import annotations
 import asyncio
 from typing import Optional
 import numpy as np
 from backend.utils.logger import get_logger
-from backend.utils.exceptions import CYRUSError
+from backend.utils.exceptions import JARVISError
 
-logger = get_logger("cyrus.vision.local")
+logger = get_logger("jarvis.vision.local")
 
 
 class LocalCamera:
@@ -194,18 +194,18 @@ class LocalCamera:
         import cv2
         self._cap = cv2.VideoCapture(self._idx)
         if not self._cap.isOpened():
-            raise CYRUSError(f"[C.Y.R.U.S] Cannot open camera {self._idx}")
+            raise JARVISError(f"[JARVIS] Cannot open camera {self._idx}")
         self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
         self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
         self._cap.set(cv2.CAP_PROP_FPS, self._fps)
-        logger.info(f"[C.Y.R.U.S] Camera {self._idx} opened ({self._width}x{self._height})")
+        logger.info(f"[JARVIS] Camera {self._idx} opened ({self._width}x{self._height})")
 
     def close(self) -> None:
         """Release the camera device."""
         if self._cap:
             self._cap.release()
             self._cap = None
-        logger.info(f"[C.Y.R.U.S] Camera {self._idx} closed")
+        logger.info(f"[JARVIS] Camera {self._idx} closed")
 
     def read_frame(self) -> Optional[np.ndarray]:
         """Read a single BGR frame. Returns None on failure."""
@@ -213,7 +213,7 @@ class LocalCamera:
             return None
         ret, frame = self._cap.read()
         if not ret:
-            logger.warning(f"[C.Y.R.U.S] Camera {self._idx} frame read failed")
+            logger.warning(f"[JARVIS] Camera {self._idx} frame read failed")
             return None
         return frame
 
@@ -235,14 +235,14 @@ from unittest.mock import MagicMock, patch
 
 def test_local_camera_open_fail():
     from backend.modules.vision.camera_local import LocalCamera
-    from backend.utils.exceptions import CYRUSError
+    from backend.utils.exceptions import JARVISError
     with patch("cv2.VideoCapture") as mock_cap:
         mock_cap.return_value.isOpened.return_value = False
         cam = LocalCamera(device_index=99)
         try:
             cam.open()
             assert False, "Should raise"
-        except CYRUSError:
+        except JARVISError:
             pass
 
 def test_local_camera_read_none_when_closed():
@@ -273,7 +273,7 @@ git commit -m "feat(vision): add LocalCamera USB webcam capture"
 - [ ] **Step 1: Create `frigate_client.py`**
 
 ```python
-"""C.Y.R.U.S — Frigate NVR integration.
+"""JARVIS — Frigate NVR integration.
 
 Frigate exposes:
   GET /api/<camera>/latest.jpg   — latest JPEG snapshot
@@ -283,9 +283,9 @@ from __future__ import annotations
 from typing import Optional
 import httpx
 from backend.utils.logger import get_logger
-from backend.utils.exceptions import CYRUSError
+from backend.utils.exceptions import JARVISError
 
-logger = get_logger("cyrus.vision.frigate")
+logger = get_logger("jarvis.vision.frigate")
 
 
 class FrigateClient:
@@ -328,10 +328,10 @@ class FrigateClient:
                 r = await client.get(url)
                 if r.status_code == 200:
                     return r.content
-                logger.warning(f"[C.Y.R.U.S] Frigate snapshot HTTP {r.status_code}")
+                logger.warning(f"[JARVIS] Frigate snapshot HTTP {r.status_code}")
                 return None
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] Frigate unreachable: {exc}")
+            logger.warning(f"[JARVIS] Frigate unreachable: {exc}")
             return None
 
     async def get_snapshot_array(self):
@@ -389,7 +389,7 @@ git commit -m "feat(vision): add FrigateClient RTSP/snapshot integration"
 - [ ] **Step 1: Create `yolo_detector.py`**
 
 ```python
-"""C.Y.R.U.S — YOLOv8n real-time object detection."""
+"""JARVIS — YOLOv8n real-time object detection."""
 from __future__ import annotations
 from pathlib import Path
 from typing import List, Optional
@@ -397,7 +397,7 @@ import numpy as np
 from backend.modules.vision.models import DetectedObject
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.vision.yolo")
+logger = get_logger("jarvis.vision.yolo")
 
 _MODEL_NAME = "yolov8n.pt"  # auto-downloaded by ultralytics on first use
 
@@ -426,7 +426,7 @@ class YOLODetector:
         """Load the YOLO model (downloads if not cached)."""
         from ultralytics import YOLO
         self._model = YOLO(self._model_name)
-        logger.info(f"[C.Y.R.U.S] YOLOv8 model loaded: {self._model_name}")
+        logger.info(f"[JARVIS] YOLOv8 model loaded: {self._model_name}")
 
     def detect(self, frame: np.ndarray) -> List[DetectedObject]:
         """Run inference on a BGR numpy frame.
@@ -438,7 +438,7 @@ class YOLODetector:
             List of detected objects sorted by confidence descending.
         """
         if self._model is None:
-            logger.warning("[C.Y.R.U.S] YOLO model not loaded — call load() first")
+            logger.warning("[JARVIS] YOLO model not loaded — call load() first")
             return []
 
         try:
@@ -454,7 +454,7 @@ class YOLODetector:
             objects.sort(key=lambda o: o.confidence, reverse=True)
             return objects
         except Exception as exc:
-            logger.error(f"[C.Y.R.U.S] YOLO inference failed: {exc}")
+            logger.error(f"[JARVIS] YOLO inference failed: {exc}")
             return []
 
     @property
@@ -521,7 +521,7 @@ git commit -m "feat(vision): add YOLOv8n object detector"
 - [ ] **Step 1: Create `face_detector.py`**
 
 ```python
-"""C.Y.R.U.S — DeepFace face recognition and emotion detection."""
+"""JARVIS — DeepFace face recognition and emotion detection."""
 from __future__ import annotations
 from pathlib import Path
 from typing import List
@@ -529,7 +529,7 @@ import numpy as np
 from backend.modules.vision.models import DetectedFace
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.vision.face")
+logger = get_logger("jarvis.vision.face")
 
 # Known faces DB — directory of <name>/<photo.jpg> pairs
 _DEFAULT_DB = Path("data/faces")
@@ -569,7 +569,7 @@ class FaceDetector:
         try:
             from deepface import DeepFace
         except ImportError:
-            logger.warning("[C.Y.R.U.S] deepface not installed; face detection skipped")
+            logger.warning("[JARVIS] deepface not installed; face detection skipped")
             return []
 
         faces: List[DetectedFace] = []
@@ -593,7 +593,7 @@ class FaceDetector:
                 emotion = res.get("dominant_emotion", "neutral")
                 faces.append(DetectedFace("unknown", 0.0, emotion=emotion, bbox=bbox))
         except Exception as exc:
-            logger.debug(f"[C.Y.R.U.S] Emotion analysis skipped: {exc}")
+            logger.debug(f"[JARVIS] Emotion analysis skipped: {exc}")
 
         # Identity recognition (requires face DB)
         if self._db.exists() and list(self._db.iterdir()):
@@ -616,7 +616,7 @@ class FaceDetector:
                             faces[i].identity = identity
                             faces[i].confidence = confidence
             except Exception as exc:
-                logger.debug(f"[C.Y.R.U.S] Face recognition skipped: {exc}")
+                logger.debug(f"[JARVIS] Face recognition skipped: {exc}")
 
         return faces
 ```
@@ -664,7 +664,7 @@ git commit -m "feat(vision): add DeepFace face recognition module"
 - [ ] **Step 1: Create `vision_manager.py`**
 
 ```python
-"""C.Y.R.U.S — Vision pipeline orchestrator."""
+"""JARVIS — Vision pipeline orchestrator."""
 from __future__ import annotations
 import asyncio
 import base64
@@ -678,7 +678,7 @@ from backend.modules.vision.face_detector import FaceDetector
 from backend.modules.vision.models import VisionContext
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.vision")
+logger = get_logger("jarvis.vision")
 
 
 class VisionManager:
@@ -732,7 +732,7 @@ class VisionManager:
         )
         self._last_context = ctx
         logger.debug(
-            f"[C.Y.R.U.S] Vision: {len(objects)} objects, {len(faces)} faces [{source}]"
+            f"[JARVIS] Vision: {len(objects)} objects, {len(faces)} faces [{source}]"
         )
         return ctx
 
@@ -810,7 +810,7 @@ git commit -m "feat(vision): add VisionManager pipeline orchestrator"
 
 ---
 
-## Task 7: Wire vision into CYRUSEngine + LLMManager
+## Task 7: Wire vision into JARVISEngine + LLMManager
 
 **Files:**
 - Modify: `backend/core/cyrus_engine.py`
@@ -881,7 +881,7 @@ def _build_system_prompt(self, language, turn_count, vision_context=None) -> str
     return "\n\n".join(p for p in parts if p.strip())
 ```
 
-- [ ] **Step 3: Wire VisionManager in `CYRUSEngine.__init__()`**
+- [ ] **Step 3: Wire VisionManager in `JARVISEngine.__init__()`**
 
 ```python
 # After TTS init, before WebSocket init:
@@ -909,7 +909,7 @@ if vis_cfg.get("enabled", False):
         face_detector=face_det,
         prefer_frigate=vis_cfg.get("prefer_frigate", False),
     )
-    logger.info("[C.Y.R.U.S] Vision pipeline enabled")
+    logger.info("[JARVIS] Vision pipeline enabled")
 ```
 
 In `_process_one_turn`, after trigger detection and before LLM call:
@@ -923,7 +923,7 @@ if self._vision:
         if vision_ctx:
             await self._bus.emit("vision", {"frame": vision_ctx.frame_b64})
     except Exception as exc:
-        logger.warning(f"[C.Y.R.U.S] Vision capture failed: {exc}")
+        logger.warning(f"[JARVIS] Vision capture failed: {exc}")
 
 # 4. LLM inference (pass vision_ctx)
 response = await self._llm.generate(
@@ -944,7 +944,7 @@ Expected: all prior tests still pass
 - [ ] **Step 5: Commit**
 ```bat
 git add backend/ config/config.yaml tests/
-git commit -m "feat(vision): wire VisionManager into CYRUSEngine + LLMManager"
+git commit -m "feat(vision): wire VisionManager into JARVISEngine + LLMManager"
 ```
 
 ---
@@ -953,12 +953,12 @@ git commit -m "feat(vision): wire VisionManager into CYRUSEngine + LLMManager"
 
 **Files:**
 - Create: `frontend/src/components/CameraStream.tsx`
-- Modify: `frontend/src/store/useCYRUSStore.ts`
+- Modify: `frontend/src/store/useJARVISStore.ts`
 - Modify: `frontend/src/App.tsx`
 
 - [ ] **Step 1: Add vision state to Zustand store**
 
-In `useCYRUSStore.ts`, add:
+In `useJARVISStore.ts`, add:
 ```typescript
 // Vision state
 cameraFrame: string | null        // base64 JPEG
@@ -969,17 +969,17 @@ setCameraFrame: (frame: string | null) => void
 
 ```typescript
 case "vision":
-  if (data.frame) useCYRUSStore.getState().setCameraFrame(data.frame)
+  if (data.frame) useJARVISStore.getState().setCameraFrame(data.frame)
   break
 ```
 
 - [ ] **Step 3: Create `CameraStream.tsx`**
 
 ```tsx
-import { useCYRUSStore } from '../store/useCYRUSStore'
+import { useJARVISStore } from '../store/useJARVISStore'
 
 export function CameraStream() {
-  const frame = useCYRUSStore((s) => s.cameraFrame)
+  const frame = useJARVISStore((s) => s.cameraFrame)
 
   if (!frame) {
     return (
@@ -995,7 +995,7 @@ export function CameraStream() {
     <div className="relative rounded overflow-hidden border border-cyan-800">
       <img
         src={`data:image/jpeg;base64,${frame}`}
-        alt="C.Y.R.U.S vision"
+        alt="JARVIS vision"
         className="w-full object-contain"
       />
       <div className="absolute top-2 left-2">
@@ -1060,4 +1060,4 @@ git commit -m "feat(vision): Phase 2 complete — vision pipeline fully integrat
 - [ ] LLM responses reference objects seen ("I can see a person and a chair")
 - [ ] Frontend shows live camera frame in VISION tab
 - [ ] Frigate fallback works when local camera unavailable
-- [ ] All new code has `[C.Y.R.U.S]` log prefix
+- [ ] All new code has `[JARVIS]` log prefix

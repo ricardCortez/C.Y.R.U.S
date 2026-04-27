@@ -1,1 +1,1 @@
-"""C.Y.R.U.S TTS subsystem."""
+"""JARVIS TTS subsystem."""

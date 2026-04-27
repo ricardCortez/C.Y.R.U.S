@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Main Orchestration Engine.
+JARVIS — Main Orchestration Engine.
 
 Entry point for the backend.  Wires together audio capture, ASR, trigger
 detection, LLM reasoning, TTS synthesis, and the WebSocket broadcast layer
@@ -67,22 +67,69 @@ from backend.modules.memory.remote_embedder import RemoteEmbedder
 from backend.modules.memory.qdrant_store import QdrantStore
 from backend.modules.memory.conversation_db import ConversationDB
 from backend.modules.memory.memory_manager import MemoryManager
+from backend.modules.memory.fact_memory import FactMemory
+from backend.modules.memory.fact_extractor import extract_and_store
+from backend.modules.tracking.usage_tracker import UsageTracker
 from backend.modules.planner.planner import TaskPlanner
 from backend.modules.home_assistant.ha_client import HomeAssistantClient
 from backend.modules.home_assistant.device_controller import DeviceController
 from backend.modules.tools.registry import get_registry
 from backend.modules.tools.executor import ToolExecutor
-import backend.modules.tools.builtins  # registers all built-in tools
+import backend.modules.tools.builtins       # registers built-in tools
+import backend.modules.tools.system_tools   # registers screen/files/system tools
 from backend.modules.scheduler.scheduler import AgentScheduler
 from backend.modules.scheduler.briefing import MorningBriefingAgent
 from backend.utils.helpers import current_time_str
 from backend.utils.logger import configure_file_logging, get_logger
 
-logger = get_logger("cyrus.engine")
+logger = get_logger("jarvis.engine")
+
+# ── STT correction map ────────────────────────────────────────────────────────
+# Whisper frequently mis-transcribes "JARVIS" in Spanish speech.
+# Each tuple is (pattern_regex, replacement) — applied case-insensitively.
+_STT_CORRECTIONS: list[tuple[str, str]] = [
+    # "JARVIS" misrecognitions (Spanish phonetics)
+    (r"\bjar\s*bis\b",    "jarvis"),
+    (r"\bjar\s*vis\b",    "jarvis"),
+    (r"\bjar\s*bees\b",   "jarvis"),
+    (r"\bjar\s*wis\b",    "jarvis"),
+    (r"\bjarbis\b",       "jarvis"),
+    (r"\bjarbes\b",       "jarvis"),
+    (r"\bharvis\b",       "jarvis"),
+    (r"\byar\s*vis\b",    "jarvis"),
+    (r"\byarbis\b",       "jarvis"),
+    (r"\bcharbis\b",      "jarvis"),
+    (r"\bsarbis\b",       "jarvis"),
+    (r"\bgarvis\b",       "jarvis"),
+    (r"\bjarves\b",       "jarvis"),
+    (r"\btravis\b",       "jarvis"),   # English STT confusion
+    (r"\bj\.a\.r\.v\.i\.s\.?\b", "jarvis"),   # spelled out
+    # Spanish + name combinations that Whisper breaks
+    (r"\bola\s+jar\b",    "hola jarvis"),
+    (r"\boye\s+jar\b",    "oye jarvis"),
+    (r"\bhey\s+jar\b",    "hey jarvis"),
+]
+
+_STT_PATTERN = None  # compiled lazily
 
 
-class CYRUSEngine:
-    """Main C.Y.R.U.S orchestration engine.
+def _compile_stt_patterns() -> list[tuple]:
+    import re
+    return [(re.compile(p, re.IGNORECASE), r) for p, r in _STT_CORRECTIONS]
+
+
+def _correct_transcript(text: str) -> str:
+    """Apply STT correction map to fix common Whisper misrecognitions."""
+    global _STT_PATTERN
+    if _STT_PATTERN is None:
+        _STT_PATTERN = _compile_stt_patterns()
+    for pattern, replacement in _STT_PATTERN:
+        text = pattern.sub(replacement, text)
+    return text
+
+
+class JARVISEngine:
+    """Main JARVIS orchestration engine.
 
     Initialised from ``config/config.yaml``.  Call :meth:`run` to start
     the full voice pipeline.
@@ -176,7 +223,7 @@ class CYRUSEngine:
             ollama=self._ollama,
         )
         _tool_names = get_registry().names()
-        logger.info(f"[C.Y.R.U.S] Tools registered: {_tool_names}")
+        logger.info(f"[JARVIS] Tools registered: {_tool_names}")
 
         # ── TTS ────────────────────────────────────────────────────────────
         tts_local_cfg = self._cfg.local.tts
@@ -298,6 +345,17 @@ class CYRUSEngine:
                 top_k=mem_cfg.top_k,
             )
 
+        # ── Fact Memory (always enabled — SQLite FTS5, no Qdrant needed) ─
+        _facts_path = str(self._cfg.project_root / "data" / "facts.db")
+        self._fact_memory = FactMemory(db_path=_facts_path)
+
+        # ── Usage tracker ─────────────────────────────────────────────────
+        _usage_path = str(self._cfg.project_root / "data" / "usage.jsonl")
+        self._usage = UsageTracker(log_path=_usage_path)
+        # Expose as module-level singleton so uso_jarvis tool can find it
+        import backend.modules.tools.builtins as _bt
+        _bt._JARVIS_USAGE_TRACKER = self._usage
+
         # ── Planner ───────────────────────────────────────────────────────
         planner_cfg = getattr(self._cfg, "planner", None)
         planner_enabled = planner_cfg and getattr(planner_cfg, "enabled", True)
@@ -341,6 +399,9 @@ class CYRUSEngine:
             adaptive_lr=spk_cfg.adaptive_lr,
             sample_rate=ai_cfg.sample_rate,
         )
+        # Expose speaker intel as singleton so tools can access it
+        import backend.modules.tools.system_tools as _st
+        _st._JARVIS_SPEAKER_INTEL = self._speaker_intel
 
         # ── WebSocket ──────────────────────────────────────────────────────
         ws_cfg = self._cfg.websocket
@@ -387,98 +448,105 @@ class CYRUSEngine:
 
         # RemoteASR — probe if enabled, otherwise load local Whisper
         if self._remote_asr is not None:
-            logger.info(f"[C.Y.R.U.S] Probing RemoteASR server at {self._cfg.services.asr.host}…")
+            logger.info(f"[JARVIS] Probing RemoteASR server at {self._cfg.services.asr.host}…")
             ok = await self._remote_asr.check_health()
             if ok:
-                logger.info("[C.Y.R.U.S] RemoteASR server ready — skipping local Whisper load")
+                logger.info("[JARVIS] RemoteASR server ready — skipping local Whisper load")
             else:
-                logger.warning("[C.Y.R.U.S] RemoteASR server not reachable — falling back to local Whisper")
+                logger.warning("[JARVIS] RemoteASR server not reachable — falling back to local Whisper")
                 self._remote_asr = None   # disable so pipeline uses local ASR
 
         if self._remote_asr is None:
-            logger.info("[C.Y.R.U.S] Loading Whisper ASR model…")
+            logger.info("[JARVIS] Loading Whisper ASR model…")
             await loop.run_in_executor(None, self._asr.load)
 
         # Try Piper first (best quality) — non-fatal if unavailable
         if getattr(self._cfg.local.tts, "piper_model", ""):
-            logger.info("[C.Y.R.U.S] Loading Piper TTS model…")
+            logger.info("[JARVIS] Loading Piper TTS model…")
             try:
                 await loop.run_in_executor(None, self._piper.load)
-                logger.info(f"[C.Y.R.U.S] Piper ready — active backend: piper")
+                logger.info(f"[JARVIS] Piper ready — active backend: piper")
             except Exception as exc:
-                logger.warning(f"[C.Y.R.U.S] Piper unavailable ({exc}); falling back to Kokoro")
+                logger.warning(f"[JARVIS] Piper unavailable ({exc}); falling back to Kokoro")
 
-        logger.info("[C.Y.R.U.S] Loading Kokoro TTS model…")
+        logger.info("[JARVIS] Loading Kokoro TTS model…")
         try:
             await loop.run_in_executor(None, self._kokoro.load)
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] Kokoro unavailable ({exc}); will use Edge-TTS fallback")
+            logger.warning(f"[JARVIS] Kokoro unavailable ({exc}); will use Edge-TTS fallback")
 
         # RemoteTTS — probe the external server if enabled
         if self._remote_tts is not None:
-            logger.info(f"[C.Y.R.U.S] Probing RemoteTTS server at {self._cfg.services.tts.host}…")
+            logger.info(f"[JARVIS] Probing RemoteTTS server at {self._cfg.services.tts.host}…")
             ok = await self._remote_tts.check_health()
             if ok:
-                logger.info("[C.Y.R.U.S] RemoteTTS server ready — active backend: remote-tts")
+                logger.info("[JARVIS] RemoteTTS server ready — active backend: remote-tts")
             else:
-                logger.warning("[C.Y.R.U.S] RemoteTTS server not reachable — will fall through to next backend")
+                logger.warning("[JARVIS] RemoteTTS server not reachable — will fall through to next backend")
 
         # XTTS v2 — only load if explicitly enabled in config
         xtts_cfg = getattr(self._cfg.local.tts, "xtts", None)
         if xtts_cfg and getattr(xtts_cfg, "enabled", False):
-            logger.info("[C.Y.R.U.S] Loading XTTS v2 model…")
+            logger.info("[JARVIS] Loading XTTS v2 model…")
             try:
                 await loop.run_in_executor(None, self._xtts.load)
-                logger.info("[C.Y.R.U.S] XTTS v2 ready")
+                logger.info("[JARVIS] XTTS v2 ready")
             except Exception as exc:
-                logger.warning(f"[C.Y.R.U.S] XTTS v2 unavailable ({exc})")
+                logger.warning(f"[JARVIS] XTTS v2 unavailable ({exc})")
 
-        logger.info("[C.Y.R.U.S] Checking Ollama availability…")
+        logger.info("[JARVIS] Checking Ollama availability…")
         if not await self._ollama.is_available():
-            logger.warning("[C.Y.R.U.S] Ollama not responding — API fallback will be used")
+            logger.warning("[JARVIS] Ollama not responding — API fallback will be used")
         else:
-            logger.info("[C.Y.R.U.S] Ollama is online")
+            logger.info("[JARVIS] Ollama is online")
 
         if self._vision:
-            logger.info("[C.Y.R.U.S] Starting vision pipeline…")
+            logger.info("[JARVIS] Starting vision pipeline…")
             await self._vision.start()
+            import backend.modules.tools.system_tools as _st
+            _st._JARVIS_VISION = self._vision
 
         if self._memory:
             if isinstance(self._embedder, RemoteEmbedder):
-                logger.info(f"[C.Y.R.U.S] Probing RemoteEmbedder at {self._cfg.services.embedder.host}…")
+                logger.info(f"[JARVIS] Probing RemoteEmbedder at {self._cfg.services.embedder.host}…")
                 ok = await self._embedder.check_health()
                 if not ok:
-                    logger.warning("[C.Y.R.U.S] RemoteEmbedder not reachable — memory search disabled")
+                    logger.warning("[JARVIS] RemoteEmbedder not reachable — memory search disabled")
             else:
-                logger.info("[C.Y.R.U.S] Loading embedder model…")
+                logger.info("[JARVIS] Loading embedder model…")
                 await loop.run_in_executor(None, self._embedder.load)
-            logger.info("[C.Y.R.U.S] Connecting to Qdrant…")
+            logger.info("[JARVIS] Connecting to Qdrant…")
             try:
                 self._qdrant_store.connect()
             except Exception as exc:
-                logger.warning(f"[C.Y.R.U.S] Qdrant unavailable ({exc}); memory search disabled")
+                logger.warning(f"[JARVIS] Qdrant unavailable ({exc}); memory search disabled")
             self._conv_db.init()
-            logger.info(f"[C.Y.R.U.S] Memory session: {self._memory.session_id}")
+            logger.info(f"[JARVIS] Memory session: {self._memory.session_id}")
+
+        # ── Fact Memory ────────────────────────────────────────────────────
+        self._fact_memory.init()
+        fact_count = self._fact_memory.count()
+        logger.info(f"[JARVIS] FactMemory ready — {fact_count} facts stored")
 
         # ── Home Assistant ─────────────────────────────────────────────────
         if self._ha_client is not None:
-            logger.info("[C.Y.R.U.S] Checking Home Assistant connection…")
+            logger.info("[JARVIS] Checking Home Assistant connection…")
             await self._ha_client.check_connection()
             if self._ha_client.available:
-                logger.info("[C.Y.R.U.S] Home Assistant connected")
+                logger.info("[JARVIS] Home Assistant connected")
             else:
-                logger.warning("[C.Y.R.U.S] Home Assistant not reachable — automation disabled")
+                logger.warning("[JARVIS] Home Assistant not reachable — automation disabled")
 
         # ── Speaker Intelligence (ECAPA-TDNN) ─────────────────────────────
-        logger.info("[C.Y.R.U.S] Loading speaker intelligence model...")
+        logger.info("[JARVIS] Loading speaker intelligence model...")
         await loop.run_in_executor(None, self._speaker_intel.load)
         enrolled = self._speaker_intel.list_speakers()
         if enrolled:
-            logger.info(f"[C.Y.R.U.S] Speaker profiles loaded: {[s['id'] for s in enrolled]}")
+            logger.info(f"[JARVIS] Speaker profiles loaded: {[s['id'] for s in enrolled]}")
         else:
-            logger.info("[C.Y.R.U.S] No speaker profiles enrolled — all voices accepted as UNKNOWN")
+            logger.info("[JARVIS] No speaker profiles enrolled — all voices accepted as UNKNOWN")
 
-        logger.info("[C.Y.R.U.S] All models initialised")
+        logger.info("[JARVIS] All models initialised")
 
         # Broadcast service status to frontend
         await self._emit_service_status()
@@ -516,6 +584,119 @@ class CYRUSEngine:
             "vision":   vis_info,
             "embedder": emb_info,
         })
+
+    # ------------------------------------------------------------------
+    # Voice-triggered enrollment intercepts
+    # ------------------------------------------------------------------
+
+    _ENROLL_OWNER_PATTERNS = [
+        "registra mi voz", "enróllame la voz", "enrolla mi voz",
+        "aprende mi voz", "reconóceme la voz", "registra quien soy",
+        "start enrollment", "enroll owner",
+    ]
+    _ENROLL_GUEST_RE = re.compile(
+        r"(?:registra|enrólla|enrolla|aprende)\s+(?:la\s+)?voz\s+de\s+(\w+)", re.IGNORECASE
+    )
+    _FACE_OWNER_PATTERNS = [
+        "registra mi cara", "enróllame la cara", "aprende mi cara",
+        "reconóceme la cara", "registra mi rostro", "aprende mi rostro",
+    ]
+    _FACE_GUEST_RE = re.compile(
+        r"(?:registra|enrólla|enrolla|aprende)\s+(?:la\s+)?(?:cara|rostro)\s+de\s+(\w+)", re.IGNORECASE
+    )
+
+    async def _check_enrollment_voice_command(self, text: str) -> Optional[str]:
+        """Check if the utterance is an enrollment command and dispatch if so.
+
+        Returns a non-None string if enrollment was triggered (caller should return).
+        Returns None if this is a normal query.
+        """
+        low = text.lower().strip()
+
+        # Speaker enrollment — owner
+        if any(p in low for p in self._ENROLL_OWNER_PATTERNS):
+            if not self._enrollment_active:
+                asyncio.create_task(self._run_neural_enrollment(SpeakerRole.OWNER, "owner", 6))
+            return "enrollment_started"
+
+        # Speaker enrollment — guest
+        m = self._ENROLL_GUEST_RE.search(low)
+        if m:
+            guest_name = m.group(1).lower()
+            if not self._enrollment_active:
+                asyncio.create_task(self._run_neural_enrollment(SpeakerRole.GUEST, guest_name, 5))
+            return "enrollment_started"
+
+        # Face enrollment — owner
+        if any(p in low for p in self._FACE_OWNER_PATTERNS):
+            owner_name = getattr(getattr(self._cfg, "system", None), "owner_name", "Ricardo")
+            if not self._enrollment_active:
+                asyncio.create_task(self._run_face_enrollment(owner_name.lower()))
+            return "face_enrollment_started"
+
+        # Face enrollment — guest
+        m = self._FACE_GUEST_RE.search(low)
+        if m:
+            guest_name = m.group(1).lower()
+            if not self._enrollment_active:
+                asyncio.create_task(self._run_face_enrollment(guest_name))
+            return "face_enrollment_started"
+
+        return None
+
+    async def _run_face_enrollment(self, name: str, n_frames: int = 8) -> None:
+        """Capture N frames from camera and save to face DB for recognition."""
+        if not self._vision:
+            await self._speak_text("No tengo acceso a la cámara en este momento.")
+            return
+
+        self._enrollment_active = True
+        try:
+            face_dir = self._cfg.project_root / "data" / "faces" / name
+            face_dir.mkdir(parents=True, exist_ok=True)
+
+            await self._speak_text(f"Voy a registrar la cara de {name}. Mira a la cámara.")
+            await asyncio.sleep(1.0)
+
+            loop = asyncio.get_running_loop()
+            saved = 0
+            for i in range(n_frames):
+                await asyncio.sleep(0.5)
+                try:
+                    ctx   = self._vision.get_context()
+                    frame = ctx.frame if ctx else None
+                    if frame is not None:
+                        import cv2
+                        img_path = face_dir / f"{name}_{i:02d}.jpg"
+                        cv2.imwrite(str(img_path), frame)
+                        saved += 1
+                        await self._bus.emit("debug", {"text": f"📸 Cara {i+1}/{n_frames} guardada", "level": "info"})
+                except Exception as exc:
+                    logger.warning(f"[JARVIS] Face frame {i} capture failed: {exc}")
+
+            if saved >= 3:
+                await self._speak_text(f"Cara de {name} registrada con {saved} imágenes. Ahora puedo reconocerte.")
+                await self._bus.emit("face_enrolled", {"name": name, "frames": saved})
+            else:
+                await self._speak_text("No pude capturar suficientes imágenes. Asegúrate de que la cámara esté activa.")
+        finally:
+            self._enrollment_active = False
+
+    # ------------------------------------------------------------------
+    # Fact extraction (background, post-turn)
+    # ------------------------------------------------------------------
+
+    async def _extract_facts(self, user_msg: str, jarvis_msg: str) -> None:
+        """Extract and store facts from a completed exchange. Never raises."""
+        try:
+            await extract_and_store(
+                user_msg=user_msg,
+                jarvis_msg=jarvis_msg,
+                fact_memory=self._fact_memory,
+                ollama=self._ollama,
+            )
+        except Exception as exc:
+            logger.debug(f"[JARVIS] FactExtractor background task failed: {exc}")
 
     # ------------------------------------------------------------------
     # System stats broadcaster
@@ -561,7 +742,7 @@ class CYRUSEngine:
                     "tts_backend": self._tts.active_backend,
                 })
             except Exception as exc:
-                logger.debug(f"[C.Y.R.U.S] Stats loop error: {exc}")
+                logger.debug(f"[JARVIS] Stats loop error: {exc}")
 
             await asyncio.sleep(5)
 
@@ -570,18 +751,22 @@ class CYRUSEngine:
     # ------------------------------------------------------------------
 
     async def _barge_in_watcher(self) -> None:
-        """Background task — monitors mic for speech while CYRUS is speaking.
+        """Background task — monitors mic for speech while JARVIS is speaking.
         If the user starts talking, interrupt playback immediately."""
         try:
             detected = await self._audio_in.detect_speech_onset(timeout=60.0)
             if detected:
-                logger.info("[C.Y.R.U.S] Barge-in detected — interrupting playback")
+                logger.info("[JARVIS] Barge-in detected — interrupting playback")
                 self._audio_out.interrupt()
                 await self._bus.emit("debug", {"text": "⚡ Interrupción detectada", "level": "warn"})
                 # Clear the mute so the next record_utterance() hears the user
                 self._audio_in.mute_for(0.0)
         except asyncio.CancelledError:
-            pass  # Normal: cancelled when CYRUS finishes speaking
+            pass  # Normal: cancelled when JARVIS finishes speaking
+        finally:
+            # Always release the barge-in stream so the device is free for
+            # the next record_utterance() call (fixes WASAPI exclusive deadlock).
+            self._audio_in.stop_barge_in()
 
     async def _speak_text(self, text: str) -> None:
         """Synthesise and play text without going through the full pipeline."""
@@ -597,16 +782,20 @@ class CYRUSEngine:
                         _pb, _pr, _dur = self._decode_to_pcm(audio_bytes, mime)
                     except Exception:
                         _pb, _pr, _dur = None, 24000, 5.0
-                    self._audio_in.mute_for(_dur + 5.0)
+                    _echo_tail = getattr(
+                        getattr(getattr(self._cfg, "audio", None), "input", None),
+                        "echo_tail_secs", 1.5
+                    )
+                    self._audio_in.mute_for(_dur + _echo_tail)
                     if _pb is not None:
                         await self._audio_out.play_pcm(_pb, sample_rate=_pr)
                     elif mime == "audio/wav":
                         await self._audio_out.play_wav(audio_bytes)
                     else:
                         await self._play_mp3(audio_bytes)
-                    # tail already included — do not reset mute
+                    self._audio_in.mute_for(_echo_tail)
             except Exception as exc:
-                logger.error(f"[C.Y.R.U.S] _speak_text failed: {exc}")
+                logger.error(f"[JARVIS] _speak_text failed: {exc}")
         await self._bus.emit("status", {"state": "idle"})
 
     # ------------------------------------------------------------------
@@ -624,9 +813,9 @@ class CYRUSEngine:
                 _yaml.dump(raw, allow_unicode=True, default_flow_style=False, sort_keys=False),
                 encoding="utf-8",
             )
-            logger.info(f"[C.Y.R.U.S] Wake words saved to config: {self._trigger.wake_words}")
+            logger.info(f"[JARVIS] Wake words saved to config: {self._trigger.wake_words}")
         except Exception as exc:
-            logger.error(f"[C.Y.R.U.S] Failed to save wake words: {exc}")
+            logger.error(f"[JARVIS] Failed to save wake words: {exc}")
 
     async def _save_llm_model(self) -> None:
         """Persist the currently selected local LLM model to config.yaml."""
@@ -641,9 +830,9 @@ class CYRUSEngine:
                 _yaml.dump(raw, allow_unicode=True, default_flow_style=False, sort_keys=False),
                 encoding="utf-8",
             )
-            logger.info(f"[C.Y.R.U.S] Local LLM model saved to config: {self._ollama._model}")
+            logger.info(f"[JARVIS] Local LLM model saved to config: {self._ollama._model}")
         except Exception as exc:
-            logger.error(f"[C.Y.R.U.S] Failed to save local LLM model: {exc}")
+            logger.error(f"[JARVIS] Failed to save local LLM model: {exc}")
 
     async def _run_enrollment(self, samples: int = 5) -> None:
         """Record N samples, transcribe each, register wake-word variants, and build voice profile."""
@@ -672,7 +861,7 @@ class CYRUSEngine:
                 if audio_bytes:
                     await self._audio_out.play_wav(audio_bytes) if mime == "audio/wav" else await self._play_mp3(audio_bytes)
             except Exception as exc:
-                logger.warning(f"[C.Y.R.U.S] Enrollment TTS failed: {exc}")
+                logger.warning(f"[JARVIS] Enrollment TTS failed: {exc}")
 
         for i in range(1, samples + 1):
             prompt_text = f"Muestra {i} de {samples}. Di mi nombre ahora."
@@ -694,7 +883,7 @@ class CYRUSEngine:
             try:
                 pcm = await self._audio_in.record_utterance()
             except Exception as exc:
-                logger.warning(f"[C.Y.R.U.S] Enrollment recording failed: {exc}")
+                logger.warning(f"[JARVIS] Enrollment recording failed: {exc}")
                 continue
 
             if not pcm:
@@ -717,10 +906,10 @@ class CYRUSEngine:
                     finally:
                         self._asr._initial_prompt = orig_prompt
             except Exception as exc:
-                logger.warning(f"[C.Y.R.U.S] Enrollment ASR failed: {exc}")
+                logger.warning(f"[JARVIS] Enrollment ASR failed: {exc}")
                 text = ""
 
-            heard = text.strip().lower()
+            heard = _correct_transcript(text.strip()).lower()
             collected.append(heard)
             await self._bus.emit("enrollment", {"step": "result", "sample": i, "heard": heard or "(silencio)"})
             await self._bus.emit("debug", {"text": f"  Muestra {i}: \"{heard}\"", "level": "info"})
@@ -736,7 +925,7 @@ class CYRUSEngine:
 
         # Build and save voice profile from enrollment audio
         if pcm_samples:
-            logger.warning("[C.Y.R.U.S] Legacy enrollment: SpeakerProfile removed — use neural enrollment commands instead")
+            logger.warning("[JARVIS] Legacy enrollment: SpeakerProfile removed — use neural enrollment commands instead")
 
         # Summary
         if added:
@@ -753,7 +942,7 @@ class CYRUSEngine:
                 if ab:
                     await self._audio_out.play_wav(ab) if mime == "audio/wav" else await self._play_mp3(ab)
             except Exception as exc:
-                logger.warning(f"[C.Y.R.U.S] Enrollment summary TTS failed: {exc}")
+                logger.warning(f"[JARVIS] Enrollment summary TTS failed: {exc}")
 
         self._enrollment_active = False
         await self._bus.emit("status", {"state": "idle"})
@@ -797,7 +986,7 @@ class CYRUSEngine:
                         pcm_samples.append(pcm)
                     await self._bus.emit("enrollment", {"step": "result", "sample": i, "heard": f"Muestra {i} {'OK' if pcm else '(silencio)'}"})
                 except Exception as exc:
-                    logger.warning(f"[C.Y.R.U.S] Neural enrollment recording failed: {exc}")
+                    logger.warning(f"[JARVIS] Neural enrollment recording failed: {exc}")
 
             if pcm_samples:
                 try:
@@ -812,7 +1001,7 @@ class CYRUSEngine:
                     await self._bus.emit("debug", {"text": f"✓ {summary}", "level": "ok"})
                 except Exception as exc:
                     summary = f"No se pudo registrar el perfil: {exc}"
-                    logger.warning(f"[C.Y.R.U.S] Neural enrollment failed: {exc}")
+                    logger.warning(f"[JARVIS] Neural enrollment failed: {exc}")
             else:
                 summary = "No se detectó audio. Intenta en un ambiente más silencioso."
 
@@ -895,11 +1084,11 @@ class CYRUSEngine:
     async def _greet(self) -> None:
         """Synthesise and play the startup greeting in Spanish."""
         GREETING = (
-            "Hola. Soy C.Y.R.U.S, tu asistente de inteligencia artificial. "
+            "Hola. Soy JARVIS, tu asistente de inteligencia artificial. "
             "Todos los sistemas están en línea. "
             "Menciona mi nombre cuando necesites asistencia."
         )
-        logger.info("[C.Y.R.U.S] Playing startup greeting")
+        logger.info("[JARVIS] Playing startup greeting")
         await self._bus.emit("status", {"state": "speaking"})
         await self._bus.emit("response", {"text": GREETING, "language": "es"})
         async with self._audio_lock:
@@ -919,7 +1108,7 @@ class CYRUSEngine:
                         await self._play_mp3(audio_bytes)
                     # tail already included — do not reset mute
             except Exception as exc:
-                logger.warning(f"[C.Y.R.U.S] Greeting TTS failed: {exc}")
+                logger.warning(f"[JARVIS] Greeting TTS failed: {exc}")
         self._last_greeting_at = time.monotonic()
         await self._bus.emit("status", {"state": "idle"})
 
@@ -934,7 +1123,7 @@ class CYRUSEngine:
 
     async def _on_all_clients_disconnected(self, _payload: dict) -> None:
         """Called when the last frontend client drops — interrupts any live recording."""
-        logger.info("[C.Y.R.U.S] All clients disconnected — pausing mic")
+        logger.info("[JARVIS] All clients disconnected — pausing mic")
         self._audio_in.request_stop()
         # Reset conversation mode so next session starts fresh from wake-word standby
         self._in_conversation = False
@@ -947,7 +1136,7 @@ class CYRUSEngine:
             word = str(payload.get("word", "")).strip()
             if word:
                 self._trigger.add_wake_word(word)
-                logger.info(f"[C.Y.R.U.S] Wake word added via UI: '{word}'")
+                logger.info(f"[JARVIS] Wake word added via UI: '{word}'")
                 await self._bus.emit("wake_words", {"words": self._trigger.wake_words})
                 await self._bus.emit("debug", {"text": f"✓ Wake word '{word}' registrado", "level": "ok"})
         elif cmd == "remove_wake_word":
@@ -993,11 +1182,11 @@ class CYRUSEngine:
         elif cmd == "set_tts_speed":
             speed = float(payload.get("speed", 1.0))
             self._tts.set_speed(speed)
-            logger.info(f"[C.Y.R.U.S] TTS speed → {speed}")
+            logger.info(f"[JARVIS] TTS speed → {speed}")
             await self._bus.emit("debug", {"text": f"TTS speed ajustada a {speed:.2f}", "level": "ok"})
 
         elif cmd == "test_tts":
-            text = str(payload.get("text", "Sistema de voz operativo. C.Y.R.U.S en línea.")).strip()
+            text = str(payload.get("text", "Sistema de voz operativo. JARVIS en línea.")).strip()
             if text and not self._enrollment_active:
                 asyncio.create_task(self._speak_text(text))
 
@@ -1005,10 +1194,10 @@ class CYRUSEngine:
             detector = str(payload.get("detector", "ollama")).strip().lower()
             if detector == "ollama":
                 self._local_ai_detector = "ollama"
-                logger.info("[C.Y.R.U.S] Local AI detector set to Ollama")
+                logger.info("[JARVIS] Local AI detector set to Ollama")
                 await self._bus.emit("debug", {"text": "Detector local: Ollama", "level": "ok"})
             else:
-                logger.warning(f"[C.Y.R.U.S] Unsupported local AI detector: {detector}")
+                logger.warning(f"[JARVIS] Unsupported local AI detector: {detector}")
                 await self._bus.emit("debug", {"text": f"Detector local no soportado: {detector}", "level": "warn"})
 
         elif cmd == "probe_local_ai_detector":
@@ -1023,7 +1212,7 @@ class CYRUSEngine:
                     else:
                         await self._bus.emit("debug", {"text": "Ollama local no disponible.", "level": "warn"})
                 except Exception as exc:
-                    logger.warning(f"[C.Y.R.U.S] Ollama probe failed: {exc}")
+                    logger.warning(f"[JARVIS] Ollama probe failed: {exc}")
                     await self._bus.emit("debug", {"text": "No se pudo conectar a Ollama local.", "level": "warn"})
             else:
                 await self._bus.emit("debug", {"text": f"Detector local no reconocido: {detector}", "level": "warn"})
@@ -1051,7 +1240,7 @@ class CYRUSEngine:
                 await self._bus.emit("available_models", {"models": results, "current": self._ollama._model})
                 await self._bus.emit("debug", {"text": f"Modelos locales listados: {len(results)}", "level": "ok"})
             except Exception as exc:
-                logger.warning(f"[C.Y.R.U.S] Could not list Ollama models: {exc}")
+                logger.warning(f"[JARVIS] Could not list Ollama models: {exc}")
                 await self._bus.emit("debug", {"text": "No se pudieron obtener los modelos de Ollama.", "level": "warn"})
 
         elif cmd == "set_tts_engine":
@@ -1113,7 +1302,7 @@ class CYRUSEngine:
             model = str(payload.get("model", "")).strip()
             if model:
                 self._ollama._model = model
-                logger.info(f"[C.Y.R.U.S] LLM model → {model}")
+                logger.info(f"[JARVIS] LLM model → {model}")
                 await self._bus.emit("debug", {"text": f"Modelo LLM cambiado a {model}", "level": "ok"})
                 await self._save_llm_model()
                 try:
@@ -1183,13 +1372,13 @@ class CYRUSEngine:
 
     async def _run_briefing(self) -> None:
         """Generate and play the morning briefing."""
-        logger.info("[C.Y.R.U.S] Running morning briefing…")
+        logger.info("[JARVIS] Running morning briefing…")
         await self._bus.emit("debug", {"text": "☀ Generando briefing matutino…", "level": "info"})
 
         try:
             text = await self._briefing_agent.generate()
         except Exception as exc:
-            logger.error(f"[C.Y.R.U.S] Briefing generation failed: {exc}")
+            logger.error(f"[JARVIS] Briefing generation failed: {exc}")
             return
 
         await self._bus.emit("response", {"text": text, "language": "es"})
@@ -1208,7 +1397,7 @@ class CYRUSEngine:
                     await self._audio_out.play_pcm(pcm_b, sample_rate=pcm_r)
             await self._bus.emit("status", {"state": "idle"})
         except Exception as exc:
-            logger.error(f"[C.Y.R.U.S] Briefing TTS/playback failed: {exc}")
+            logger.error(f"[JARVIS] Briefing TTS/playback failed: {exc}")
             await self._bus.emit("status", {"state": "idle"})
 
     async def _on_scheduler_event(self, job_id: str, payload: dict) -> None:
@@ -1250,17 +1439,17 @@ class CYRUSEngine:
             )
             self._scheduler.on_job_event(self._on_scheduler_event)
             self._scheduler.start()
-            logger.info(f"[C.Y.R.U.S] Scheduler started — briefing at {briefing_time}")
+            logger.info(f"[JARVIS] Scheduler started — briefing at {briefing_time}")
 
-        logger.info("[C.Y.R.U.S] Starting… Say 'Hola C.Y.R.U.S' or 'Hey C.Y.R.U.S'")
-        await self._bus.emit("status", {"state": "idle", "message": "C.Y.R.U.S online"})
+        logger.info("[JARVIS] Starting… Say 'Hola JARVIS' or 'Hey JARVIS'")
+        await self._bus.emit("status", {"state": "idle", "message": "JARVIS online"})
         await self._state.set_status(SystemStatus.IDLE)
 
         try:
             while True:
                 await self._process_one_turn()
         except KeyboardInterrupt:
-            logger.info("[C.Y.R.U.S] Interrupted — shutting down")
+            logger.info("[JARVIS] Interrupted — shutting down")
         except asyncio.CancelledError:
             pass
         finally:
@@ -1291,7 +1480,7 @@ class CYRUSEngine:
         try:
             pcm = await self._audio_in.record_utterance()
         except Exception as exc:
-            logger.error(f"[C.Y.R.U.S] Audio capture failed: {exc}")
+            logger.error(f"[JARVIS] Audio capture failed: {exc}")
             await asyncio.sleep(0.5)
             return
 
@@ -1305,7 +1494,7 @@ class CYRUSEngine:
         # 16 kHz × 2 bytes × 0.6 s = 19 200 bytes
         _MIN_PCM = int(self._cfg.audio.input.sample_rate * 2 * 0.60)
         if len(pcm) < _MIN_PCM:
-            logger.debug(f"[C.Y.R.U.S] PCM too short ({len(pcm)} B < {_MIN_PCM} B) — discarded")
+            logger.debug(f"[JARVIS] PCM too short ({len(pcm)} B < {_MIN_PCM} B) — discarded")
             await asyncio.sleep(0.05)
             return
 
@@ -1313,9 +1502,10 @@ class CYRUSEngine:
         speaker_result = await asyncio.get_running_loop().run_in_executor(
             None, self._speaker_intel.identify, pcm
         )
-        logger.debug(f"[C.Y.R.U.S] Speaker: {speaker_result.speaker_id} ({speaker_result.role.value}) conf={speaker_result.confidence:.2f}")
-        _speaker_role = speaker_result.role
-        _speaker_id   = speaker_result.speaker_id
+        logger.debug(f"[JARVIS] Speaker: {speaker_result.speaker_id} ({speaker_result.role.value}) conf={speaker_result.confidence:.2f}")
+        _speaker_result = speaker_result
+        _speaker_role   = speaker_result.role
+        _speaker_id     = speaker_result.speaker_id
 
         # 2. Transcribe ──────────────────────────────────────────────────
         await self._state.set_status(SystemStatus.PROCESSING)
@@ -1330,30 +1520,58 @@ class CYRUSEngine:
                     None, self._asr.transcribe, pcm
                 )
         except Exception as exc:
-            logger.error(f"[C.Y.R.U.S] ASR failed: {exc}")
+            logger.error(f"[JARVIS] ASR failed: {exc}")
             await self._bus.emit("error", {"message": "Transcription failed — please repeat"})
             await self._state.set_status(SystemStatus.LISTENING)
             await self._bus.emit("status", {"state": "listening"})
             return
 
+        # Apply STT correction map (Whisper Spanish misrecognitions of "JARVIS")
+        corrected = _correct_transcript(transcript)
+        if corrected != transcript:
+            logger.info(f"[JARVIS] STT corrected: '{transcript}' → '{corrected}'")
+            await self._bus.emit("debug", {
+                "text": f"STT corrected: \"{transcript}\" → \"{corrected}\"",
+                "level": "info",
+            })
+            transcript = corrected
+
         if not transcript.strip():
-            logger.debug("[C.Y.R.U.S] Empty transcript — ignoring")
+            logger.debug("[JARVIS] Empty transcript — ignoring")
             # Return to LISTENING without emitting state (no visible flicker)
             await self._state.set_status(SystemStatus.LISTENING)
             await asyncio.sleep(0.05)
             return
 
-        # Reject Whisper hallucination patterns: repeated single tokens like
-        # "CYRUS, CYRUS, CYRUS" or "No, no, no, no" that appear when the model
-        # echoes the initial_prompt or hears its own TTS output through the mic.
+        # Reject Whisper hallucination patterns
         _tokens = [t.strip(" ,.'\"") for t in transcript.split(",") if t.strip(" ,.'\"")]
         if len(_tokens) >= 3 and len(set(t.lower() for t in _tokens)) == 1:
-            logger.debug(f"[C.Y.R.U.S] Hallucination detected — discarding: '{transcript}'")
+            logger.info(f"[JARVIS] Hallucination (repeated token) — discarding: '{transcript}'")
             await self._state.set_status(SystemStatus.LISTENING)
             await asyncio.sleep(0.05)
             return
 
-        logger.info(f"[C.Y.R.U.S] Transcript: '{transcript}' [{lang}]")
+        # Whisper sometimes echoes phrases from initial_prompt or common training data
+        _hallucination_phrases = [
+            "jarvis es un asistente de ia personal",
+            "jarvis es un asistente de ia",
+            "habla en español",
+            "subtítulos realizados",
+            "subtitulos realizados",
+            "subtítulos por la comunidad",
+            "thanks for watching",
+            "gracias por ver el video",
+            "gracias por ver",
+            "amara.org",
+        ]
+        _norm = transcript.lower().strip(" ,.'\"!?¿¡")
+        if any(p in _norm for p in _hallucination_phrases):
+            logger.info(f"[JARVIS] Hallucination (known phrase) — discarding: '{transcript}'")
+            await self._state.set_status(SystemStatus.LISTENING)
+            await asyncio.sleep(0.05)
+            return
+
+        logger.info(f"[JARVIS] Transcript: '{transcript}' [{lang}]")
         # Emit raw ASR result to frontend debug log
         await self._bus.emit("debug", {"text": f"ASR [{lang}]: \"{transcript}\"", "level": "info"})
         await self._bus.emit("transcript", {"text": transcript, "language": lang})
@@ -1364,7 +1582,7 @@ class CYRUSEngine:
         # Check if conversation session has timed out
         if self._in_conversation and (now - self._last_interaction_at) > self._CONVERSATION_TIMEOUT:
             self._in_conversation = False
-            logger.info("[C.Y.R.U.S] Conversation timeout — back to wake-word mode")
+            logger.info("[JARVIS] Conversation timeout — back to wake-word mode")
             await self._bus.emit("debug", {
                 "text": "💤 Sesión terminada por inactividad — di mi nombre para activarme",
                 "level": "warn",
@@ -1386,7 +1604,7 @@ class CYRUSEngine:
             # Standby mode — require wake word
             triggered, clean_input = self._trigger.detect(transcript)
             if not triggered:
-                logger.debug(f"[C.Y.R.U.S] No wake word in: '{transcript}'")
+                logger.debug(f"[JARVIS] No wake word in: '{transcript}'")
                 await self._bus.emit("debug", {
                     "text": f"⚠ Sin wake word en: \"{transcript}\"",
                     "level": "warn",
@@ -1406,19 +1624,30 @@ class CYRUSEngine:
             })
 
             if not clean_input.strip():
-                # Only wake word, no query — let CYRUS acknowledge and wait
+                # Only wake word, no query — let JARVIS acknowledge and wait
                 clean_input = "El usuario te acaba de llamar. Salúdalo brevemente y pregúntale en qué puedes ayudarle."
 
-        # Role-based routing
-        if _speaker_role == SpeakerRole.UNKNOWN and self._speaker_intel.list_speakers():
+        # ── Voice enrollment intercept (before role routing) ─────────────
+        _enroll_reply = await self._check_enrollment_voice_command(clean_input)
+        if _enroll_reply is not None:
+            return   # enrollment started — pipeline handles the rest
+
+        # ── Role-based routing ────────────────────────────────────────────
+        if _speaker_role == SpeakerRole.OWNER:
+            owner_name = getattr(getattr(self._cfg, "system", None), "owner_name", "Ricardo")
+            await self._bus.emit("debug", {"text": f"✅ Propietario reconocido: {owner_name} (conf={_speaker_result.confidence:.2f})", "level": "ok"})
+            await self._bus.emit("speaker_identified", {"id": _speaker_id, "role": "owner", "name": owner_name, "confidence": _speaker_result.confidence})
+        elif _speaker_role == SpeakerRole.UNKNOWN and self._speaker_intel.list_speakers():
             clean_input = (
                 "[SYSTEM: Voz no reconocida. Pregúntale quién es y explícale que solo el propietario "
                 "puede dar comandos al sistema. Sé amable pero firme.]"
             )
             await self._bus.emit("debug", {"text": "⚠ Voz desconocida detectada", "level": "warn"})
+            await self._bus.emit("speaker_identified", {"id": "unknown", "role": "unknown", "confidence": 0.0})
         elif _speaker_role == SpeakerRole.GUEST:
             clean_input = f"[INVITADO: {_speaker_id}] {clean_input}"
             await self._bus.emit("debug", {"text": f"👤 Invitado: {_speaker_id}", "level": "info"})
+            await self._bus.emit("speaker_identified", {"id": _speaker_id, "role": "guest", "confidence": _speaker_result.confidence})
 
         # 3b. Planner voice command intercept ────────────────────────────
         planner_reply = self._planner.handle_voice_command(clean_input)
@@ -1434,7 +1663,7 @@ class CYRUSEngine:
                     if ab:
                         await self._audio_out.play_wav(ab) if mime == "audio/wav" else await self._play_mp3(ab)
                 except Exception as exc:
-                    logger.warning(f"[C.Y.R.U.S] Planner TTS failed: {exc}")
+                    logger.warning(f"[JARVIS] Planner TTS failed: {exc}")
             await self._bus.emit("status", {"state": "idle"})
             return
 
@@ -1453,7 +1682,7 @@ class CYRUSEngine:
                         if ab:
                             await self._audio_out.play_wav(ab) if mime == "audio/wav" else await self._play_mp3(ab)
                     except Exception as exc:
-                        logger.warning(f"[C.Y.R.U.S] HA TTS failed: {exc}")
+                        logger.warning(f"[JARVIS] HA TTS failed: {exc}")
                 await self._bus.emit("status", {"state": "idle"})
                 return
 
@@ -1462,13 +1691,21 @@ class CYRUSEngine:
         await self._state.add_turn("user", clean_input, lang)
         vision_ctx = self._vision.get_context() if self._vision else None
 
-        # 4a. Retrieve memory context
+        # 4a. Retrieve memory context (Qdrant vector) + fact memory (FTS5)
         memory_ctx = ""
         if self._memory:
             try:
                 memory_ctx = await self._memory.retrieve_context(clean_input)
             except Exception as exc:
-                logger.warning(f"[C.Y.R.U.S] Memory retrieval failed: {exc}")
+                logger.warning(f"[JARVIS] Memory retrieval failed: {exc}")
+
+        # Inject known facts about Ricardo (always available, no Qdrant needed)
+        try:
+            fact_ctx = self._fact_memory.to_prompt_text(clean_input, limit=5)
+            if fact_ctx:
+                memory_ctx = (memory_ctx + "\n\n" + fact_ctx).strip()
+        except Exception as exc:
+            logger.warning(f"[JARVIS] FactMemory retrieval failed: {exc}")
 
         # 4b. Try tool-assisted ReAct path first (web search, clima, archivos, etc.)
         display_text = speech_text = ""
@@ -1486,7 +1723,7 @@ class CYRUSEngine:
                 speech_text  = tool_speech
                 await self._bus.emit("debug", {"text": "🔧 Respondió via Tools (ReAct)", "level": "ok"})
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] Tool executor error: {exc}")
+            logger.warning(f"[JARVIS] Tool executor error: {exc}")
 
         # 4c. Fall back to normal LLM if tools didn't produce a result
         if not display_text:
@@ -1500,7 +1737,7 @@ class CYRUSEngine:
                     memory_context=memory_ctx,
                 )
             except Exception as exc:
-                logger.error(f"[C.Y.R.U.S] LLM failed: {exc}")
+                logger.error(f"[JARVIS] LLM failed: {exc}")
                 display_text = "Tengo problemas para procesar tu solicitud. Por favor intenta de nuevo."
                 speech_text  = display_text
 
@@ -1513,10 +1750,13 @@ class CYRUSEngine:
                 await self._memory.store_turn("user", clean_input, lang)
                 await self._memory.store_turn("assistant", display_text, lang)
             except Exception as exc:
-                logger.warning(f"[C.Y.R.U.S] Memory storage failed: {exc}")
+                logger.warning(f"[JARVIS] Memory storage failed: {exc}")
+
+        # Extract facts from this exchange in background (never blocks pipeline)
+        asyncio.create_task(self._extract_facts(clean_input, display_text))
         # Debug log: show full text transformation pipeline
-        logger.info(f"[C.Y.R.U.S] DISPLAY ({len(display_text)}ch): {display_text[:120]!r}")
-        logger.info(f"[C.Y.R.U.S] SPEECH  ({len(speech_text)}ch): {speech_text[:120]!r}")
+        logger.info(f"[JARVIS] DISPLAY ({len(display_text)}ch): {display_text[:120]!r}")
+        logger.info(f"[JARVIS] SPEECH  ({len(speech_text)}ch): {speech_text[:120]!r}")
         await self._bus.emit("debug", {
             "text": f"DISPLAY ({len(display_text)}ch) → SPEECH ({len(speech_text)}ch) via {self._tts.active_backend}",
             "level": "info",
@@ -1536,7 +1776,7 @@ class CYRUSEngine:
                 try:
                     pcm_bytes, pcm_rate, actual_duration = self._decode_to_pcm(audio_bytes, mime)
                 except Exception as dec_exc:
-                    logger.warning(f"[C.Y.R.U.S] Audio decode failed ({dec_exc}); using fallback 8s duration")
+                    logger.warning(f"[JARVIS] Audio decode failed ({dec_exc}); using fallback 8s duration")
                     pcm_bytes, pcm_rate, actual_duration = None, 24000, 8.0
 
                 # Mute mic for full playback + echo tail.
@@ -1546,7 +1786,7 @@ class CYRUSEngine:
                 _ECHO_TAIL = 5.0
                 self._audio_in.mute_for(actual_duration + _ECHO_TAIL)
                 logger.info(
-                    f"[C.Y.R.U.S] TTS playback: actual={actual_duration:.2f}s "
+                    f"[JARVIS] TTS playback: actual={actual_duration:.2f}s "
                     f"tail={_ECHO_TAIL}s mime={mime} bytes={len(audio_bytes)}"
                 )
 
@@ -1560,23 +1800,44 @@ class CYRUSEngine:
                     else:
                         await self._play_mp3(audio_bytes)
 
-                # Cancel barge-in task if playback finished normally
+                # Cancel barge-in task if playback finished normally.
+                # stop_barge_in() aborts its stream so the thread exits fast;
+                # we then await the task so the device is free before we try
+                # to open a new recording stream (fixes WASAPI exclusive deadlock).
                 if self._barge_in_task and not self._barge_in_task.done():
                     self._barge_in_task.cancel()
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.shield(self._barge_in_task), timeout=0.3
+                        )
+                    except (asyncio.CancelledError, asyncio.TimeoutError):
+                        pass
                     self._barge_in_task = None
-                # Tail mute still active — do NOT reset with mute_for() here.
-                # The remaining mute from the original call covers the echo tail.
+
+                # Override the pre-set mute window with a short echo tail.
+                # The original mute_for(duration + 5s) was set before playback;
+                # by the time we reach here there are ~5s remaining.  Reducing
+                # it to 1.5s lets the mic reopen quickly while still absorbing
+                # immediate speaker reverb.  Adjust via config if needed.
+                _echo_tail_cfg = getattr(
+                    getattr(getattr(self._cfg, "audio", None), "input", None),
+                    "echo_tail_secs", 1.5
+                )
+                self._audio_in.mute_for(_echo_tail_cfg)
         except Exception as exc:
-            logger.error(f"[C.Y.R.U.S] TTS/playback failed: {exc}")
+            logger.error(f"[JARVIS] TTS/playback failed: {exc}")
 
         # Refresh conversation timestamp after each full exchange so the
-        # 45-second window starts from when CYRUS finished speaking, not when
+        # 45-second window starts from when JARVIS finished speaking, not when
         # the user started talking.
         if self._in_conversation:
             self._last_interaction_at = time.monotonic()
 
         await self._state.set_status(SystemStatus.IDLE)
         await self._bus.emit("status", {"state": "idle"})
+
+        # Compress conversation history if it's grown too large (rolling summary)
+        asyncio.create_task(self._state.maybe_compress(self._ollama))
 
     def _decode_to_pcm(self, audio_bytes: bytes, mime: str) -> tuple[bytes, int, float]:
         """Decode audio to PCM int16 mono. Returns (pcm_bytes, sample_rate, duration_secs).
@@ -1615,32 +1876,44 @@ class CYRUSEngine:
             pcm, rate, _ = self._decode_to_pcm(mp3_bytes, "audio/mpeg")
             await self._audio_out.play_pcm(pcm, sample_rate=rate)
         except Exception as exc:
-            logger.error(f"[C.Y.R.U.S] MP3 decode/playback failed: {exc}")
+            logger.error(f"[JARVIS] MP3 decode/playback failed: {exc}")
 
     # ------------------------------------------------------------------
     # Public run method
     # ------------------------------------------------------------------
 
     async def run(self) -> None:
-        """Start the C.Y.R.U.S engine (models + pipeline + WebSocket)."""
+        """Start the JARVIS engine (models + pipeline + WebSocket)."""
         log_cfg = self._cfg.logging
         project_root = self._cfg.project_root
         if log_cfg.file:
             configure_file_logging(
                 project_root / log_cfg.log_dir,
                 level=log_cfg.level,
+                process_name="backend",
             )
+
+        # Tell HuggingFace libraries to use only locally cached files.
+        # Without this, every Kokoro synthesis triggers a network check to
+        # huggingface.co (5 retries × exponential backoff = ~23 s per call
+        # when the machine has no internet access).
+        import os as _os
+        _os.environ.setdefault("HF_HUB_OFFLINE", "1")
+        _os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+        # Suppress the verbose retry WARNING flood from huggingface_hub
+        import logging as _logging
+        _logging.getLogger("huggingface_hub").setLevel(_logging.ERROR)
+        _logging.getLogger("huggingface_hub.utils._http").setLevel(_logging.ERROR)
 
         # ctranslate2 emits harmless "Could not locate cudnn_ops_infer64_8.dll"
         # probes at startup — INT8 CUDA inference does not need cuDNN.
-        import logging as _logging
         _logging.getLogger("ctranslate2").setLevel(_logging.ERROR)
         _logging.getLogger("faster_whisper").setLevel(_logging.WARNING)
 
         logger.info("=" * 60)
-        logger.info("[C.Y.R.U.S] COGNITIVE SYSTEM v1.0 — STARTING")
-        logger.info(f"[C.Y.R.U.S] Mode: {self._cfg.system.mode}")
-        logger.info(f"[C.Y.R.U.S] Time: {current_time_str()}")
+        logger.info("[JARVIS] COGNITIVE SYSTEM v1.0 — STARTING")
+        logger.info(f"[JARVIS] Mode: {self._cfg.system.mode}")
+        logger.info(f"[JARVIS] Time: {current_time_str()}")
         logger.info("=" * 60)
 
         # Start WebSocket server immediately so the frontend can connect
@@ -1657,11 +1930,11 @@ class CYRUSEngine:
 
 def main() -> None:
     """CLI entry point."""
-    engine = CYRUSEngine()
+    engine = JARVISEngine()
     try:
         asyncio.run(engine.run())
     except KeyboardInterrupt:
-        logger.info("[C.Y.R.U.S] Shutdown complete")
+        logger.info("[JARVIS] Shutdown complete")
 
 
 if __name__ == "__main__":

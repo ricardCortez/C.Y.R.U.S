@@ -1,8 +1,8 @@
-# C.Y.R.U.S — Plan de Memoria
+# JARVIS — Plan de Memoria
 
 ## Objetivo
-Darle a CYRUS memoria persistente en tres capas:
-1. **Perfil estático** — quién es Ricardo, quién es CYRUS (ya en soul.md, ampliar)
+Darle a JARVIS memoria persistente en tres capas:
+1. **Perfil estático** — quién es Ricardo, quién es JARVIS (ya en soul.md, ampliar)
 2. **Memoria de sesión** — historial de conversación dentro de una sesión (ya funciona, 10 turnos)
 3. **Memoria semántica** — recordar entre sesiones usando embeddings + SQLite + Qdrant
 
@@ -39,7 +39,7 @@ cyrus:
   version: "1.0"
   persona: Asistente cognitivo personal, similar a JARVIS de Iron Man
   voice: ef_dora (Kokoro TTS, español)
-  wake_words: [cyrus, hola cyrus, oye cyrus]
+  wake_words: [cyrus, hola jarvis, oye jarvis]
 ```
 
 ### Implementación
@@ -110,7 +110,7 @@ response = await self._llm.generate(..., memory_context=memory_ctx)
 ```
 
 ### Qué recuerda entre sesiones
-- Cada turno de conversación (usuario + CYRUS)
+- Cada turno de conversación (usuario + JARVIS)
 - Embeddings vectoriales del contenido
 - Búsqueda semántica: "¿qué me dijiste sobre Proxmox?" → recupera contexto relevante
 - Timestamp, idioma, session_id
@@ -136,4 +136,4 @@ response = await self._llm.generate(..., memory_context=memory_ctx)
 2. Actualizar `config_manager.py` para leer el perfil
 3. Actualizar `llm_manager.py` para inyectarlo en el system prompt
 4. Activar `memory.enabled: true` en config (SQLite sin Qdrant)
-5. Probar que CYRUS recuerda el nombre de Ricardo entre reinicios
+5. Probar que JARVIS recuerda el nombre de Ricardo entre reinicios

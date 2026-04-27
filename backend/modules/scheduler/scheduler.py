@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Agent Scheduler.
+JARVIS — Agent Scheduler.
 
 Runs registered async jobs on a schedule:
   daily HH:MM  — fires every day at that local time
@@ -18,7 +18,7 @@ from typing import Any, Callable, Coroutine, Dict, List, Optional
 
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.scheduler")
+logger = get_logger("jarvis.scheduler")
 
 
 class JobStatus(str, Enum):

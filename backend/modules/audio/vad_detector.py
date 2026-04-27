@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Voice Activity Detector.
+JARVIS — Voice Activity Detector.
 
 Uses WebRTC VAD (webrtcvad) for frame-level speech / silence classification.
 Provides a simple streaming API: feed PCM chunks, receive True/False.
@@ -15,7 +15,7 @@ import webrtcvad
 
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.audio.vad")
+logger = get_logger("jarvis.audio.vad")
 
 # webrtcvad only accepts specific frame durations at specific rates.
 _VALID_FRAME_MS = {10, 20, 30}
@@ -43,9 +43,9 @@ class VADDetector:
         ring_buffer_len: int = 15,
     ) -> None:
         if sample_rate not in _VALID_RATES:
-            raise ValueError(f"[C.Y.R.U.S] VAD: sample_rate must be one of {_VALID_RATES}")
+            raise ValueError(f"[JARVIS] VAD: sample_rate must be one of {_VALID_RATES}")
         if frame_duration_ms not in _VALID_FRAME_MS:
-            raise ValueError(f"[C.Y.R.U.S] VAD: frame_duration_ms must be one of {_VALID_FRAME_MS}")
+            raise ValueError(f"[JARVIS] VAD: frame_duration_ms must be one of {_VALID_FRAME_MS}")
 
         self._vad = webrtcvad.Vad(aggressiveness)
         self._sample_rate = sample_rate

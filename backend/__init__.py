@@ -1,1 +1,1 @@
-"""C.Y.R.U.S — Cognitive sYstem for Real-time Utility & Services."""
+"""JARVIS — Cognitive sYstem for Real-time Utility & Services."""

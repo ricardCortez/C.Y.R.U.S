@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Home Assistant Device Controller (Phase 4).
+JARVIS — Home Assistant Device Controller (Phase 4).
 
 Maps natural-language intent to HA service calls.
 Patterns cover common Spanish voice commands for lights, switches, and climate.

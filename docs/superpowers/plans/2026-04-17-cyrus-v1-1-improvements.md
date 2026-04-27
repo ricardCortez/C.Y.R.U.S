@@ -1,4 +1,4 @@
-# C.Y.R.U.S v1.1 — Mejoras Implementation Plan
+# JARVIS v1.1 — Mejoras Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -20,10 +20,10 @@
 - Modify: `.gitignore`
 - Create: `launch.bat`
 
-- [ ] **Step 1: Agregar `.cyrus_launcher_state` al .gitignore**
+- [ ] **Step 1: Agregar `.jarvis_launcher_state` al .gitignore**
 
 ```bash
-echo .cyrus_launcher_state >> .gitignore
+echo .jarvis_launcher_state >> .gitignore
 ```
 
 - [ ] **Step 2: Crear `launch.bat`**
@@ -53,7 +53,7 @@ git commit -m "chore: add launch.bat wrapper and gitignore launcher state"
 
 ```python
 #!/usr/bin/env python3
-"""C.Y.R.U.S — Smart Launcher.
+"""JARVIS — Smart Launcher.
 
 Installs deps, starts services in order, waits for all to be healthy,
 then opens the browser. Uses only Python stdlib — no venv required to run.
@@ -73,7 +73,7 @@ from urllib.error import URLError
 from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parent
-STATE_FILE = ROOT / ".cyrus_launcher_state"
+STATE_FILE = ROOT / ".jarvis_launcher_state"
 
 # ── ANSI colors (Windows 10+ supports them) ──────────────────────────────────
 def _ansi(code: str) -> str:
@@ -96,7 +96,7 @@ def dim(msg: str)  -> None: print(f"  {DIM}    {msg}{RESET}")
 def banner() -> None:
     print()
     print(f"  {BOLD}┌─────────────────────────────────────┐{RESET}")
-    print(f"  {BOLD}│  C.Y.R.U.S  —  INICIANDO SISTEMA   │{RESET}")
+    print(f"  {BOLD}│  JARVIS  —  INICIANDO SISTEMA   │{RESET}")
     print(f"  {BOLD}└─────────────────────────────────────┘{RESET}")
     print()
 
@@ -301,7 +301,7 @@ def kill_port(port: int, label: str) -> None:
 def kill_all_ports() -> None:
     print()
     kill_port(8020, "TTS Server   ")
-    kill_port(8765, "CYRUS Backend")
+    kill_port(8765, "JARVIS Backend")
     kill_port(3007, "Frontend     ")
     kill_port(8000, "ASR Server   ")
     kill_port(8001, "Vision Server")
@@ -543,7 +543,7 @@ speaker_gate_enabled: bool = True
 
 Verificar con:
 ```bash
-cd D:\Archivos\Desarrollo\C.Y.R.U.S
+cd D:\Archivos\Desarrollo\JARVIS
 venv\Scripts\python -c "from backend.core.config_manager import load_config; c = load_config(); print(c.audio.input.noise_gate_factor)"
 ```
 Resultado esperado: `3.5`
@@ -577,7 +577,7 @@ Reemplazar el bloque de imports y `__init__` completo:
 
 ```python
 """
-C.Y.R.U.S — Microphone capture with VAD, noise gate, and speaker gate.
+JARVIS — Microphone capture with VAD, noise gate, and speaker gate.
 
 Uses sounddevice (WASAPI shared mode on Windows) to eliminate mic monitoring
 echo. Adds adaptive noise floor calibration and optional speaker verification.
@@ -598,7 +598,7 @@ from backend.modules.audio.vad_detector import VADDetector
 from backend.utils.exceptions import AudioInputError
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.audio.input")
+logger = get_logger("jarvis.audio.input")
 
 _SpeakerProfile = None
 
@@ -651,11 +651,11 @@ class AudioInput:
 ```python
     def open(self) -> None:
         self._device_index = self._resolve_device()
-        logger.info(f"[C.Y.R.U.S] AudioInput: opened device index={self._device_index}")
+        logger.info(f"[JARVIS] AudioInput: opened device index={self._device_index}")
         self._calibrate_noise_floor()
 
     def close(self) -> None:
-        logger.info("[C.Y.R.U.S] AudioInput: closed")
+        logger.info("[JARVIS] AudioInput: closed")
 
     def __enter__(self) -> "AudioInput":
         self.open()
@@ -671,10 +671,10 @@ class AudioInput:
         for i, dev in enumerate(devices):
             if (self._device_name.lower() in dev["name"].lower()
                     and dev["max_input_channels"] > 0):
-                logger.info(f"[C.Y.R.U.S] AudioInput: matched '{dev['name']}' at index {i}")
+                logger.info(f"[JARVIS] AudioInput: matched '{dev['name']}' at index {i}")
                 return i
         logger.warning(
-            f"[C.Y.R.U.S] AudioInput: device '{self._device_name}' not found; using default"
+            f"[JARVIS] AudioInput: device '{self._device_name}' not found; using default"
         )
         return None
 
@@ -692,7 +692,7 @@ class AudioInput:
     def _calibrate_noise_floor(self, duration: Optional[float] = None) -> None:
         secs = duration or self._noise_calibration_secs
         n_frames = int(self._sample_rate * secs)
-        logger.info(f"[C.Y.R.U.S] AudioInput: calibrating noise floor ({secs:.1f}s)…")
+        logger.info(f"[JARVIS] AudioInput: calibrating noise floor ({secs:.1f}s)…")
         try:
             wasapi = self._wasapi_settings()
             kwargs: dict = dict(
@@ -708,9 +708,9 @@ class AudioInput:
                 data, _ = stream.read(n_frames)
             pcm = data.tobytes()
             self._noise_floor = self._rms(pcm)
-            logger.info(f"[C.Y.R.U.S] AudioInput: noise floor = {self._noise_floor:.1f} RMS")
+            logger.info(f"[JARVIS] AudioInput: noise floor = {self._noise_floor:.1f} RMS")
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] AudioInput: calibration failed ({exc}) — using config threshold")
+            logger.warning(f"[JARVIS] AudioInput: calibration failed ({exc}) — using config threshold")
             self._noise_floor = 0.0
 
     @property
@@ -728,11 +728,11 @@ class AudioInput:
 
     def mute_for(self, seconds: float) -> None:
         self._muted_until = time.monotonic() + seconds
-        logger.debug(f"[C.Y.R.U.S] AudioInput: muted for {seconds:.1f}s")
+        logger.debug(f"[JARVIS] AudioInput: muted for {seconds:.1f}s")
 
     def set_voice_profile(self, profile: object) -> None:
         self._voice_profile = profile
-        logger.info("[C.Y.R.U.S] AudioInput: voice profile attached")
+        logger.info("[JARVIS] AudioInput: voice profile attached")
 
     def verify_speaker(self, pcm: bytes) -> bool:
         """Returns True if pcm matches enrolled voice, or no profile exists."""
@@ -771,9 +771,9 @@ class AudioInput:
             stream = sd.InputStream(**kwargs)
             stream.start()
         except Exception as exc:
-            raise AudioInputError(f"[C.Y.R.U.S] Cannot open microphone: {exc}") from exc
+            raise AudioInputError(f"[JARVIS] Cannot open microphone: {exc}") from exc
 
-        logger.debug("[C.Y.R.U.S] AudioInput: listening for speech…")
+        logger.debug("[JARVIS] AudioInput: listening for speech…")
         self._vad.reset()
         self._stop_flag.clear()
         frames: list[bytes] = []
@@ -806,7 +806,7 @@ class AudioInput:
                         speech_started = True
                         frames.extend(pre_roll)
                         self._last_speech_at = time.monotonic()
-                        logger.debug("[C.Y.R.U.S] AudioInput: speech onset")
+                        logger.debug("[JARVIS] AudioInput: speech onset")
                     silence_count = 0
                     frames.append(data)
                 elif speech_started:
@@ -873,7 +873,7 @@ class AudioInput:
             stream = sd.InputStream(**kwargs)
             stream.start()
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] AudioInput: barge-in stream failed: {exc}")
+            logger.warning(f"[JARVIS] AudioInput: barge-in stream failed: {exc}")
             return False
 
         try:
@@ -959,7 +959,7 @@ En `_process_one_turn`, después del bloque `if not pcm: return` y antes de la s
 ```python
         # Speaker gate — discard if voice doesn't match enrolled profile
         if not self._audio_in.verify_speaker(pcm):
-            logger.debug("[C.Y.R.U.S] Speaker gate: voice mismatch — discarding utterance")
+            logger.debug("[JARVIS] Speaker gate: voice mismatch — discarding utterance")
             await self._state.set_status(SystemStatus.LISTENING)
             await asyncio.sleep(0.05)
             return
@@ -970,8 +970,8 @@ En `_process_one_turn`, después del bloque `if not pcm: return` y antes de la s
 ```bash
 venv\Scripts\python -m backend.core.cyrus_engine &
 # Esperar 5 segundos y verificar en logs:
-# "[C.Y.R.U.S] AudioInput: calibrating noise floor"
-# "[C.Y.R.U.S] AudioInput: noise floor = XX.X RMS"
+# "[JARVIS] AudioInput: calibrating noise floor"
+# "[JARVIS] AudioInput: noise floor = XX.X RMS"
 ```
 
 - [ ] **Step 4: Commit**
@@ -991,7 +991,7 @@ git commit -m "feat(audio): wire noise gate params and speaker gate into engine 
 
 **Files:**
 - Create: `frontend/src/types/presets.ts`
-- Modify: `frontend/src/store/useCYRUSStore.ts`
+- Modify: `frontend/src/store/useJARVISStore.ts`
 
 - [ ] **Step 1: Crear `frontend/src/types/presets.ts`**
 
@@ -1077,9 +1077,9 @@ export const PRESETS: Record<VisualPresetId, PresetConfig> = {
 }
 ```
 
-- [ ] **Step 2: Agregar `visualPreset` al store en `useCYRUSStore.ts`**
+- [ ] **Step 2: Agregar `visualPreset` al store en `useJARVISStore.ts`**
 
-En la interface `CYRUSStore`, agregar después de `orbSpeed`:
+En la interface `JARVISStore`, agregar después de `orbSpeed`:
 ```typescript
   visualPreset: VisualPresetId
   setVisualPreset: (p: VisualPresetId) => void
@@ -1110,7 +1110,7 @@ Resultado esperado: sin errores.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add frontend/src/types/presets.ts frontend/src/store/useCYRUSStore.ts
+git add frontend/src/types/presets.ts frontend/src/store/useJARVISStore.ts
 git commit -m "feat(visual): add VisualPreset types and store integration"
 ```
 
@@ -1128,7 +1128,7 @@ git commit -m "feat(visual): add VisualPreset types and store integration"
 ```typescript
 // frontend/src/components/ParticleNetwork.tsx
 //
-// C.Y.R.U.S — Neural Network Visualizer v2
+// JARVIS — Neural Network Visualizer v2
 // — 3-layer volumetric geometry (cortex / gray matter / nucleus)
 // — 3 connection types (local / hemispheric / long axon)
 // — WebGL shaders with volumetric glow and pulse gradients
@@ -1137,7 +1137,7 @@ git commit -m "feat(visual): add VisualPreset types and store integration"
 
 import { useEffect, useRef }                          from 'react'
 import * as THREE                                      from 'three'
-import { useCYRUSStore, SystemState }                  from '../store/useCYRUSStore'
+import { useJARVISStore, SystemState }                  from '../store/useJARVISStore'
 import { AudioAnalyserHandle }                         from '../hooks/useAudioAnalyser'
 import { PRESETS, PresetConfig, VisualPresetId }       from '../types/presets'
 
@@ -1389,9 +1389,9 @@ interface Props { analyser?: AudioAnalyserHandle }
 
 export function ParticleNetwork({ analyser }: Props) {
   const mountRef     = useRef<HTMLDivElement>(null)
-  const systemState  = useCYRUSStore(s => s.systemState)
-  const bloomIntensity = useCYRUSStore(s => s.bloomIntensity)
-  const visualPreset = useCYRUSStore(s => s.visualPreset)
+  const systemState  = useJARVISStore(s => s.systemState)
+  const bloomIntensity = useJARVISStore(s => s.bloomIntensity)
+  const visualPreset = useJARVISStore(s => s.visualPreset)
 
   const stateRef     = useRef(systemState)
   const bloomRef     = useRef(bloomIntensity)
@@ -1784,8 +1784,8 @@ import { PRESETS, VisualPresetId } from '../types/presets'
 
 ```typescript
 function PresetSelector() {
-  const visualPreset  = useCYRUSStore(s => s.visualPreset)
-  const setVisualPreset = useCYRUSStore(s => s.setVisualPreset)
+  const visualPreset  = useJARVISStore(s => s.visualPreset)
+  const setVisualPreset = useJARVISStore(s => s.setVisualPreset)
 
   return (
     <div style={{ marginTop: 8 }}>

@@ -1,5 +1,5 @@
 /**
- * C.Y.R.U.S — Audio waveform visualizer.
+ * JARVIS — Audio waveform visualizer.
  *
  * Canvas-based spectrum analyzer with 48 bars.
  * Amplitudes are simulated from the WebSocket system state
@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useRef } from 'react'
-import { useCYRUSStore, SystemState } from '../store/useCYRUSStore'
+import { useJARVISStore, SystemState } from '../store/useJARVISStore'
 
 const BARS        = 48
 const BAR_GAP     = 2
@@ -74,7 +74,7 @@ function targetAmplitudes(state: SystemState, t: number): number[] {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function WaveformVisualizer() {
-  const state      = useCYRUSStore(s => s.systemState)
+  const state      = useJARVISStore(s => s.systemState)
   const canvasRef  = useRef<HTMLCanvasElement>(null)
   const barsRef    = useRef<number[]>(Array(BARS).fill(0.02))
   const rafRef     = useRef<number>(0)

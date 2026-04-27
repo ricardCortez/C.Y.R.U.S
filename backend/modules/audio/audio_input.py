@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Microphone capture with VAD, noise gate, and speaker gate.
+JARVIS — Microphone capture with VAD, noise gate, and speaker gate.
 
 Uses sounddevice (WASAPI shared mode on Windows) to eliminate mic monitoring
 echo. Adds adaptive noise floor calibration and optional speaker verification.
@@ -20,7 +20,7 @@ from backend.modules.audio.vad_detector import VADDetector
 from backend.utils.exceptions import AudioInputError
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.audio.input")
+logger = get_logger("jarvis.audio.input")
 
 _SpeakerProfile = None
 
@@ -51,6 +51,8 @@ class AudioInput:
         self._device_index: Optional[int] = None
         self._vad = VADDetector(sample_rate=sample_rate, aggressiveness=3)
         self._stop_flag = threading.Event()
+        self._barge_in_stop = threading.Event()
+        self._barge_in_stream: Optional[sd.InputStream] = None
         self._muted_until: float = 0.0
         self._voice_profile = None
 
@@ -104,16 +106,16 @@ class AudioInput:
                 return sd.InputStream(**{**base, **extra})
             except Exception as exc:
                 last_exc = exc
-        raise AudioInputError(f"[C.Y.R.U.S] Cannot open microphone: {last_exc}") from last_exc
+        raise AudioInputError(f"[JARVIS] Cannot open microphone: {last_exc}") from last_exc
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
     def open(self) -> None:
         self._device_index = self._resolve_device()
-        logger.info(f"[C.Y.R.U.S] AudioInput: opened device index={self._device_index}")
+        logger.info(f"[JARVIS] AudioInput: opened device index={self._device_index}")
         self._calibrate_noise_floor()
 
     def close(self) -> None:
-        logger.info("[C.Y.R.U.S] AudioInput: closed")
+        logger.info("[JARVIS] AudioInput: closed")
 
     def __enter__(self) -> "AudioInput":
         self.open()
@@ -130,10 +132,10 @@ class AudioInput:
         for i, dev in enumerate(devices):
             if (self._device_name.lower() in dev["name"].lower()
                     and dev["max_input_channels"] > 0):
-                logger.info(f"[C.Y.R.U.S] AudioInput: matched '{dev['name']}' at index {i}")
+                logger.info(f"[JARVIS] AudioInput: matched '{dev['name']}' at index {i}")
                 return i
         logger.warning(
-            f"[C.Y.R.U.S] AudioInput: device '{self._device_name}' not found; using default"
+            f"[JARVIS] AudioInput: device '{self._device_name}' not found; using default"
         )
         return None
 
@@ -148,22 +150,22 @@ class AudioInput:
     def _calibrate_noise_floor(self, duration: Optional[float] = None) -> None:
         secs = duration or self._noise_calibration_secs
         n_frames = int(self._sample_rate * secs)
-        logger.info(f"[C.Y.R.U.S] AudioInput: calibrating noise floor ({secs:.1f}s)…")
+        logger.info(f"[JARVIS] AudioInput: calibrating noise floor ({secs:.1f}s)…")
         try:
             stream = self._open_input_stream()
             with stream:
                 data, _ = stream.read(n_frames)
             pcm = data.tobytes()
             self._noise_floor = self._rms(pcm)
-            logger.info(f"[C.Y.R.U.S] AudioInput: noise floor = {self._noise_floor:.1f} RMS")
+            logger.info(f"[JARVIS] AudioInput: noise floor = {self._noise_floor:.1f} RMS")
             if self._noise_floor == 0.0:
                 logger.warning(
-                    "[C.Y.R.U.S] AudioInput: noise floor is ZERO — microphone may be muted, "
+                    "[JARVIS] AudioInput: noise floor is ZERO — microphone may be muted, "
                     "powered off, or the USB wireless headset is not connected to its dongle. "
                     "Check that the headset is turned on and paired."
                 )
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] AudioInput: calibration failed ({exc}) — using config threshold")
+            logger.warning(f"[JARVIS] AudioInput: calibration failed ({exc}) — using config threshold")
             self._noise_floor = 0.0
 
     @property
@@ -178,11 +180,25 @@ class AudioInput:
 
     def mute_for(self, seconds: float) -> None:
         self._muted_until = time.monotonic() + seconds
-        logger.info(f"[C.Y.R.U.S] AudioInput: mute_for({seconds:.2f}s) — free at T+{seconds:.2f}s")
+        logger.info(f"[JARVIS] AudioInput: mute_for({seconds:.2f}s) — free at T+{seconds:.2f}s")
+
+    def stop_barge_in(self) -> None:
+        """Abort the barge-in detection stream so its thread exits immediately.
+
+        Called when TTS playback ends and we need the device free for recording.
+        Safe to call from asyncio (does not block).
+        """
+        self._barge_in_stop.set()
+        s = self._barge_in_stream
+        if s is not None:
+            try:
+                s.abort()
+            except Exception:
+                pass
 
     def set_voice_profile(self, profile: object) -> None:
         self._voice_profile = profile
-        logger.info("[C.Y.R.U.S] AudioInput: voice profile attached")
+        logger.info("[JARVIS] AudioInput: voice profile attached")
 
     def verify_speaker(self, pcm: bytes) -> bool:
         """Returns True if pcm matches enrolled voice, or no profile loaded."""
@@ -211,7 +227,7 @@ class AudioInput:
             dev_info = sd.query_devices(self._device_index)
             host_api = sd.query_hostapis(dev_info["hostapi"])["name"]
             logger.info(
-                f"[C.Y.R.U.S] AudioInput: stream opened — device='{dev_info['name']}' "
+                f"[JARVIS] AudioInput: stream opened — device='{dev_info['name']}' "
                 f"idx={self._device_index} api={host_api} "
                 f"sr={self._sample_rate} threshold={threshold:.0f}"
             )
@@ -254,13 +270,13 @@ class AudioInput:
                 if _diag_chunks % _DIAG_INTERVAL == 0:
                     muted = time.monotonic() < self._muted_until
                     logger.info(
-                        f"[C.Y.R.U.S] AudioInput: chunks={_diag_chunks} "
+                        f"[JARVIS] AudioInput: chunks={_diag_chunks} "
                         f"max_rms={_diag_max_rms} vad_hits={_diag_vad_hits} "
                         f"threshold={threshold:.0f} muted={muted} speech_started={speech_started}"
                     )
                     if _diag_max_rms == 0 and _diag_chunks <= _DIAG_INTERVAL * 3:
                         logger.warning(
-                            "[C.Y.R.U.S] AudioInput: ZERO audio — headset apagado/sin conexión "
+                            "[JARVIS] AudioInput: ZERO audio — headset apagado/sin conexión "
                             "al dongle, mute físico activo, o nivel de entrada en 0% en Windows."
                         )
                     _diag_max_rms = 0
@@ -280,7 +296,7 @@ class AudioInput:
                         frames.extend(pre_roll)
                         self._last_speech_at = time.monotonic()
                         logger.info(
-                            f"[C.Y.R.U.S] AudioInput: speech onset "
+                            f"[JARVIS] AudioInput: speech onset "
                             f"rms={rms} threshold={threshold:.0f} vad=True"
                         )
                     silence_count = 0
@@ -290,7 +306,7 @@ class AudioInput:
                     silence_count += 1
                     if silence_count >= self._silence_frames:
                         logger.info(
-                            f"[C.Y.R.U.S] AudioInput: utterance end "
+                            f"[JARVIS] AudioInput: utterance end "
                             f"frames={len(frames)} bytes={len(frames)*self._chunk_size*2}"
                         )
                         break
@@ -318,16 +334,26 @@ class AudioInput:
         collected: list[bytes] = []
         vad = VADDetector(sample_rate=self._sample_rate, aggressiveness=3, speech_ratio=0.85)
 
+        self._barge_in_stop.clear()
         try:
-            stream = self._open_input_stream()
+            # Use shared mode only — exclusive mode would block the next record_utterance()
+            # if this thread outlives the asyncio task that spawned it.
+            stream = sd.InputStream(
+                samplerate=self._sample_rate,
+                channels=self._channels,
+                dtype="int16",
+                blocksize=self._chunk_size,
+                device=self._device_index,
+            )
             stream.start()
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] AudioInput: barge-in stream failed: {exc}")
+            logger.warning(f"[JARVIS] AudioInput: barge-in stream failed: {exc}")
             return False
 
+        self._barge_in_stream = stream
         try:
             while True:
-                if self._stop_flag.is_set():
+                if self._barge_in_stop.is_set():
                     return False
                 raw, _ = stream.read(self._chunk_size)
                 data = raw.tobytes()
@@ -357,8 +383,12 @@ class AudioInput:
                     if consecutive == 0:
                         collected.clear()
         finally:
-            stream.stop()
-            stream.close()
+            self._barge_in_stream = None
+            try:
+                stream.stop()
+                stream.close()
+            except Exception:
+                pass
 
     # ── Utilities ─────────────────────────────────────────────────────────────
     @staticmethod

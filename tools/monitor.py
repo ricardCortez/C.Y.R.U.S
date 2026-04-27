@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-C.Y.R.U.S — Console Monitor
+JARVIS — Console Monitor
 Conecta al backend por WebSocket y muestra el flujo de conversación en tiempo real.
 
 Uso:
@@ -58,7 +58,7 @@ def render(event: str, data: dict, use_color: bool, show_debug: bool) -> str | N
             text = data.get("text", "")
             # Truncate for console display
             preview = text[:180] + ("…" if len(text) > 180 else "")
-            return _line(CYAN, "[ C.Y.R.U.S ]", preview, use_color)
+            return _line(CYAN, "[ JARVIS ]", preview, use_color)
 
         case "status":
             state = data.get("state", "").upper()
@@ -139,7 +139,7 @@ async def run(url: str, show_debug: bool, use_color: bool) -> None:
         print(f"{BOLD}  Console Monitor{RESET}  —  {GRAY}Ctrl+C para salir{RESET}")
         print(f"{GRAY}  Conectando a {url}…{RESET}\n")
     else:
-        print("C.Y.R.U.S Console Monitor")
+        print("JARVIS Console Monitor")
         print(f"Conectando a {url}…\n")
 
     sep = f"{GRAY}{'─' * 70}{RESET}" if use_color else "─" * 70
@@ -194,7 +194,7 @@ def main() -> None:
         except AttributeError:
             pass
 
-    parser = argparse.ArgumentParser(description="C.Y.R.U.S Console Monitor")
+    parser = argparse.ArgumentParser(description="JARVIS Console Monitor")
     parser.add_argument("--url",      default="ws://localhost:8765", help="WebSocket URL")
     parser.add_argument("--no-debug", action="store_true",           help="Ocultar mensajes debug")
     parser.add_argument("--no-color", action="store_true",           help="Sin colores ANSI")

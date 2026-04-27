@@ -1,4 +1,4 @@
-# C.Y.R.U.S — Mejoras v1.1 Design Spec
+# JARVIS — Mejoras v1.1 Design Spec
 **Fecha:** 2026-04-17  
 **Estado:** Aprobado por usuario  
 **Alcance:** 3 sub-proyectos independientes, implementables en secuencia
@@ -23,13 +23,13 @@ launch.bat
        │       Si no existe venv → crearlo con py -3.11 -m venv venv
        ├─ [2] pip install -r requirements.txt
        │       Solo si hash(requirements.txt) cambió desde última ejecución
-       │       Hash guardado en .cyrus_launcher_state (gitignored)
+       │       Hash guardado en .jarvis_launcher_state (gitignored)
        ├─ [3] npm install en /frontend
        │       Solo si hash(package.json) cambió
        ├─ [4] Matar procesos en puertos: 8020, 8765, 3007, 8000, 8001, 8002
        ├─ [5] Levantar servicios en orden:
        │       a. TTS Server (8020)     → poll /health hasta OK o timeout
-       │       b. Backend CYRUS (8765)  → poll puerto TCP hasta OK o timeout
+       │       b. Backend JARVIS (8765)  → poll puerto TCP hasta OK o timeout
        │       c. Frontend React (3007) → poll HTTP 200 hasta OK o timeout
        │       (ASR/Vision/Embedder opcionales via flags CLI)
        ├─ [6] Tabla de estado final con colores
@@ -45,7 +45,7 @@ launch.bat
 ### Salida en consola (colores ANSI)
 ```
   ┌─────────────────────────────────────┐
-  │  C.Y.R.U.S  —  INICIANDO SISTEMA   │
+  │  JARVIS  —  INICIANDO SISTEMA   │
   └─────────────────────────────────────┘
   [✓] Python 3.11           encontrado
   [✓] Entorno virtual       activo
@@ -68,7 +68,7 @@ launch.bat install-only → solo instalar deps, no levantar servicios
 ```
 
 ### Estado persistido
-Archivo `.cyrus_launcher_state` (gitignored):
+Archivo `.jarvis_launcher_state` (gitignored):
 ```json
 {
   "requirements_hash": "sha256:...",
@@ -176,7 +176,7 @@ Reestructura visual completa con geometría volumétrica de 3 capas, 3 tipos de 
 ### Archivos afectados
 - `frontend/src/components/ParticleNetwork.tsx` (reestructura completa)
 - `frontend/src/views/ControlView.tsx` (agregar selector de presets)
-- `frontend/src/store/useCYRUSStore.ts` (agregar `visualPreset` al estado global)
+- `frontend/src/store/useJARVISStore.ts` (agregar `visualPreset` al estado global)
 - `frontend/src/types/presets.ts` (nuevo — tipos de presets)
 
 ### 3a — Geometría volumétrica (400 nodos, 3 capas)
@@ -249,7 +249,7 @@ interface PresetConfig {
 
 Sección nueva "Visualización" en `ControlView.tsx`:
 - 5 tarjetas clickeables, cada una con preview canvas en miniatura (50×50px) renderizado en tiempo real con el preset
-- La selección se guarda en `useCYRUSStore` → `visualPreset`
+- La selección se guarda en `useJARVISStore` → `visualPreset`
 - `ParticleNetwork` observa `visualPreset` y transiciona suavemente (lerp 60 frames) entre paletas
 
 ---

@@ -1,4 +1,4 @@
-# C.Y.R.U.S - Cognitive sYstem for Real-time Utility & Services
+# JARVIS - Cognitive sYstem for Real-time Utility & Services
 # Python 3.11+ required
 # CPU-only build (no NVIDIA GPU) — install torch separately before this file:
 #   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
@@ -44,8 +44,8 @@ edge-tts>=7.0.0            # Microsoft Neural TTS — primary Spanish voice (es-
 # Install manually if needed: pip install TTS>=0.22.0
 
 # ── LLM clients ───────────────────────────────────────────────────────────────
-anthropic==0.28.1
-httpx==0.27.0
+anthropic>=0.40.0          # 0.28.x incompatible with httpx>=0.28 (proxies kwarg removed)
+httpx>=0.27.0,<0.29.0
 ollama==0.2.1
 
 # ── WebSocket server ──────────────────────────────────────────────────────────
@@ -70,6 +70,9 @@ rich==13.7.1
 psutil>=5.9.0              # system monitoring (CPU/RAM usage in engine)
 setuptools<70              # provides pkg_resources (required by ctranslate2); newer setuptools removed it
 pyaudio>=0.2.14            # audio I/O backend (auto-installed on Windows via wheel)
+mss>=9.0.0                 # fast cross-platform screen capture (system_tools)
+pyperclip>=1.8.0           # clipboard read/write (system_tools)
+piper-tts>=1.4.0           # Piper offline TTS (Spanish voice)
 
 # ── Memory (Phase 3) ──────────────────────────────────────────────────────────
 qdrant-client==1.9.1

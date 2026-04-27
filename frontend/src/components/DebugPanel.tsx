@@ -1,10 +1,10 @@
 /**
- * C.Y.R.U.S — System diagnostics HUD panel.
+ * JARVIS — System diagnostics HUD panel.
  * Right-side panel: live metrics, neural data stream, pipeline status.
  */
 
 import { useEffect, useState } from 'react'
-import { useCYRUSStore, SystemState } from '../store/useCYRUSStore'
+import { useJARVISStore, SystemState } from '../store/useJARVISStore'
 
 // ── Pipeline stages ────────────────────────────────────────────────────────
 
@@ -62,10 +62,10 @@ function MetricRow({ label, value, color }: { label: string; value: string; colo
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function DebugPanel() {
-  const wsConnected   = useCYRUSStore(s => s.wsConnected)
-  const systemState   = useCYRUSStore(s => s.systemState)
-  const statusMessage = useCYRUSStore(s => s.statusMessage)
-  const transcript    = useCYRUSStore(s => s.transcript)
+  const wsConnected   = useJARVISStore(s => s.wsConnected)
+  const systemState   = useJARVISStore(s => s.systemState)
+  const statusMessage = useJARVISStore(s => s.statusMessage)
+  const transcript    = useJARVISStore(s => s.transcript)
 
   const [streamLines, setStreamLines] = useState<string[]>(() =>
     Array.from({ length: 10 }, genStreamLine)

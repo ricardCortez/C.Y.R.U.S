@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — ASR Microservice (port 8000).
+JARVIS — ASR Microservice (port 8000).
 
 Standalone FastAPI server wrapping faster-whisper.
 OpenAI-compatible /v1/audio/transcriptions endpoint so any OpenAI client works.
@@ -30,13 +30,20 @@ from __future__ import annotations
 import io
 import os
 import wave
+from pathlib import Path
 from typing import Optional
 
 import uvicorn
+
+from backend.utils.logger import configure_file_logging, get_logger
+
+_LOG_DIR = Path(__file__).resolve().parents[2] / "logs"
+configure_file_logging(_LOG_DIR, level="INFO", process_name="asr")
+logger = get_logger("jarvis.asr.server")
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-app = FastAPI(title="C.Y.R.U.S ASR Server", version="1.0.0")
+app = FastAPI(title="JARVIS ASR Server", version="1.0.0")
 
 _model = None
 _model_size = os.environ.get("ASR_MODEL", "tiny")
@@ -90,7 +97,7 @@ def _do_transcribe(audio_bytes: bytes, sample_rate: int = 16000, content_type: s
         language=_language,
         beam_size=5,
         vad_filter=True,
-        initial_prompt="Hola CYRUS, oye CYRUS, hey CYRUS, CYRUS",
+        initial_prompt="Hola JARVIS, oye JARVIS, hey JARVIS, JARVIS",
     )
     text = " ".join(seg.text.strip() for seg in segments).strip()
     lang = info.language or (_language or "es")

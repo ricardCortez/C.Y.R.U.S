@@ -1,25 +1,25 @@
-"""C.Y.R.U.S — Custom exception hierarchy."""
+"""JARVIS — Custom exception hierarchy."""
 
 from __future__ import annotations
 
 
-class CYRUSError(Exception):
-    """Base exception for all C.Y.R.U.S errors."""
+class JARVISError(Exception):
+    """Base exception for all JARVIS errors."""
 
 
 # ── Audio ─────────────────────────────────────────────────────────────────────
 
-class AudioInputError(CYRUSError):
+class AudioInputError(JARVISError):
     """Raised when the microphone cannot be opened or read."""
 
 
-class AudioOutputError(CYRUSError):
+class AudioOutputError(JARVISError):
     """Raised when the speaker/stream cannot be written."""
 
 
 # ── ASR ───────────────────────────────────────────────────────────────────────
 
-class ASRError(CYRUSError):
+class ASRError(JARVISError):
     """Raised when Whisper transcription fails."""
 
 
@@ -29,13 +29,13 @@ class ASRModelNotLoadedError(ASRError):
 
 # ── Trigger ───────────────────────────────────────────────────────────────────
 
-class TriggerDetectionError(CYRUSError):
+class TriggerDetectionError(JARVISError):
     """Raised on unexpected trigger-detection failures."""
 
 
 # ── LLM ───────────────────────────────────────────────────────────────────────
 
-class LLMError(CYRUSError):
+class LLMError(JARVISError):
     """Base LLM error."""
 
 
@@ -49,7 +49,7 @@ class LLMAPIError(LLMError):
 
 # ── TTS ───────────────────────────────────────────────────────────────────────
 
-class TTSError(CYRUSError):
+class TTSError(JARVISError):
     """Base TTS error."""
 
 
@@ -63,11 +63,11 @@ class TTSAPIError(TTSError):
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-class ConfigError(CYRUSError):
+class ConfigError(JARVISError):
     """Raised for missing or malformed configuration values."""
 
 
 # ── WebSocket ─────────────────────────────────────────────────────────────────
 
-class WebSocketError(CYRUSError):
+class WebSocketError(JARVISError):
     """Raised when the WebSocket server encounters a fatal error."""

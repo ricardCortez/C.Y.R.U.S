@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Text preparation for TTS synthesis.
+JARVIS — Text preparation for TTS synthesis.
 
 Two-stage pipeline:
   1. clean_for_tts()        — strips markdown and visual formatting
@@ -25,8 +25,8 @@ def clean_for_tts(text: str) -> str:
     Returns:
         Clean plain text suitable for speech.
     """
-    # System name: C.Y.R.U.S → CYRUS (prevent letter-by-letter pronunciation)
-    text = re.sub(r'\bC\.Y\.R\.U\.S\b', 'CYRUS', text, flags=re.IGNORECASE)
+    # System name: JARVIS → JARVIS (prevent letter-by-letter pronunciation)
+    text = re.sub(r'\bC\.Y\.R\.U\.S\b', 'JARVIS', text, flags=re.IGNORECASE)
 
     # Bold / italic: **text** → text, *text* → text, __text__ → text
     text = re.sub(r'\*{1,3}([^*\n]+)\*{1,3}', r'\1', text)

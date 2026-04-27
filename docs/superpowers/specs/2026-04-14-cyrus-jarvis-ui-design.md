@@ -1,4 +1,4 @@
-# C.Y.R.U.S — JARVIS-Style Frontend Design Spec
+# JARVIS — JARVIS-Style Frontend Design Spec
 **Date:** 2026-04-14  
 **Status:** Approved  
 
@@ -73,7 +73,7 @@ Separate page. Futuristic dashboard. Framer Motion animations on mount.
 
 ### Layout
 
-Full-screen dark bg (`#05070d`). Single scrollable column, max-width 480px centered. Header: `C.Y.R.U.S` brand + back arrow to View 1.
+Full-screen dark bg (`#05070d`). Single scrollable column, max-width 480px centered. Header: `JARVIS` brand + back arrow to View 1.
 
 ### Sections (top → bottom)
 
@@ -117,9 +117,9 @@ frontend/src/
 │   ├── useWebSocket.ts          # Existing — keep
 │   └── useAudioAnalyser.ts      # New — Web Audio API wrapper
 ├── store/
-│   └── useCYRUSStore.ts         # Existing — keep, add: logs[], particleCount, bloomIntensity
+│   └── useJARVISStore.ts         # Existing — keep, add: logs[], particleCount, bloomIntensity
 ├── styles/
-│   └── cyrus-theme.css          # Existing — update fonts to Orbitron
+│   └── jarvis-theme.css          # Existing — update fonts to Orbitron
 └── utils/
     └── ws-client.ts             # Existing — keep
 ```
@@ -170,7 +170,7 @@ frontend/src/
 
 ## WebSocket Integration
 
-Existing `useWebSocket.ts` drives `systemState` in Zustand. ParticleNetwork reads state reactively via `useCYRUSStore`. No changes to backend protocol.
+Existing `useWebSocket.ts` drives `systemState` in Zustand. ParticleNetwork reads state reactively via `useJARVISStore`. No changes to backend protocol.
 
 New store fields:
 - `logs: LogEntry[]` — populated by WS `log` events, capped at 200 entries

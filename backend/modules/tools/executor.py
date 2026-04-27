@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Tool Executor (ReAct-style orchestrator).
+JARVIS — Tool Executor (ReAct-style orchestrator).
 
 Implements the PENSAMIENTO → HERRAMIENTA → OBSERVACIÓN loop.
 Runs up to MAX_TURNS iterations; returns the RESPUESTA_FINAL when found.
@@ -8,17 +8,20 @@ Compatible with qwen3:8b in non-thinking mode (think:false).
 """
 from __future__ import annotations
 
+import hashlib
 import re
 import asyncio
+from collections import Counter
 from typing import List, Optional
 
 from backend.modules.tools.registry import ToolRegistry, get_registry
 from backend.modules.tools.result import ToolResult
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.tools.executor")
+logger = get_logger("jarvis.tools.executor")
 
-MAX_TURNS = 5
+MAX_TURNS   = 5
+_LOOP_LIMIT = 2   # block a (tool, args) pair after this many identical calls
 
 
 # ── Prompt blocks ─────────────────────────────────────────────────────────────
@@ -89,6 +92,10 @@ class ToolExecutor:
         work_msgs = list(messages)
         work_msgs.append({"role": "user", "content": user_input})
 
+        # Loop guard: track (tool, args) call counts and recent sequence
+        call_counts: Counter = Counter()
+        recent_calls: List[str] = []   # last 4 call hashes for ping-pong detection
+
         for turn in range(1, self._max_turns + 1):
             logger.info(f"[Tools] ReAct turn {turn}/{self._max_turns}")
 
@@ -108,20 +115,38 @@ class ToolExecutor:
             # Check for HERRAMIENTA call
             tool_name, raw_params = self._extract_tool_call(response)
             if not tool_name:
-                # Model responded without a tool call and without RESPUESTA_FINAL
-                # — treat the whole response as the answer
                 clean = self._strip_react_markers(response)
                 if clean.strip():
                     return clean, clean
                 return None, None
 
-            # Execute tool
+            # ── Loop guard ────────────────────────────────────────────────
+            params = self._parse_params(raw_params)
+            call_hash = self._call_hash(tool_name, params)
+            call_counts[call_hash] += 1
+            recent_calls.append(call_hash)
+            if len(recent_calls) > 4:
+                recent_calls.pop(0)
+
+            # Identical call repeated too many times
+            if call_counts[call_hash] > _LOOP_LIMIT:
+                logger.warning(f"[Tools] Loop guard: '{tool_name}' called {call_counts[call_hash]}x — stopping")
+                obs = f"Herramienta '{tool_name}' ya fue llamada varias veces con los mismos parámetros. Usa la información ya obtenida para responder."
+                work_msgs.append({"role": "assistant", "content": response})
+                work_msgs.append({"role": "user",      "content": f"OBSERVACIÓN: {obs}"})
+                continue
+
+            # Ping-pong: A→B→A→B pattern
+            if len(recent_calls) >= 4 and recent_calls[-4] == recent_calls[-2] and recent_calls[-3] == recent_calls[-1]:
+                logger.warning("[Tools] Loop guard: ping-pong pattern detected — stopping")
+                return None, None
+
+            # ── Execute tool ──────────────────────────────────────────────
             tool_def = self._registry.get(tool_name)
             if not tool_def:
                 obs = f"Herramienta '{tool_name}' no encontrada."
                 logger.warning(f"[Tools] Unknown tool: {tool_name}")
             else:
-                params = self._parse_params(raw_params)
                 logger.info(f"[Tools] Calling {tool_name}({params})")
                 try:
                     result: ToolResult = await tool_def.fn(**params)
@@ -192,6 +217,12 @@ class ToolExecutor:
                 k, _, v = part.partition("=")
                 params[k.strip()] = v.strip()
         return params
+
+    @staticmethod
+    def _call_hash(tool_name: str, params: dict) -> str:
+        """Stable hash of a (tool_name, sorted_params) pair for loop detection."""
+        key = tool_name + "|" + "|".join(f"{k}={v}" for k, v in sorted(params.items()))
+        return hashlib.md5(key.encode()).hexdigest()[:8]
 
     @staticmethod
     def _strip_react_markers(text: str) -> str:

@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Anthropic Claude API fallback client.
+JARVIS — Anthropic Claude API fallback client.
 
 Used when the local Ollama service is unavailable (HYBRID mode).
 Requires the ``CLAUDE_API_KEY`` environment variable.
@@ -13,14 +13,14 @@ from typing import AsyncIterator, List, Optional
 from backend.utils.exceptions import LLMAPIError
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.llm.claude")
+logger = get_logger("jarvis.llm.claude")
 
 try:
     import anthropic
     _ANTHROPIC_AVAILABLE = True
 except ImportError:
     _ANTHROPIC_AVAILABLE = False
-    logger.warning("[C.Y.R.U.S] anthropic package not installed; Claude API fallback unavailable")
+    logger.warning("[JARVIS] anthropic package not installed; Claude API fallback unavailable")
 
 
 class ClaudeClient:
@@ -52,10 +52,10 @@ class ClaudeClient:
 
     def _get_client(self) -> "anthropic.AsyncAnthropic":
         if not _ANTHROPIC_AVAILABLE:
-            raise LLMAPIError("[C.Y.R.U.S] anthropic package not installed")
+            raise LLMAPIError("[JARVIS] anthropic package not installed")
         if not self._api_key:
             raise LLMAPIError(
-                "[C.Y.R.U.S] CLAUDE_API_KEY not set; Claude API fallback unavailable"
+                "[JARVIS] CLAUDE_API_KEY not set; Claude API fallback unavailable"
             )
         if self._client is None:
             self._client = anthropic.AsyncAnthropic(
@@ -98,15 +98,15 @@ class ClaudeClient:
             response = await client.messages.create(
                 model=self._model,
                 max_tokens=self._max_tokens,
-                system=system_prompt or "You are C.Y.R.U.S, a helpful AI assistant.",
+                system=system_prompt or "You are JARVIS, a helpful AI assistant.",
                 messages=anthropic_messages,
                 temperature=temperature,
             )
             text = response.content[0].text if response.content else ""
-            logger.info(f"[C.Y.R.U.S] Claude API: response received ({len(text)} chars)")
+            logger.info(f"[JARVIS] Claude API: response received ({len(text)} chars)")
             return text
         except Exception as exc:
-            raise LLMAPIError(f"[C.Y.R.U.S] Claude API error: {exc}") from exc
+            raise LLMAPIError(f"[JARVIS] Claude API error: {exc}") from exc
 
     async def chat_stream(
         self,
@@ -129,11 +129,11 @@ class ClaudeClient:
             async with client.messages.stream(
                 model=self._model,
                 max_tokens=self._max_tokens,
-                system=system_prompt or "You are C.Y.R.U.S, a helpful AI assistant.",
+                system=system_prompt or "You are JARVIS, a helpful AI assistant.",
                 messages=anthropic_messages,
                 temperature=temperature,
             ) as stream:
                 async for text in stream.text_stream:
                     yield text
         except Exception as exc:
-            raise LLMAPIError(f"[C.Y.R.U.S] Claude API stream error: {exc}") from exc
+            raise LLMAPIError(f"[JARVIS] Claude API stream error: {exc}") from exc

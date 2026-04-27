@@ -1,4 +1,4 @@
-"""C.Y.R.U.S — DeepFace face recognition and emotion detection."""
+"""JARVIS — DeepFace face recognition and emotion detection."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -9,7 +9,7 @@ import numpy as np
 from backend.modules.vision.models import DetectedFace
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.vision.face")
+logger = get_logger("jarvis.vision.face")
 
 # Known-faces DB — directory of  <name>/<photo.jpg>  pairs
 _DEFAULT_DB = Path("data/faces")
@@ -50,7 +50,7 @@ class FaceDetector:
         try:
             from deepface import DeepFace  # noqa: F401
         except ImportError:
-            logger.warning("[C.Y.R.U.S] deepface not installed; face detection skipped")
+            logger.warning("[JARVIS] deepface not installed; face detection skipped")
             return []
 
         faces: List[DetectedFace] = []
@@ -78,7 +78,7 @@ class FaceDetector:
                     DetectedFace("unknown", 0.0, emotion=emotion, bbox=bbox)
                 )
         except Exception as exc:
-            logger.debug(f"[C.Y.R.U.S] Emotion analysis skipped: {exc}")
+            logger.debug(f"[JARVIS] Emotion analysis skipped: {exc}")
 
         # ── Identity recognition (requires face DB) ───────────────────────
         if self._db.exists() and any(self._db.iterdir()):
@@ -102,6 +102,6 @@ class FaceDetector:
                             faces[i].identity = identity
                             faces[i].confidence = confidence
             except Exception as exc:
-                logger.debug(f"[C.Y.R.U.S] Face recognition skipped: {exc}")
+                logger.debug(f"[JARVIS] Face recognition skipped: {exc}")
 
         return faces

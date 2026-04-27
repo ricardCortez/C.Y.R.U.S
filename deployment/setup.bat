@@ -1,6 +1,6 @@
 @echo off
 REM ─────────────────────────────────────────────────────────────────────────
-REM C.Y.R.U.S — Windows Setup Script
+REM JARVIS — Windows Setup Script
 REM Run from the project root: deployment\setup.bat
 REM ─────────────────────────────────────────────────────────────────────────
 
@@ -69,12 +69,12 @@ echo.
 echo ─────────────────────────────────────────────────────
 echo  Setup complete!
 echo.
-echo  To start C.Y.R.U.S:
+echo  To start JARVIS:
 echo.
 echo    1. Activate venv:    venv\Scripts\activate
 echo    2. Start Ollama:     ollama serve       (separate terminal)
 echo    3. Start backend:    python -m backend.core.cyrus_engine
 echo    4. Start frontend:   cd frontend ^& npm run dev
 echo.
-echo  Then say "Hola C.Y.R.U.S" into your microphone.
+echo  Then say "Hola JARVIS" into your microphone.
 echo ─────────────────────────────────────────────────────

@@ -1,1 +1,1 @@
-"""C.Y.R.U.S API layer."""
+"""JARVIS API layer."""

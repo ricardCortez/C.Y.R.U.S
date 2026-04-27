@@ -1,16 +1,16 @@
 /**
- * C.Y.R.U.S — React hook for WebSocket lifecycle management.
+ * JARVIS — React hook for WebSocket lifecycle management.
  * Singleton client — safe to call from multiple components.
  */
 
 import { useEffect, useCallback } from 'react'
-import { CYRUSWebSocketClient, WSEvent } from '../utils/ws-client'
-import { useCYRUSStore, SystemState, SystemStats, ServiceStatus, LogLevel } from '../store/useCYRUSStore'
+import { JARVISWebSocketClient, WSEvent } from '../utils/ws-client'
+import { useJARVISStore, SystemState, SystemStats, ServiceStatus, LogLevel } from '../store/useJARVISStore'
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8765'
 
 // Module-level singleton — shared across all hook instances
-const _client = new CYRUSWebSocketClient(WS_URL)
+const _client = new JARVISWebSocketClient(WS_URL)
 let _bootstrapped = false
 
 export function useWebSocket(): { connected: boolean; sendCommand: (cmd: string, extra?: object) => void } {
@@ -29,7 +29,7 @@ export function useWebSocket(): { connected: boolean; sendCommand: (cmd: string,
     setAvailableModels,
     setCurrentModel,
     setServiceStatus,
-  } = useCYRUSStore()
+  } = useJARVISStore()
 
   useEffect(() => {
     if (_bootstrapped) return   // only wire up once
@@ -66,8 +66,8 @@ export function useWebSocket(): { connected: boolean; sendCommand: (cmd: string,
 
         case 'response':
           setCurrentResponse(evt.data.text)
-          addEntry({ role: 'cyrus', text: evt.data.text, language: evt.data.language })
-          addLog('info', `CYRUS: ${evt.data.text}`)
+          addEntry({ role: 'jarvis', text: evt.data.text, language: evt.data.language })
+          addLog('info', `JARVIS: ${evt.data.text}`)
           break
 
         case 'vision':
@@ -113,17 +113,17 @@ export function useWebSocket(): { connected: boolean; sendCommand: (cmd: string,
           break
 
         case 'speaker_profiles':
-          useCYRUSStore.getState().setSpeakerProfiles(evt.data.speakers ?? [])
+          useJARVISStore.getState().setSpeakerProfiles(evt.data.speakers ?? [])
           break
 
         case 'planner_tasks':
-          ;(window as any).__cyrus_planner_tasks = evt.data.tasks ?? []
+          ;(window as any).__jarvis_planner_tasks = evt.data.tasks ?? []
           // Trigger re-render by adding a silent debug entry
           addLog('info', `📋 Tareas: ${(evt.data.tasks ?? []).length} pendientes`)
           break
 
         case 'scheduler_jobs':
-          ;(window as any).__cyrus_scheduler_jobs = evt.data.jobs ?? []
+          ;(window as any).__jarvis_scheduler_jobs = evt.data.jobs ?? []
           addLog('info', `☀ Scheduler: ${(evt.data.jobs ?? []).length} jobs`)
           break
 
@@ -147,10 +147,10 @@ export function useWebSocket(): { connected: boolean; sendCommand: (cmd: string,
       const connected = _client.isConnected
       setWsConnected(connected)
       if (!connected) {
-        const cur = useCYRUSStore.getState().systemState
+        const cur = useJARVISStore.getState().systemState
         if (!manualStates.has(cur)) {
           setSystemState('offline')
-          setStatusMessage('Reconnecting to C.Y.R.U.S…')
+          setStatusMessage('Reconnecting to JARVIS…')
         }
       }
     }, 1500)
@@ -168,6 +168,6 @@ export function useWebSocket(): { connected: boolean; sendCommand: (cmd: string,
     _client.send({ type: 'command', cmd, ...extra })
   }, [])
 
-  const connected = useCYRUSStore((s) => s.wsConnected)
+  const connected = useJARVISStore((s) => s.wsConnected)
   return { connected, sendCommand }
 }

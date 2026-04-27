@@ -1,12 +1,12 @@
 /**
- * C.Y.R.U.S — Live camera feed with detection overlay.
+ * JARVIS — Live camera feed with detection overlay.
  * Renders base64 JPEG frames pushed from the vision pipeline via WebSocket.
  */
 
-import { useCYRUSStore } from '../store/useCYRUSStore'
+import { useJARVISStore } from '../store/useJARVISStore'
 
 export function CameraStream() {
-  const frame = useCYRUSStore((s) => s.cameraFrame)
+  const frame = useJARVISStore((s) => s.cameraFrame)
 
   if (!frame) {
     return (
@@ -32,7 +32,7 @@ export function CameraStream() {
     <div className="relative rounded overflow-hidden" style={{ border: '1px solid #0a4060' }}>
       <img
         src={`data:image/jpeg;base64,${frame}`}
-        alt="C.Y.R.U.S vision feed"
+        alt="JARVIS vision feed"
         className="w-full object-contain"
         style={{ display: 'block' }}
       />

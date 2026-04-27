@@ -1,4 +1,4 @@
-# C.Y.R.U.S — Guía de Instalación
+# JARVIS — Guía de Instalación
 
 **Cognitive sYstem for Real-time Utility & Services**
 
@@ -69,8 +69,8 @@ espeak-ng --version
 ## Paso 2 — Clonar el repositorio
 
 ```bat
-git clone <repo-url> D:\Archivos\Desarrollo\C.Y.R.U.S
-cd D:\Archivos\Desarrollo\C.Y.R.U.S
+git clone <repo-url> D:\Archivos\Desarrollo\JARVIS
+cd D:\Archivos\Desarrollo\JARVIS
 ```
 
 ---
@@ -128,7 +128,7 @@ Salida esperada: `46 passed, 6 skipped` (los 6 skipped requieren hardware real).
 
 ---
 
-## Paso 7 — Arrancar C.Y.R.U.S
+## Paso 7 — Arrancar JARVIS
 
 ### Modo mínimo (3 terminales)
 
@@ -182,11 +182,11 @@ Abrir **http://localhost:5173**
 
 ## Microservicios — Arquitectura
 
-C.Y.R.U.S separa los módulos pesados de ML en servicios HTTP independientes.
+JARVIS separa los módulos pesados de ML en servicios HTTP independientes.
 Cada servicio tiene su propio proceso y puede correr en otra máquina del LAN.
 
 ```
-C.Y.R.U.S Core (backend principal)
+JARVIS Core (backend principal)
   ├── LLM          → Ollama          :11434  (siempre externo)
   ├── TTS Server   → services/tts    :8020   (Kokoro / Piper / XTTS v2)
   ├── ASR Server   → services/asr    :8000   (faster-whisper)
@@ -209,7 +209,7 @@ Ver detalles en [SERVICES_PLAN.md](SERVICES_PLAN.md).
 ## Comandos de diagnóstico
 
 ```bat
-:: Ver todos los procesos activos de C.Y.R.U.S
+:: Ver todos los procesos activos de JARVIS
 tasklist /fi "imagename eq python.exe" /v
 
 :: Ver puertos en uso
@@ -225,7 +225,7 @@ for /f "tokens=5" %a in ('netstat -ano ^| findstr ":8020 "') do taskkill /pid %a
 ```
 
 ```powershell
-# PowerShell — estado de todos los puertos CYRUS
+# PowerShell — estado de todos los puertos JARVIS
 @(8020, 8000, 8002, 8765, 11434, 5173) | ForEach-Object {
     $c = Get-NetTCPConnection -LocalPort $_ -ErrorAction SilentlyContinue
     if ($c) { "ACTIVO  :$_ -> PID $($c.OwningProcess)" } else { "libre   :$_" }
@@ -282,7 +282,7 @@ Margen seguro: 4 GB libres de 8 GB totales.
 ## Estructura del proyecto
 
 ```
-C.Y.R.U.S/
+JARVIS/
 ├── backend/              Backend Python principal
 │   ├── api/              WebSocket server
 │   ├── core/             Engine + config + state

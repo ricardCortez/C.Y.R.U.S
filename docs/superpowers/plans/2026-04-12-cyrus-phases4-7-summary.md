@@ -1,4 +1,4 @@
-# C.Y.R.U.S Phases 4–7 — Implementation Plans Summary
+# JARVIS Phases 4–7 — Implementation Plans Summary
 
 > Each phase has its own detailed plan file. This document is the roadmap overview.
 > **For agentic workers:** Start each phase only after the previous one passes all tests.
@@ -28,7 +28,7 @@
 3. `SkillInterpreter` — regex + LLM mini-classifier
    - Parses: "turn on/off [device]", "set [device] to [value]%", "what is [device] status"
    - Returns `HAAction(service, entity_id, params)`
-4. Wire into `CYRUSEngine._process_one_turn()`:
+4. Wire into `JARVISEngine._process_one_turn()`:
    - After LLM response, check if `SkillInterpreter` detects an HA intent
    - Execute the HA action
    - Append result to TTS response: "Done. Lights are now on."
@@ -61,8 +61,8 @@ homeassistant==0.2.5   # or just use httpx directly
 
 **Success criteria:**
 - `pytest tests/test_ha.py -v` → all pass (mocked HA)
-- "Hola C.Y.R.U.S, enciende las luces del salón" → lights turn on
-- "C.Y.R.U.S, pon la temperatura a 22 grados" → thermostat set to 22°C
+- "Hola JARVIS, enciende las luces del salón" → lights turn on
+- "JARVIS, pon la temperatura a 22 grados" → thermostat set to 22°C
 - Success rate > 95% for mapped devices
 
 **Commit message:**
@@ -149,7 +149,7 @@ feat(ui): Phase 5 complete — Three.js hologram UI + system metrics
 
 1. **conftest.py fixtures**
    - `mock_audio_utterance` — 2-second PCM silence fixture
-   - `mock_whisper_response` — fixture returning `("hola cyrus que hora es", "es")`
+   - `mock_whisper_response` — fixture returning `("hola jarvis que hora es", "es")`
    - `mock_ollama_response` — fixture returning `"It is 14:35."`
    - `mock_kokoro_audio` — fixture returning minimal WAV bytes
 
@@ -157,7 +157,7 @@ feat(ui): Phase 5 complete — Three.js hologram UI + system metrics
    ```python
    async def test_audio_to_trigger(mock_audio, mock_whisper):
        # AudioInput → WhisperASR → TriggerDetector
-       # Verify: trigger fires correctly on "hola cyrus"
+       # Verify: trigger fires correctly on "hola jarvis"
    ```
 
 3. **Integration test: LLM pipeline**
@@ -254,7 +254,7 @@ feat(testing): Phase 6 complete — 70%+ coverage, latency benchmarks
 4. **Systemd service** (`cyrus.service`)
    ```ini
    [Unit]
-   Description=C.Y.R.U.S Cognitive System
+   Description=JARVIS Cognitive System
    After=network.target ollama.service
 
    [Service]

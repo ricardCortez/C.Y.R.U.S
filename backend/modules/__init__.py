@@ -1,1 +1,1 @@
-"""C.Y.R.U.S processing modules."""
+"""JARVIS processing modules."""

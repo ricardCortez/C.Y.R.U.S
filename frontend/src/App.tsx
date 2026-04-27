@@ -1,5 +1,5 @@
 /**
- * C.Y.R.U.S — Root Application Component
+ * JARVIS — Root Application Component
  * HashRouter with two routes:
  *   /          → AgentView  (full-screen particle network)
  *   /control   → ControlView (dashboard)

@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Tests for TriggerDetector.
+JARVIS — Tests for TriggerDetector.
 
 These tests are purely logic-based and require no hardware or models.
 """
@@ -11,7 +11,7 @@ from backend.modules.nlp.trigger_detector import TriggerDetector
 @pytest.fixture
 def detector() -> TriggerDetector:
     return TriggerDetector(
-        wake_words=["hola cyrus", "oye cyrus", "hey cyrus", "cyrus"],
+        wake_words=["hola jarvis", "oye jarvis", "hey jarvis", "jarvis"],
         threshold=85,
         fuzzy_matching=True,
     )
@@ -19,7 +19,7 @@ def detector() -> TriggerDetector:
 
 class TestExactMatches:
     def test_hola_cyrus_detected(self, detector: TriggerDetector):
-        triggered, clean = detector.detect("Hola C.Y.R.U.S, ¿qué hora es?")
+        triggered, clean = detector.detect("Hola JARVIS, ¿qué hora es?")
         assert triggered is True
 
     def test_hey_cyrus_detected(self, detector: TriggerDetector):
@@ -35,7 +35,7 @@ class TestExactMatches:
         assert triggered is True
 
     def test_case_insensitive(self, detector: TriggerDetector):
-        triggered, _ = detector.detect("HOLA CYRUS")
+        triggered, _ = detector.detect("HOLA JARVIS")
         assert triggered is True
 
     def test_no_wake_word(self, detector: TriggerDetector):
@@ -59,12 +59,12 @@ class TestInputExtraction:
         assert "time" in clean.lower()
 
     def test_standalone_cyrus_empty_intent(self, detector: TriggerDetector):
-        triggered, _ = detector.detect("cyrus")
+        triggered, _ = detector.detect("jarvis")
         assert triggered is True
 
     def test_clean_has_no_wake_word(self, detector: TriggerDetector):
-        _, clean = detector.detect("hola cyrus open the garage")
-        assert "cyrus" not in clean.lower()
+        _, clean = detector.detect("hola jarvis open the garage")
+        assert "jarvis" not in clean.lower()
 
     def test_long_sentence_intent_preserved(self, detector: TriggerDetector):
         _, clean = detector.detect("Hey cyrus, please turn off all the lights in the living room")
@@ -79,7 +79,7 @@ class TestFuzzyMatching:
 
     def test_fuzzy_disabled(self):
         strict = TriggerDetector(
-            wake_words=["hola cyrus"],
+            wake_words=["hola jarvis"],
             threshold=85,
             fuzzy_matching=False,
         )

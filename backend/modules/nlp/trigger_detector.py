@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Wake-word / trigger detector.
+JARVIS — Wake-word / trigger detector.
 
 Scans a transcript for configured wake words using fuzzy string matching
 (fuzzywuzzy) and extracts the clean user intent after the trigger phrase.
@@ -15,11 +15,11 @@ from fuzzywuzzy import fuzz
 from backend.utils.exceptions import TriggerDetectionError
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.nlp.trigger")
+logger = get_logger("jarvis.nlp.trigger")
 
 
 class TriggerDetector:
-    """Detects C.Y.R.U.S wake words in a transcript.
+    """Detects JARVIS wake words in a transcript.
 
     Args:
         wake_words: List of wake-word strings to search for.
@@ -34,7 +34,7 @@ class TriggerDetector:
         fuzzy_matching: bool = True,
     ) -> None:
         self._wake_words = [w.lower().strip() for w in (wake_words or [
-            "hola cyrus", "oye cyrus", "hey cyrus", "cyrus"
+            "hola jarvis", "oye jarvis", "hey jarvis", "jarvis"
         ])]
         self._threshold = threshold
         self._fuzzy = fuzzy_matching
@@ -57,20 +57,20 @@ class TriggerDetector:
             TriggerDetectionError: If *transcript* is ``None``.
         """
         if transcript is None:
-            raise TriggerDetectionError("[C.Y.R.U.S] Trigger: transcript cannot be None")
+            raise TriggerDetectionError("[JARVIS] Trigger: transcript cannot be None")
 
         text = self._normalize(transcript.strip())
         if not text:
             return False, ""
 
-        # Sort wake words longest-first so "hola cyrus" beats "cyrus" on overlap
+        # Sort wake words longest-first so "hola jarvis" beats "jarvis" on overlap
         for wake_word in sorted(self._wake_words, key=len, reverse=True):
             triggered, clean = self._check_wake_word(text, wake_word, transcript)
             if triggered:
-                logger.info(f"[C.Y.R.U.S] Trigger detected: '{wake_word}' in '{transcript}'")
+                logger.info(f"[JARVIS] Trigger detected: '{wake_word}' in '{transcript}'")
                 return True, clean
 
-        logger.debug(f"[C.Y.R.U.S] No trigger found in: '{transcript}'")
+        logger.debug(f"[JARVIS] No trigger found in: '{transcript}'")
         return False, ""
 
     # ------------------------------------------------------------------
@@ -105,7 +105,7 @@ class TriggerDetector:
             clean = self._strip_wake_word(lowered, wake_word, original)
             return True, clean
 
-        # WRatio — best-of-all scorer, handles typos well (e.g. "cirrus" → "cyrus")
+        # WRatio — best-of-all scorer, handles typos well (e.g. "cirrus" → "jarvis")
         score_w = fuzz.WRatio(lowered, wake_word)
         if score_w >= self._threshold:
             clean = self._strip_wake_word(lowered, wake_word, original)
@@ -142,8 +142,8 @@ class TriggerDetector:
 
     @staticmethod
     def _normalize(text: str) -> str:
-        """Lower-case *text* and collapse acronym dots (C.Y.R.U.S → cyrus)."""
-        # Remove dots between single letters: "c.y.r.u.s" → "cyrus"
+        """Lower-case *text* and collapse acronym dots (JARVIS → cyrus)."""
+        # Remove dots between single letters: "c.y.r.u.s" → "jarvis"
         normalized = re.sub(r"(?<=[a-zA-Z])\.(?=[a-zA-Z])", "", text)
         return normalized.lower()
 
@@ -161,7 +161,7 @@ class TriggerDetector:
         normalised = word.lower().strip()
         if normalised in self._wake_words:
             self._wake_words.remove(normalised)
-            logger.info(f"[C.Y.R.U.S] Trigger: removed wake word '{normalised}'")
+            logger.info(f"[JARVIS] Trigger: removed wake word '{normalised}'")
 
     def add_wake_word(self, word: str) -> None:
         """Register an additional wake word at runtime.
@@ -172,4 +172,4 @@ class TriggerDetector:
         normalised = word.lower().strip()
         if normalised not in self._wake_words:
             self._wake_words.append(normalised)
-            logger.info(f"[C.Y.R.U.S] Trigger: added wake word '{normalised}'")
+            logger.info(f"[JARVIS] Trigger: added wake word '{normalised}'")

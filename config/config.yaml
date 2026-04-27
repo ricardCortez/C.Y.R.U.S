@@ -1,8 +1,9 @@
 system:
-  name: C.Y.R.U.S
+  name: JARVIS
   version: 1.0.0
   mode: HYBRID
   log_level: INFO
+  owner_name: Ricardo          # nombre del propietario para saludos personalizados
 local:
   llm:
     provider: ollama
@@ -12,22 +13,22 @@ local:
     stream: true
   tts:
     provider: piper
-    voice: ef_dora
+    voice: bm_george           # Kokoro fallback: British male (más parecido a JARVIS original)
     speed: 0.92
-    sample_rate: 24000
-    lang_code: e
-    piper_model: models/tts/piper/es_MX-ald-medium.onnx
+    sample_rate: 22050
+    lang_code: b               # British English para Kokoro bm_george
+    piper_model: models/tts/piper/es_MX-ald-medium.onnx   # Piper: español mexicano masculino
     piper_speaker: null
     xtts:
-      enabled: false
+      enabled: true            # voz JARVIS latino clonada via reference_voice.wav
       language: es
       speaker: Tammie Ema
-      reference_voice: data/tts/reference_voice.wav
+      reference_voice: data/tts/reference_voice.wav       # 18s de voz JARVIS latino extraída
       idle_unload_secs: 120
   translation:
     provider: ctranslate2
     model: mt5-small
-    cache_dir: ~/.cyrus/models/translation
+    cache_dir: ~/.jarvis/models/translation
 api:
   enabled: true
   fallback_mode: true
@@ -53,6 +54,7 @@ audio:
     silence_duration: 1.5
     noise_gate_factor: 3.5
     noise_calibration_secs: 2.0
+    echo_tail_secs: 2.0    # seconds of mic mute after TTS ends (absorbs reverb); use 5.0 for desktop
     speaker_gate_enabled: false
   output:
     device: default
@@ -62,9 +64,9 @@ huggingface:
   token: <YOUR_HF_TOKEN>
 trigger:
   wake_words:
-  - hola cyrus
-  - oye cyrus
-  - hey cyrus
+  - hola jarvis
+  - oye jarvis
+  - hey jarvis
   - cyrus
   - sairus
   - sairos
@@ -79,7 +81,7 @@ asr:
   language: es
   beam_size: 3
   vad_filter: false
-  initial_prompt: "Habla en español. C.Y.R.U.S es un asistente de IA personal."
+  initial_prompt: ""           # vacío para evitar hallucinations de Whisper en silencio/ruido
 conversation:
   max_history_turns: 4
   system_prompt_file: config/soul.md
@@ -116,7 +118,7 @@ memory:
   qdrant:
     host: localhost
     port: 6333
-    collection: cyrus_memory
+    collection: jarvis_memory
   embedder:
     model: all-MiniLM-L6-v2
   db_path: data/conversations.db

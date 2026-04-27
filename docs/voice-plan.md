@@ -1,4 +1,4 @@
-# C.Y.R.U.S — Voice Pipeline Improvement Plan
+# JARVIS — Voice Pipeline Improvement Plan
 
 ## Estado actual (implementado)
 
@@ -40,7 +40,7 @@ Piper (offline, mejor calidad)
 | Coqui TTS | ★★★★☆ | ★★★☆☆ | ✅ | ✅ | ~1 GB | futuro |
 | Edge-TTS | ★★★★☆ | ★★★★☆ | ❌ | ✅ | 0 MB | fallback API |
 
-**Conclusión:** Piper es la mejor opción para CYRUS:
+**Conclusión:** Piper es la mejor opción para JARVIS:
 - 0 MB VRAM (no compite con Ollama)
 - Latencia <100ms para frases cortas
 - Calidad notablemente más natural que Kokoro para español
@@ -87,7 +87,7 @@ local:
 ### Verificar
 
 ```bash
-echo "Hola, soy C.Y.R.U.S" | piper --model models/tts/piper/es_MX-claude-high.onnx --output_file test.wav
+echo "Hola, soy JARVIS" | piper --model models/tts/piper/es_MX-claude-high.onnx --output_file test.wav
 ```
 
 ---
@@ -167,5 +167,5 @@ curl -LO https://huggingface.co/rhasspy/piper-voices/resolve/main/es/es_MX/claud
 
 # 3. En config.yaml: cambiar provider: piper
 
-# 4. Reiniciar CYRUS — Piper se activa automáticamente
+# 4. Reiniciar JARVIS — Piper se activa automáticamente
 ```

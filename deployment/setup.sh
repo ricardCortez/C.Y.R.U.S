@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# C.Y.R.U.S — Linux/macOS Setup Script
+# JARVIS — Linux/macOS Setup Script
 # Run from the project root: bash deployment/setup.sh
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -77,12 +77,12 @@ echo ""
 echo "─────────────────────────────────────────────────────"
 echo " Setup complete!"
 echo ""
-echo " To start C.Y.R.U.S:"
+echo " To start JARVIS:"
 echo ""
 echo "   1. Activate venv:    source venv/bin/activate"
 echo "   2. Start Ollama:     ollama serve           (new terminal)"
 echo "   3. Start backend:    python -m backend.core.cyrus_engine"
 echo "   4. Start frontend:   cd frontend && npm run dev"
 echo ""
-echo ' Then say "Hola C.Y.R.U.S" into your microphone.'
+echo ' Then say "Hola JARVIS" into your microphone.'
 echo "─────────────────────────────────────────────────────"

@@ -1,4 +1,4 @@
-"""C.Y.R.U.S — Memory orchestrator: store turns, search relevant context."""
+"""JARVIS — Memory orchestrator: store turns, search relevant context."""
 from __future__ import annotations
 import uuid
 from typing import List, Optional
@@ -7,7 +7,7 @@ from backend.modules.memory.qdrant_store import QdrantStore
 from backend.modules.memory.conversation_db import ConversationDB
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.memory")
+logger = get_logger("jarvis.memory")
 
 
 class MemoryManager:

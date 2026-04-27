@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Neural speaker recognition with role-based access control.
+JARVIS — Neural speaker recognition with role-based access control.
 
 Uses SpeechBrain ECAPA-TDNN to compute 192-dim speaker embeddings.
 Supports multi-speaker enrollment (owner / guests) with online adaptive learning.
@@ -16,7 +16,7 @@ import numpy as np
 
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.audio.speaker_intelligence")
+logger = get_logger("jarvis.audio.speaker_intelligence")
 
 try:
     import torch
@@ -29,7 +29,7 @@ try:
     _SB_OK = True
 except ImportError:
     _SB_OK = False
-    logger.warning("[C.Y.R.U.S] SpeakerIntelligence: speechbrain not installed — fallback to UNKNOWN")
+    logger.warning("[JARVIS] SpeakerIntelligence: speechbrain not installed — fallback to UNKNOWN")
 
 
 class SpeakerRole(Enum):
@@ -83,23 +83,34 @@ class SpeakerIntelligence:
     def load(self) -> None:
         """Download (first run) and load the ECAPA-TDNN speaker encoder."""
         if not _SB_OK or not _TORCH_OK:
-            logger.warning("[C.Y.R.U.S] SpeakerIntelligence: speechbrain/torch unavailable — UNKNOWN fallback active")
+            logger.warning("[JARVIS] SpeakerIntelligence: speechbrain/torch unavailable — UNKNOWN fallback active")
             return
         try:
-            logger.info("[C.Y.R.U.S] SpeakerIntelligence: loading ECAPA-TDNN...")
+            logger.info("[JARVIS] SpeakerIntelligence: loading ECAPA-TDNN...")
             self._model_dir.mkdir(parents=True, exist_ok=True)
             # On Windows, SpeechBrain tries to create symlinks from HF cache to savedir,
             # which requires Developer Mode or admin rights (WinError 1314).
             # Fix: pre-copy cached files so SpeechBrain finds them and skips symlinks.
             self._prefetch_hf_model("speechbrain/spkrec-ecapa-voxceleb", self._model_dir)
+            # label_encoder.ckpt is the same as label_encoder.txt in this model
+            _le_ckpt = self._model_dir / "label_encoder.ckpt"
+            _le_txt  = self._model_dir / "label_encoder.txt"
+            if _le_txt.exists() and not _le_ckpt.exists():
+                import shutil as _shutil
+                _shutil.copy2(str(_le_txt), str(_le_ckpt))
+
+            self._data_dir.mkdir(parents=True, exist_ok=True)
+            self.load_profiles()
+
+            # Load from local directory to avoid Windows symlink privilege errors
             self._classifier = EncoderClassifier.from_hparams(
-                source="speechbrain/spkrec-ecapa-voxceleb",
+                source=str(self._model_dir),
                 savedir=str(self._model_dir),
                 run_opts={"device": "cpu"},
             )
-            logger.info("[C.Y.R.U.S] SpeakerIntelligence: ECAPA-TDNN ready")
+            logger.info("[JARVIS] SpeakerIntelligence: ECAPA-TDNN ready")
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] SpeakerIntelligence: load failed ({exc}) — UNKNOWN fallback")
+            logger.warning(f"[JARVIS] SpeakerIntelligence: load failed ({exc}) — UNKNOWN fallback")
             self._classifier = None
 
     @staticmethod
@@ -117,12 +128,9 @@ class SpeakerIntelligence:
                     dst.parent.mkdir(parents=True, exist_ok=True)
                     if not dst.exists():
                         shutil.copy2(str(f), str(dst))
-            logger.info(f"[C.Y.R.U.S] SpeakerIntelligence: model files ready in {dest}")
+            logger.info(f"[JARVIS] SpeakerIntelligence: model files ready in {dest}")
         except Exception as exc:
-            logger.debug(f"[C.Y.R.U.S] SpeakerIntelligence: prefetch skipped ({exc})")
-
-        self._data_dir.mkdir(parents=True, exist_ok=True)
-        self.load_profiles()
+            logger.debug(f"[JARVIS] SpeakerIntelligence: prefetch skipped ({exc})")
 
     # ── Embedding ─────────────────────────────────────────────────────────────
 
@@ -143,7 +151,7 @@ class SpeakerIntelligence:
                 return None
             return vec / norm
         except Exception as exc:
-            logger.debug(f"[C.Y.R.U.S] SpeakerIntelligence: embed error ({exc})")
+            logger.debug(f"[JARVIS] SpeakerIntelligence: embed error ({exc})")
             return None
 
     # ── Enrollment ────────────────────────────────────────────────────────────
@@ -159,7 +167,7 @@ class SpeakerIntelligence:
         embeddings = [self._embed(p) for p in pcm_samples]
         embeddings = [e for e in embeddings if e is not None]
         if not embeddings:
-            raise ValueError(f"[C.Y.R.U.S] SpeakerIntelligence: no usable audio for '{name}'")
+            raise ValueError(f"[JARVIS] SpeakerIntelligence: no usable audio for '{name}'")
 
         centroid = np.mean(embeddings, axis=0).astype(np.float32)
         norm = np.linalg.norm(centroid)
@@ -168,9 +176,9 @@ class SpeakerIntelligence:
 
         speaker_id = name.lower().strip()
         if speaker_id in self._profiles:
-            logger.warning(f"[C.Y.R.U.S] SpeakerIntelligence: overwriting existing profile for '{speaker_id}'")
+            logger.warning(f"[JARVIS] SpeakerIntelligence: overwriting existing profile for '{speaker_id}'")
         self._profiles[speaker_id] = {"role": role, "embedding": centroid}
-        logger.info(f"[C.Y.R.U.S] SpeakerIntelligence: enrolled '{speaker_id}' as {role.value} ({len(embeddings)} samples)")
+        logger.info(f"[JARVIS] SpeakerIntelligence: enrolled '{speaker_id}' as {role.value} ({len(embeddings)} samples)")
         self.save()
 
     # ── Identification ────────────────────────────────────────────────────────
@@ -203,12 +211,12 @@ class SpeakerIntelligence:
                 best_id    = spk_id
 
         if best_score < self._threshold:
-            logger.debug(f"[C.Y.R.U.S] SpeakerIntelligence: best={best_score:.3f} < {self._threshold} → UNKNOWN")
+            logger.debug(f"[JARVIS] SpeakerIntelligence: best={best_score:.3f} < {self._threshold} → UNKNOWN")
             return unknown
 
         profile = self._profiles[best_id]
         role    = profile["role"]
-        logger.info(f"[C.Y.R.U.S] SpeakerIntelligence: '{best_id}' ({role.value}) score={best_score:.3f}")
+        logger.info(f"[JARVIS] SpeakerIntelligence: '{best_id}' ({role.value}) score={best_score:.3f}")
 
         # Online adaptive learning: update centroid toward current embedding
         if best_score > 0.92:
@@ -236,7 +244,7 @@ class SpeakerIntelligence:
             npz = self._data_dir / f"{sid}.npz"
             if npz.exists():
                 npz.unlink()
-            logger.info(f"[C.Y.R.U.S] SpeakerIntelligence: removed '{sid}'")
+            logger.info(f"[JARVIS] SpeakerIntelligence: removed '{sid}'")
 
     # ── Persistence ───────────────────────────────────────────────────────────
 
@@ -246,7 +254,7 @@ class SpeakerIntelligence:
         for sid, profile in self._profiles.items():
             path = self._data_dir / f"{sid}.npz"
             np.savez(str(path), embedding=profile["embedding"], role=profile["role"].value)
-        logger.debug(f"[C.Y.R.U.S] SpeakerIntelligence: saved {len(self._profiles)} profiles")
+        logger.debug(f"[JARVIS] SpeakerIntelligence: saved {len(self._profiles)} profiles")
 
     def load_profiles(self) -> None:
         """Load all .npz profiles from data_dir."""
@@ -259,6 +267,6 @@ class SpeakerIntelligence:
                     role   = SpeakerRole(str(data["role"]))
                     emb    = data["embedding"].astype(np.float32)
                 self._profiles[sid] = {"role": role, "embedding": emb}
-                logger.info(f"[C.Y.R.U.S] SpeakerIntelligence: loaded '{sid}' ({role.value})")
+                logger.info(f"[JARVIS] SpeakerIntelligence: loaded '{sid}' ({role.value})")
             except Exception as exc:
-                logger.warning(f"[C.Y.R.U.S] SpeakerIntelligence: could not load {npz_path}: {exc}")
+                logger.warning(f"[JARVIS] SpeakerIntelligence: could not load {npz_path}: {exc}")

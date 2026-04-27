@@ -1,5 +1,5 @@
 /**
- * C.Y.R.U.S — Agent View (route "/")
+ * JARVIS — Agent View (route "/")
  *
  * Improvements:
  *  1. ThinkingOverlay — animated dots during "thinking" state
@@ -11,27 +11,15 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate }                               from 'react-router-dom'
 import { motion, AnimatePresence }                   from 'framer-motion'
-import { ParticleNetwork }                           from '../components/ParticleNetwork'
+import { JarvisOrb }                                  from '../components/JarvisOrb'
 import { AudioVisualizer }                           from '../components/AudioVisualizer'
 import { useAudioAnalyser }                          from '../hooks/useAudioAnalyser'
-import { useCYRUSStore }                             from '../store/useCYRUSStore'
-
-// ── State color map ────────────────────────────────────────────────────────
-const STATE_COLOR: Record<string, string> = {
-  offline:      '#ff3333',
-  connected:    '#00d4ff',
-  idle:         '#0077bb',
-  listening:    '#00ff88',
-  transcribing: '#00d4ff',
-  thinking:     '#ff8c00',
-  speaking:     '#00d4ff',
-  error:        '#ff3333',
-}
+import { useJARVISStore }                             from '../store/useJARVISStore'
 
 // ── 1. Response overlay (speaking) + thinking dots ────────────────────────
 function ResponseOverlay() {
-  const currentResponse = useCYRUSStore(s => s.currentResponse)
-  const systemState     = useCYRUSStore(s => s.systemState)
+  const currentResponse = useJARVISStore(s => s.currentResponse)
+  const systemState     = useJARVISStore(s => s.systemState)
 
   const showResponse = (systemState === 'speaking' || systemState === 'idle') && !!currentResponse
   const showThinking = systemState === 'thinking'
@@ -95,8 +83,8 @@ function ResponseOverlay() {
 
 // ── 2. Persistent HUD — last 2 conversation turns ─────────────────────────
 function ConversationHUD() {
-  const transcript  = useCYRUSStore(s => s.transcript)
-  const systemState = useCYRUSStore(s => s.systemState)
+  const transcript  = useJARVISStore(s => s.transcript)
+  const systemState = useJARVISStore(s => s.systemState)
 
   // Don't show during active interaction states — response overlay handles that
   const hide = systemState === 'speaking' || systemState === 'thinking' || systemState === 'transcribing'
@@ -137,8 +125,8 @@ function ConversationHUD() {
 
 // ── Transcript preview (transcribing state) ────────────────────────────────
 function TranscriptPreview() {
-  const currentTranscript = useCYRUSStore(s => s.currentTranscript)
-  const systemState       = useCYRUSStore(s => s.systemState)
+  const currentTranscript = useJARVISStore(s => s.currentTranscript)
+  const systemState       = useJARVISStore(s => s.systemState)
   const visible = systemState === 'transcribing' && !!currentTranscript
 
   return (
@@ -161,36 +149,42 @@ function TranscriptPreview() {
 
 // ── State badge ────────────────────────────────────────────────────────────
 function StateBadge() {
-  const systemState = useCYRUSStore(s => s.systemState)
-  const wsConnected = useCYRUSStore(s => s.wsConnected)
-  const color = STATE_COLOR[systemState] ?? '#0077bb'
+  const systemState = useJARVISStore(s => s.systemState)
+  const wsConnected = useJARVISStore(s => s.wsConnected)
+
+  // Jarvis-style: lowercase status, bottom-center above label
+  const label: Record<string, string> = {
+    idle: 'listening...', listening: 'listening...', transcribing: 'listening...',
+    thinking: 'thinking...', speaking: '', connected: '', offline: '', error: 'error',
+  }
+  const statusText = wsConnected ? (label[systemState] ?? systemState) : ''
 
   return (
-    <motion.div
-      key={systemState}
-      animate={{ scale: [1, 1.06, 1] }}
-      transition={{ duration: 0.3 }}
-      className="absolute top-5 left-1/2 -translate-x-1/2 flex items-center gap-2 pointer-events-none"
-    >
-      <div
-        className="w-1.5 h-1.5 rounded-full"
-        style={{ background: color, boxShadow: `0 0 6px ${color}` }}
-      />
-      <span className="font-mono" style={{ fontSize: 9, letterSpacing: '0.3em', color: `${color}bb` }}>
-        {wsConnected ? systemState.toUpperCase() : 'OFFLINE'}
+    <div className="absolute bottom-10 left-1/2 -translate-x-1/2 pointer-events-none">
+      <span
+        className="font-mono"
+        style={{
+          fontSize: 13,
+          letterSpacing: '0.15em',
+          color: `rgba(14,165,233,0.5)`,
+          transition: 'opacity 0.5s ease',
+          opacity: statusText ? 1 : 0,
+        }}
+      >
+        {statusText}
       </span>
-    </motion.div>
+    </div>
   )
 }
 
 // ── 3. Idle hint — shows after 30s with no activity ───────────────────────
 function IdleHint() {
-  const systemState = useCYRUSStore(s => s.systemState)
-  const wakeWords   = useCYRUSStore(s => s.wakeWords)
+  const systemState = useJARVISStore(s => s.systemState)
+  const wakeWords   = useJARVISStore(s => s.wakeWords)
   const [visible, setVisible] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  const primaryWakeWord = wakeWords[0] ?? 'hola cyrus'
+  const primaryWakeWord = wakeWords[0] ?? 'hola jarvis'
 
   useEffect(() => {
     clearTimeout(timerRef.current)
@@ -240,7 +234,7 @@ function IdleHint() {
 
 // ── 4. TTS backend badge ───────────────────────────────────────────────────
 function TTSBadge() {
-  const stats = useCYRUSStore(s => s.systemStats)
+  const stats = useJARVISStore(s => s.systemStats)
   if (!stats) return null
 
   const backend = stats.ttsBackend.toUpperCase()
@@ -312,8 +306,8 @@ export function AgentView() {
   const analyserRef = useRef(analyser)
   const [showHint, setShowHint] = useState(true)
   const navigate    = useNavigate()
-  const systemState    = useCYRUSStore(s => s.systemState)
-  const setSystemState = useCYRUSStore(s => s.setSystemState)
+  const systemState    = useJARVISStore(s => s.systemState)
+  const setSystemState = useJARVISStore(s => s.setSystemState)
 
   useEffect(() => { analyserRef.current = analyser }, [analyser])
 
@@ -342,10 +336,10 @@ export function AgentView() {
   }, [navigate])
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden" style={{ background: '#05070d' }}>
-      {/* ── Particle network ── */}
+    <div className="relative w-screen h-screen overflow-hidden" style={{ background: '#050508' }}>
+      {/* ── Jarvis orb — floating particle cloud ── */}
       <div className="absolute inset-0">
-        <ParticleNetwork analyser={analyser} />
+        <JarvisOrb analyser={analyser} />
       </div>
 
       {/* ── State badge ── */}
@@ -370,10 +364,10 @@ export function AgentView() {
       {/* ── TTS backend badge ── */}
       <TTSBadge />
 
-      {/* ── Wordmark ── */}
-      <div className="absolute bottom-3 left-5 pointer-events-none">
-        <span className="font-mono font-bold" style={{ fontSize: 9, letterSpacing: '0.4em', color: '#00f0ff14' }}>
-          C.Y.R.U.S
+      {/* ── Wordmark — centered bottom, Jarvis-style ── */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
+        <span className="font-mono font-bold" style={{ fontSize: 10, letterSpacing: '0.4em', color: 'rgba(14,165,233,0.2)' }}>
+          JARVIS
         </span>
       </div>
 

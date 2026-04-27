@@ -1,7 +1,7 @@
 version: "3.9"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# C.Y.R.U.S — Docker Compose  (Phase 1)
+# JARVIS — Docker Compose  (Phase 1)
 # ─────────────────────────────────────────────────────────────────────────────
 # Start everything:   docker-compose up
 # Rebuild backend:    docker-compose up --build cyrus
@@ -57,7 +57,7 @@ services:
     networks:
       - cyrus_net
 
-  # ── C.Y.R.U.S Backend ────────────────────────────────────────────────────
+  # ── JARVIS Backend ────────────────────────────────────────────────────
   cyrus:
     build:
       context: ..
@@ -70,7 +70,7 @@ services:
       - ../config:/app/config:ro
       - ../logs:/app/logs
     environment:
-      - CYRUS_LOG_LEVEL=INFO
+      - JARVIS_LOG_LEVEL=INFO
       - OLLAMA_HOST=http://ollama:11434
     env_file:
       - ../.env
@@ -82,7 +82,7 @@ services:
     # For voice I/O, run the backend natively (python -m backend.core.cyrus_engine).
     # Docker deployment is intended for the WebSocket server only (headless mode).
 
-  # ── C.Y.R.U.S Frontend — React dev server ────────────────────────────────
+  # ── JARVIS Frontend — React dev server ────────────────────────────────
   frontend:
     image: node:20-alpine
     container_name: cyrus_frontend

@@ -1,4 +1,4 @@
-# C.Y.R.U.S — Microservices Architecture Plan
+# JARVIS — Microservices Architecture Plan
 
 Objetivo: sacar los módulos pesados de ML del proceso principal y correrlos como
 servicios HTTP independientes. El agente los llama por API — igual que ya llama a
@@ -7,7 +7,7 @@ puede correr en otra máquina del LAN (Proxmox, HA, etc.).
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│                   C.Y.R.U.S CORE                     │
+│                   JARVIS CORE                     │
 │  AudioInput → ASR → LLM → TTS → AudioOutput         │
 │       ↑ clients (HTTP/WS)                            │
 └──┬───────┬──────┬──────┬──────────────────────────── ┘
@@ -34,7 +34,7 @@ python -m uvicorn services.tts_server.main:app --host 0.0.0.0 --port 8020
 > **Nota XTTS v2:** el servidor soporta XTTS v2 opcionalmente.
 > Requiere Visual Studio C++ Build Tools + `pip install xtts-api-server`.
 
-### Integración en C.Y.R.U.S
+### Integración en JARVIS
 - Nuevo backend: `backend/modules/tts/remote_tts.py` (`RemoteTTS`)
 - Cadena TTS: Piper → **RemoteTTS** → XTTS (in-process) → Kokoro → Edge-TTS
 - `set_tts_engine "remote-tts"` para forzar desde frontend

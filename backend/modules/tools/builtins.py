@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Built-in tools.
+JARVIS — Built-in tools.
 
 All tools are registered at import time via @tool decorator.
 Import this module once at engine startup to populate the registry.
@@ -32,7 +32,7 @@ from backend.modules.tools.registry import tool
 from backend.modules.tools.result import ToolResult
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.tools.builtins")
+logger = get_logger("jarvis.tools.builtins")
 
 _HTTP_TIMEOUT = 8.0
 
@@ -301,6 +301,34 @@ async def open_app(target: str) -> ToolResult:
 
     except Exception as exc:
         return ToolResult.failure(f"no pude abrir '{target}': {exc}")
+
+
+# ── 9. Uso y costo ────────────────────────────────────────────────────────
+
+@tool(
+    name="uso_jarvis",
+    description="Muestra el uso de tokens y costo estimado de esta sesión y del día",
+    params={},
+)
+async def uso_jarvis() -> ToolResult:
+    try:
+        # Access tracker via engine singleton pattern — engine injects it at startup
+        import sys
+        tracker = None
+        for mod in sys.modules.values():
+            if hasattr(mod, '_JARVIS_USAGE_TRACKER'):
+                tracker = mod._JARVIS_USAGE_TRACKER
+                break
+        if tracker is None:
+            return ToolResult.success("Tracker no disponible en esta sesión.")
+
+        session = tracker.session_summary()
+        today   = tracker.today_summary()
+        alltime = tracker.all_time_summary()
+        output  = f"{session}\n{today}\n{alltime}"
+        return ToolResult.success(output)
+    except Exception as exc:
+        return ToolResult.failure(f"No pude obtener estadísticas: {exc}")
 
 
 # ── Import guard ──────────────────────────────────────────────────────────

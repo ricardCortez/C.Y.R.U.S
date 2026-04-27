@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — XTTS v2 TTS backend (Coqui AI) with voice cloning and latent caching.
+JARVIS — XTTS v2 TTS backend (Coqui AI) with voice cloning and latent caching.
 
 Offline neural TTS.  Reference WAV conditioning latents are cached after first
 computation so subsequent synthesis calls are fast (no repeated WAV loading).
@@ -16,7 +16,7 @@ import numpy as np
 from backend.utils.exceptions import TTSError
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.tts.xtts")
+logger = get_logger("jarvis.tts.xtts")
 
 _XTTS_MODEL = "tts_models/multilingual/multi-dataset/xtts_v2"
 
@@ -63,7 +63,7 @@ class XTTTS:
             _os.environ.setdefault("COQUI_TOS_AGREED", "1")
 
             dev = self._device or ("cuda" if torch.cuda.is_available() else "cpu")
-            logger.info(f"[C.Y.R.U.S] TTS XTTS: loading {_XTTS_MODEL} on {dev}...")
+            logger.info(f"[JARVIS] TTS XTTS: loading {_XTTS_MODEL} on {dev}...")
 
             manager = ModelManager()
             model_path, config_path, _ = manager.download_model(_XTTS_MODEL)
@@ -76,23 +76,23 @@ class XTTTS:
             self._tts.load_checkpoint(config, checkpoint_dir=model_path, eval=True)
             self._tts.to(dev)
             self._available = True
-            logger.info(f"[C.Y.R.U.S] TTS XTTS: ready on {dev}")
+            logger.info(f"[JARVIS] TTS XTTS: ready on {dev}")
 
             # Pre-compute latents if reference WAV already configured
             if self._reference_wav and Path(self._reference_wav).is_file():
                 self._precompute_latents()
 
         except ImportError as exc:
-            logger.warning(f"[C.Y.R.U.S] TTS XTTS: TTS package not available ({exc})")
+            logger.warning(f"[JARVIS] TTS XTTS: TTS package not available ({exc})")
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] TTS XTTS: load failed — {exc}")
+            logger.warning(f"[JARVIS] TTS XTTS: load failed — {exc}")
 
     def unload(self) -> None:
         """Release model and cached latents from memory."""
         self._tts            = None
         self._available      = False
         self._cached_latents = None
-        logger.info("[C.Y.R.U.S] TTS XTTS: unloaded")
+        logger.info("[JARVIS] TTS XTTS: unloaded")
 
     @property
     def available(self) -> bool:
@@ -108,7 +108,7 @@ class XTTTS:
         """
         self._reference_wav  = wav_path
         self._cached_latents = None   # force recompute on next synthesis
-        logger.info(f"[C.Y.R.U.S] TTS XTTS: reference voice set to {wav_path}")
+        logger.info(f"[JARVIS] TTS XTTS: reference voice set to {wav_path}")
         if self._available:
             self._precompute_latents()
 
@@ -117,16 +117,16 @@ class XTTTS:
         if not self._available or self._tts is None:
             return
         if not self._reference_wav or not Path(self._reference_wav).is_file():
-            logger.warning(f"[C.Y.R.U.S] TTS XTTS: reference WAV not found: {self._reference_wav}")
+            logger.warning(f"[JARVIS] TTS XTTS: reference WAV not found: {self._reference_wav}")
             return
         try:
             gpt_cond_latent, speaker_embedding = self._tts.get_conditioning_latents(
                 audio_path=[self._reference_wav]
             )
             self._cached_latents = (gpt_cond_latent, speaker_embedding)
-            logger.info("[C.Y.R.U.S] TTS XTTS: conditioning latents cached from reference WAV")
+            logger.info("[JARVIS] TTS XTTS: conditioning latents cached from reference WAV")
         except Exception as exc:
-            logger.warning(f"[C.Y.R.U.S] TTS XTTS: latent precompute failed ({exc})")
+            logger.warning(f"[JARVIS] TTS XTTS: latent precompute failed ({exc})")
             self._cached_latents = None
 
     # ── Synthesis ─────────────────────────────────────────────────────────────
@@ -141,7 +141,7 @@ class XTTTS:
             TTSError: If synthesis fails or the model is not loaded.
         """
         if not self._available or self._tts is None:
-            raise TTSError("[C.Y.R.U.S] XTTS: model not loaded")
+            raise TTSError("[JARVIS] XTTS: model not loaded")
 
         try:
             # Use cached latents (fast) or compute on demand
@@ -152,9 +152,9 @@ class XTTTS:
                 if self._cached_latents:
                     gpt_cond_latent, speaker_embedding = self._cached_latents
                 else:
-                    raise TTSError("[C.Y.R.U.S] XTTS: no reference voice set. Use record_tts_reference command first.")
+                    raise TTSError("[JARVIS] XTTS: no reference voice set. Use record_tts_reference command first.")
             else:
-                raise TTSError("[C.Y.R.U.S] XTTS: no reference voice set. Use record_tts_reference command first.")
+                raise TTSError("[JARVIS] XTTS: no reference voice set. Use record_tts_reference command first.")
 
             out = self._tts.inference(
                 text=text,
@@ -178,10 +178,10 @@ class XTTTS:
                 wf.writeframes(pcm.tobytes())
 
             wav_bytes = buf.getvalue()
-            logger.info(f"[C.Y.R.U.S] TTS XTTS: {len(wav_bytes)} bytes synthesised")
+            logger.info(f"[JARVIS] TTS XTTS: {len(wav_bytes)} bytes synthesised")
             return wav_bytes
 
         except TTSError:
             raise
         except Exception as exc:
-            raise TTSError(f"[C.Y.R.U.S] XTTS synthesis failed: {exc}") from exc
+            raise TTSError(f"[JARVIS] XTTS synthesis failed: {exc}") from exc

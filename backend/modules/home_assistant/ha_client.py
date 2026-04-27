@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — Home Assistant REST API client (Phase 4).
+JARVIS — Home Assistant REST API client (Phase 4).
 
 Wraps the HA Long-Lived Access Token REST API.
 All calls are async (httpx).

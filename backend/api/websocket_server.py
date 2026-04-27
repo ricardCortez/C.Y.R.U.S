@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — WebSocket Server.
+JARVIS — WebSocket Server.
 
 Broadcasts real-time events (transcript, response, status) to connected
 React frontend clients.  Receives no commands from the frontend in Phase 1
@@ -18,14 +18,14 @@ from websockets.legacy.server import WebSocketServerProtocol as ServerConnection
 from backend.core.event_bus import EventBus
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.api.websocket")
+logger = get_logger("jarvis.api.websocket")
 
 # Event names that the server forwards to frontend clients
 _BROADCAST_EVENTS = {"transcript", "response", "status", "error", "metrics", "debug", "wake_words", "enrollment", "system_stats", "available_models", "service_status"}
 
 
 class WebSocketServer:
-    """Async WebSocket server that broadcasts C.Y.R.U.S events.
+    """Async WebSocket server that broadcasts JARVIS events.
 
     Args:
         event_bus: Shared :class:`EventBus` instance.
@@ -60,7 +60,7 @@ class WebSocketServer:
         for event in _BROADCAST_EVENTS:
             self._bus.subscribe(event, self._make_handler(event))
 
-        logger.info(f"[C.Y.R.U.S] WebSocket: server starting on ws://{self._host}:{self._port}")
+        logger.info(f"[JARVIS] WebSocket: server starting on ws://{self._host}:{self._port}")
         async with websockets.serve(
             self._handle_client,
             self._host,
@@ -78,10 +78,10 @@ class WebSocketServer:
         """Called for each new frontend connection."""
         self._clients.add(ws)
         addr = ws.remote_address
-        logger.info(f"[C.Y.R.U.S] WebSocket: client connected from {addr} ({len(self._clients)} total)")
+        logger.info(f"[JARVIS] WebSocket: client connected from {addr} ({len(self._clients)} total)")
 
         # Send a welcome status immediately
-        await self._send(ws, "status", {"state": "connected", "message": "C.Y.R.U.S online"})
+        await self._send(ws, "status", {"state": "connected", "message": "JARVIS online"})
 
         # Notify the engine that a client connected (triggers greeting)
         await self._bus.emit("client_connected", {})
@@ -90,7 +90,7 @@ class WebSocketServer:
             async for raw_message in ws:
                 try:
                     msg = json.loads(raw_message)
-                    logger.debug(f"[C.Y.R.U.S] WebSocket: received from client: {msg}")
+                    logger.debug(f"[JARVIS] WebSocket: received from client: {msg}")
                     # Route frontend commands to the engine via the event bus
                     if isinstance(msg, dict) and msg.get("type") == "command":
                         await self._bus.emit("frontend_command", msg)
@@ -100,7 +100,7 @@ class WebSocketServer:
             pass
         finally:
             self._clients.discard(ws)
-            logger.info(f"[C.Y.R.U.S] WebSocket: client disconnected ({len(self._clients)} remaining)")
+            logger.info(f"[JARVIS] WebSocket: client disconnected ({len(self._clients)} remaining)")
             # Notify engine when the last client drops so it can pause the mic
             if not self._clients:
                 await self._bus.emit("all_clients_disconnected", {})

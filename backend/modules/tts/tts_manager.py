@@ -1,5 +1,5 @@
 """
-C.Y.R.U.S — TTS Manager.
+JARVIS — TTS Manager.
 
 Orchestrates the TTS backend chain with automatic fallback:
 
@@ -11,7 +11,7 @@ Returns WAV or MP3 bytes ready for :class:`AudioOutput`.
 
 Adding a new TTS engine:
   1. Create a class in ``backend/modules/tts/`` with a ``synthesise(text) → bytes`` method.
-  2. Instantiate it in ``CYRUSEngine.__init__``.
+  2. Instantiate it in ``JARVISEngine.__init__``.
   3. Pass it to ``TTSManager`` and add it to ``_try_backends``.
 """
 
@@ -27,7 +27,7 @@ from backend.modules.tts.xtts_tts import XTTTS
 from backend.utils.exceptions import KokoroUnavailableError, TTSAPIError, TTSError
 from backend.utils.logger import get_logger
 
-logger = get_logger("cyrus.tts.manager")
+logger = get_logger("jarvis.tts.manager")
 
 
 class TTSManager:
@@ -85,7 +85,7 @@ class TTSManager:
             TTSError: If all backends fail.
         """
         if not text.strip():
-            logger.warning("[C.Y.R.U.S] TTS: empty text — returning silence")
+            logger.warning("[JARVIS] TTS: empty text — returning silence")
             return b"", "audio/wav"
 
         forced = getattr(self, "_forced_backend", None)
@@ -94,60 +94,58 @@ class TTSManager:
         if (forced == "piper" or forced is None) and self._piper and self._piper.available:
             try:
                 wav = self._piper.synthesise(text)
-                logger.info(f"[C.Y.R.U.S] TTS: Piper -> {len(wav)} bytes")
+                logger.info(f"[JARVIS] TTS: Piper -> {len(wav)} bytes")
                 return wav, "audio/wav"
             except TTSError as exc:
-                logger.warning(f"[C.Y.R.U.S] TTS: Piper failed ({exc}); trying RemoteTTS...")
+                logger.warning(f"[JARVIS] TTS: Piper failed ({exc}); trying RemoteTTS...")
         elif forced == "piper":
-            logger.warning("[C.Y.R.U.S] TTS: Piper forced but unavailable — falling back")
+            logger.warning("[JARVIS] TTS: Piper forced but unavailable — falling back")
 
         # ── 2. RemoteTTS ──────────────────────────────────────────────
         if (forced in ("remote-tts", None)) and self._remote and self._remote.available:
             try:
                 wav = await self._remote.synthesise(text)
-                logger.info(f"[C.Y.R.U.S] TTS: RemoteTTS -> {len(wav)} bytes")
+                logger.info(f"[JARVIS] TTS: RemoteTTS -> {len(wav)} bytes")
                 return wav, "audio/wav"
             except TTSError as exc:
-                logger.warning(f"[C.Y.R.U.S] TTS: RemoteTTS failed ({exc}); trying XTTS...")
+                logger.warning(f"[JARVIS] TTS: RemoteTTS failed ({exc}); trying XTTS...")
         elif forced == "remote-tts":
-            logger.warning("[C.Y.R.U.S] TTS: RemoteTTS forced but unavailable — falling back")
+            logger.warning("[JARVIS] TTS: RemoteTTS forced but unavailable — falling back")
 
         # ── 3. XTTS v2 ────────────────────────────────────────────────
         if (forced == "xtts" or forced is None) and self._xtts and self._xtts.available:
             try:
                 wav = self._xtts.synthesise(text)
-                logger.info(f"[C.Y.R.U.S] TTS: XTTS v2 -> {len(wav)} bytes")
+                logger.info(f"[JARVIS] TTS: XTTS v2 -> {len(wav)} bytes")
                 return wav, "audio/wav"
             except TTSError as exc:
-                logger.warning(f"[C.Y.R.U.S] TTS: XTTS failed ({exc}); trying Kokoro...")
+                logger.warning(f"[JARVIS] TTS: XTTS failed ({exc}); trying Kokoro...")
         elif forced == "xtts":
-            logger.warning("[C.Y.R.U.S] TTS: XTTS forced but unavailable — falling back")
+            logger.warning("[JARVIS] TTS: XTTS forced but unavailable — falling back")
 
-        # ── 4. Edge-TTS (preferred in HYBRID over Kokoro for natural Spanish voice) ──
-        if self._mode == "HYBRID" and forced in ("edge-tts", None):
-            try:
-                logger.info("[C.Y.R.U.S] TTS: Edge-TTS (Spanish voice)…")
-                mp3 = await self._voiceforge.synthesise(text)
-                if mp3:
-                    logger.info(f"[C.Y.R.U.S] TTS: Edge-TTS → {len(mp3)} bytes")
-                    return mp3, "audio/mpeg"
-            except TTSAPIError as exc:
-                logger.warning(f"[C.Y.R.U.S] TTS: Edge-TTS failed ({exc}); trying Kokoro…")
-
-        # ── 5. Kokoro (offline fallback) ───────────────────────────────
+        # ── 4. Kokoro (offline, no internet required — preferred over Edge-TTS) ──
         if forced in ("kokoro", None) or forced not in ("piper", "remote-tts", "xtts", "edge-tts"):
             try:
                 wav = self._kokoro.synthesise(text)
-                logger.info(f"[C.Y.R.U.S] TTS: Kokoro -> {len(wav)} bytes")
+                logger.info(f"[JARVIS] TTS: Kokoro -> {len(wav)} bytes")
                 return wav, "audio/wav"
             except KokoroUnavailableError as exc:
-                logger.warning(f"[C.Y.R.U.S] TTS: Kokoro unavailable ({exc})")
+                logger.warning(f"[JARVIS] TTS: Kokoro unavailable ({exc}); trying Edge-TTS…")
             except TTSError as exc:
-                logger.warning(f"[C.Y.R.U.S] TTS: Kokoro error ({exc})")
-        if self._mode == "LOCAL":
-            pass  # edge-tts not available in LOCAL mode
+                logger.warning(f"[JARVIS] TTS: Kokoro error ({exc}); trying Edge-TTS…")
 
-        raise TTSError("[C.Y.R.U.S] TTS: all synthesis backends failed")
+        # ── 5. Edge-TTS (last resort — requires internet) ─────────────
+        if self._mode == "HYBRID" and forced in ("edge-tts", None):
+            try:
+                logger.info("[JARVIS] TTS: Edge-TTS (Spanish voice)…")
+                mp3 = await self._voiceforge.synthesise(text)
+                if mp3:
+                    logger.info(f"[JARVIS] TTS: Edge-TTS → {len(mp3)} bytes")
+                    return mp3, "audio/mpeg"
+            except TTSAPIError as exc:
+                logger.warning(f"[JARVIS] TTS: Edge-TTS failed ({exc})")
+
+        raise TTSError("[JARVIS] TTS: all synthesis backends failed")
 
     # ------------------------------------------------------------------
     # Runtime configuration
@@ -159,12 +157,12 @@ class TTSManager:
         if self._piper:
             self._piper._speed = speed
         self._kokoro._speed = speed
-        logger.info(f"[C.Y.R.U.S] TTS: speed set to {speed}")
+        logger.info(f"[JARVIS] TTS: speed set to {speed}")
 
     def set_voice(self, voice: str) -> None:
         """Update Kokoro voice ID at runtime."""
         self._kokoro._voice = voice
-        logger.info(f"[C.Y.R.U.S] TTS: Kokoro voice set to '{voice}'")
+        logger.info(f"[JARVIS] TTS: Kokoro voice set to '{voice}'")
 
     def set_forced_backend(self, backend: str | None) -> None:
         """Pin synthesis to a specific backend, or None to restore auto priority.
@@ -173,7 +171,7 @@ class TTSManager:
             backend: ``"piper"``, ``"kokoro"``, ``"edge-tts"``, or ``None``.
         """
         self._forced_backend = backend
-        logger.info(f"[C.Y.R.U.S] TTS: forced backend → {backend or 'auto'}")
+        logger.info(f"[JARVIS] TTS: forced backend → {backend or 'auto'}")
 
     def set_voice_preset(self, preset: str) -> None:
         """Apply a named voice preset (adjusts speed and Kokoro voice).
@@ -192,7 +190,7 @@ class TTSManager:
         self.set_speed(cfg["speed"])
         if cfg["voice"]:
             self.set_voice(cfg["voice"])
-        logger.info(f"[C.Y.R.U.S] TTS: preset '{preset}' → speed={cfg['speed']}")
+        logger.info(f"[JARVIS] TTS: preset '{preset}' → speed={cfg['speed']}")
 
     @property
     def active_backend(self) -> str:

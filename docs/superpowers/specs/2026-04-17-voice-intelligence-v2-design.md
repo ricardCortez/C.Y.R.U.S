@@ -7,7 +7,7 @@
 
 ## Goal
 
-Upgrade C.Y.R.U.S audio pipeline with four integrated improvements:
+Upgrade JARVIS audio pipeline with four integrated improvements:
 1. Noise reduction before transcription
 2. Better Whisper ASR (Spanish accuracy)
 3. Neural speaker recognition with multi-role system
@@ -64,7 +64,7 @@ class Denoiser:
 | GPU ≥ 5GB VRAM | `medium` | `float16` | ~1.5GB VRAM |
 
 **Spanish accuracy improvements:**
-- `initial_prompt`: `"Habla en español. C.Y.R.U.S es un asistente de IA personal."`
+- `initial_prompt`: `"Habla en español. JARVIS es un asistente de IA personal."`
 - `beam_size`: `1` → `5`
 - `vad_filter`: `True` (already enabled, keep)
 - `language`: `"es"` (already set, keep)

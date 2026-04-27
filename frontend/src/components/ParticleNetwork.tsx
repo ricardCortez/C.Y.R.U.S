@@ -8,7 +8,7 @@
 
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
-import { useCYRUSStore, SystemState } from '../store/useCYRUSStore'
+import { useJARVISStore, SystemState } from '../store/useJARVISStore'
 import { AudioAnalyserHandle } from '../hooks/useAudioAnalyser'
 
 // ── Per-state parameters ──────────────────────────────────────────────────
@@ -176,10 +176,10 @@ const STORM_PERIOD = 42   // frames between thinking storm bursts
 
 export function ParticleNetwork({ analyser }: Props) {
   const mountRef       = useRef<HTMLDivElement>(null)
-  const systemState    = useCYRUSStore(s => s.systemState)
-  const particleCount  = useCYRUSStore(s => s.particleCount)
-  const bloomIntensity = useCYRUSStore(s => s.bloomIntensity)
-  const orbSpeed       = useCYRUSStore(s => s.orbSpeed)
+  const systemState    = useJARVISStore(s => s.systemState)
+  const particleCount  = useJARVISStore(s => s.particleCount)
+  const bloomIntensity = useJARVISStore(s => s.bloomIntensity)
+  const orbSpeed       = useJARVISStore(s => s.orbSpeed)
 
   const stateRef    = useRef(systemState)
   const countRef    = useRef(particleCount)
