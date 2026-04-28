@@ -475,6 +475,13 @@ function TabSistema() {
 // TAB 2 — CONFIG (clean grid layout)
 // ═══════════════════════════════════════════════════════════════════════════
 
+const PROVIDER_MODELS: Record<string, string[]> = {
+  openai:    ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],
+  anthropic: ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'],
+  groq:      ['llama-3.3-70b-versatile', 'mixtral-8x7b-32768', 'gemma2-9b-it'],
+  gemini:    ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'],
+}
+
 function TabConfig({ sendCommand }: { sendCommand: (cmd: string, extra?: object) => void }) {
   const ttsSpeed       = useJARVISStore(s => s.ttsSpeed)
   const setTtsSpeed    = useJARVISStore(s => s.setTtsSpeed)
@@ -487,28 +494,83 @@ function TabConfig({ sendCommand }: { sendCommand: (cmd: string, extra?: object)
   const setParticleCount  = useJARVISStore(s => s.setParticleCount)
   const setBloomIntensity = useJARVISStore(s => s.setBloomIntensity)
   const setOrbSpeed       = useJARVISStore(s => s.setOrbSpeed)
+  const llmConfig      = useJARVISStore(s => s.llmConfig)
+  const llmTestResult  = useJARVISStore(s => s.llmTestResult)
 
+  // Derive initial mode from backend config
+  const backendProvider = llmConfig?.provider ?? 'ollama'
+  const [llmMode,     setLlmMode]    = useState<'local'|'api'>(backendProvider === 'ollama' ? 'local' : 'api')
   const [llmModel,    setLlmModel]   = useState(currentModel || '')
+  const [apiProvider, setApiProvider]= useState(backendProvider !== 'ollama' ? backendProvider : 'openai')
+  const [apiModel,    setApiModel]   = useState(llmConfig?.model || 'gpt-4o-mini')
+  const [apiKey,      setApiKey]     = useState('')
+  const [showKey,     setShowKey]    = useState(false)
+  const [testing,     setTesting]    = useState(false)
   const [ttsEngine,   setTtsEngine]  = useState('edge-tts')
   const [voicePreset, setVoicePreset]= useState('natural')
   const [testText,    setTestText]   = useState('')
-  const [testing,     setTesting]    = useState(false)
-  const [ollamaOk,    setOllamaOk]   = useState<boolean|null>(null)
+  const [testingTts,  setTestingTts] = useState(false)
 
   useEffect(() => { sendCommand('list_ollama_models') }, [sendCommand])
   useEffect(() => { if (currentModel) setLlmModel(currentModel) }, [currentModel])
 
-  const probeOllama = () => {
-    setOllamaOk(null)
-    sendCommand('probe_local_ai_detector', { detector: 'ollama' })
-    setTimeout(() => setOllamaOk(true), 1800)
+  // Sync UI from backend llm_config event on connect
+  useEffect(() => {
+    if (!llmConfig) return
+    if (llmConfig.provider === 'ollama') {
+      setLlmMode('local')
+    } else {
+      setLlmMode('api')
+      setApiProvider(llmConfig.provider)
+      setApiModel(llmConfig.model)
+    }
+  }, [llmConfig])
+
+  // Auto-reset testing state when result arrives
+  useEffect(() => {
+    if (llmTestResult !== null) setTesting(false)
+  }, [llmTestResult])
+
+  const handleModeSwitch = (mode: 'local' | 'api') => {
+    setLlmMode(mode)
+    if (mode === 'local') {
+      sendCommand('set_llm_provider', { provider: 'ollama', api_key: '', model: llmModel })
+    } else {
+      sendCommand('set_llm_provider', { provider: apiProvider, api_key: apiKey, model: apiModel })
+    }
+  }
+
+  const handleApiProviderChange = (p: string) => {
+    setApiProvider(p)
+    const defaultModel = PROVIDER_MODELS[p]?.[0] ?? ''
+    setApiModel(defaultModel)
+  }
+
+  const handleTestConnectivity = () => {
+    setTesting(true)
+    sendCommand('test_llm_connectivity', { provider: apiProvider, api_key: apiKey, model: apiModel })
   }
 
   const testTts = () => {
-    setTesting(true)
-    sendCommand('test_tts', { text: testText.trim() || 'Sistema JARVIS operativo.', engine: ttsEngine })
-    setTimeout(() => setTesting(false), 4000)
+    setTestingTts(true)
+    sendCommand('test_tts', { text: testText.trim() || 'Sistema CYRUS operativo.', engine: ttsEngine })
+    setTimeout(() => setTestingTts(false), 4000)
   }
+
+  // Toggle button style helper
+  const modeBtn = (active: boolean, color: string) => ({
+    flex: 1,
+    padding: '6px 0',
+    borderRadius: 5,
+    border: `1px solid ${active ? color : C.border}`,
+    background: active ? `${color}18` : 'transparent',
+    color: active ? color : C.textDim,
+    cursor: 'pointer',
+    fontSize: 10,
+    fontFamily: 'monospace',
+    letterSpacing: '0.12em',
+    transition: 'all 0.15s',
+  } as React.CSSProperties)
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
@@ -517,36 +579,144 @@ function TabConfig({ sendCommand }: { sendCommand: (cmd: string, extra?: object)
         {/* LEFT column */}
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
 
-          {/* LLM Model */}
+          {/* MOTOR LLM */}
           <Panel accent={C.amber}>
-            <SectionLabel>MODELO LLM (OLLAMA)</SectionLabel>
-            <div style={{ display:'flex', gap:8, marginBottom:10 }}>
-              <Btn onClick={() => sendCommand('list_ollama_models')} small color={C.cyan} style={{flex:1}}>REFRESCAR</Btn>
-              <Btn onClick={probeOllama} small color={ollamaOk === true ? C.green : ollamaOk === false ? C.red : C.amber} style={{flex:1}}>
-                {ollamaOk === null ? 'PROBAR' : ollamaOk ? 'ACTIVO ✓' : 'ERROR ✗'}
-              </Btn>
+            <SectionLabel>MOTOR LLM</SectionLabel>
+
+            {/* Mode toggle */}
+            <div style={{ display:'flex', gap:6, marginBottom:12 }}>
+              <button style={modeBtn(llmMode === 'local', C.cyan)} onClick={() => handleModeSwitch('local')}>
+                LOCAL
+              </button>
+              <button style={modeBtn(llmMode === 'api', C.amber)} onClick={() => handleModeSwitch('api')}>
+                API
+              </button>
             </div>
-            {availModels.length > 0 ? (
+
+            {llmMode === 'local' ? (
+              /* ── LOCAL: Ollama ── */
               <>
-                <Select
-                  value={llmModel}
-                  onChange={v => { setLlmModel(v); sendCommand('set_llm_model', { model: v }) }}
-                  options={availModels.map(m => ({
-                    value: m.name,
-                    label: `${m.name}${m.name === currentModel ? ' ●' : ''}`,
-                  }))}
-                />
-                {availModels.map(m => m.name === llmModel && (
-                  <div key={m.name} style={{ display:'flex', justifyContent:'space-between', marginTop:8 }}>
-                    <span style={mono(8, C.textDim)}>Compatibilidad</span>
-                    <span style={mono(8, m.compatible ? C.green : C.red)}>{m.compatibility}</span>
+                {availModels.length > 0 ? (
+                  <>
+                    <Select
+                      value={llmModel}
+                      onChange={v => { setLlmModel(v); sendCommand('set_llm_provider', { provider: 'ollama', api_key: '', model: v }) }}
+                      options={availModels.map(m => ({
+                        value: m.name,
+                        label: `${m.name}${m.name === currentModel ? ' ●' : ''}`,
+                      }))}
+                    />
+                    {availModels.map(m => m.name === llmModel && (
+                      <div key={m.name} style={{ display:'flex', justifyContent:'space-between', marginTop:8 }}>
+                        <span style={mono(8, C.textDim)}>Compatibilidad</span>
+                        <span style={mono(8, m.compatible ? C.green : C.red)}>{m.compatibility}</span>
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <div style={{ ...mono(9, C.textDim), padding:'10px', textAlign:'center', border:`1px dashed ${C.border}`, borderRadius:6 }}>
+                    Sin modelos — verifica Ollama
                   </div>
-                ))}
+                )}
+                <Btn onClick={() => sendCommand('list_ollama_models')} small color={C.cyan} style={{ marginTop:8, width:'100%' }}>
+                  REFRESCAR MODELOS
+                </Btn>
               </>
             ) : (
-              <div style={{ ...mono(9, C.textDim), padding:'10px', textAlign:'center', border:`1px dashed ${C.border}`, borderRadius:6 }}>
-                Sin modelos — verifica Ollama
-              </div>
+              /* ── API: provider selector ── */
+              <>
+                {/* Provider */}
+                <div style={{ ...mono(8, C.textDim), marginBottom:4 }}>PROVEEDOR</div>
+                <Select
+                  value={apiProvider}
+                  onChange={handleApiProviderChange}
+                  options={[
+                    { value:'openai',    label:'OpenAI (ChatGPT)' },
+                    { value:'anthropic', label:'Anthropic (Claude)' },
+                    { value:'groq',      label:'Groq (Llama / Mixtral)' },
+                    { value:'gemini',    label:'Google Gemini' },
+                  ]}
+                />
+
+                {/* Model */}
+                <div style={{ ...mono(8, C.textDim), marginTop:8, marginBottom:4 }}>MODELO</div>
+                <Select
+                  value={apiModel}
+                  onChange={v => setApiModel(v)}
+                  options={(PROVIDER_MODELS[apiProvider] ?? []).map(m => ({ value: m, label: m }))}
+                />
+
+                {/* API Key */}
+                <div style={{ ...mono(8, C.textDim), marginTop:8, marginBottom:4 }}>API KEY</div>
+                <div style={{ display:'flex', gap:6 }}>
+                  <input
+                    type={showKey ? 'text' : 'password'}
+                    value={apiKey}
+                    onChange={e => setApiKey(e.target.value)}
+                    placeholder="Pega tu API key aquí"
+                    style={{
+                      flex: 1,
+                      background: '#02060c',
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 5,
+                      color: C.text,
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      padding: '6px 8px',
+                      outline: 'none',
+                    }}
+                  />
+                  <button
+                    onClick={() => setShowKey(v => !v)}
+                    style={{ ...modeBtn(showKey, C.textDim), flex: 'none', padding:'6px 8px' }}
+                  >
+                    {showKey ? '🙈' : '👁'}
+                  </button>
+                </div>
+
+                {/* Saved key hint */}
+                {!apiKey && llmConfig?.provider === apiProvider && (
+                  <div style={{ ...mono(8, C.textDim), marginTop:4 }}>
+                    Key guardada en config — deja vacío para mantenerla
+                  </div>
+                )}
+
+                {/* Apply + Test buttons */}
+                <div style={{ display:'flex', gap:6, marginTop:10 }}>
+                  <Btn
+                    small color={C.amber} style={{ flex:1 }}
+                    onClick={() => sendCommand('set_llm_provider', { provider: apiProvider, api_key: apiKey, model: apiModel })}
+                  >
+                    APLICAR
+                  </Btn>
+                  <Btn
+                    small
+                    color={testing ? C.textDim : C.cyan}
+                    style={{ flex:1 }}
+                    disabled={testing}
+                    onClick={handleTestConnectivity}
+                  >
+                    {testing ? 'PROBANDO…' : 'PROBAR'}
+                  </Btn>
+                </div>
+
+                {/* Test result */}
+                {llmTestResult !== null && (
+                  <div style={{
+                    marginTop: 8,
+                    padding: '7px 10px',
+                    borderRadius: 5,
+                    background: '#02060c',
+                    border: `1px solid ${llmTestResult.ok ? C.green : C.red}44`,
+                  }}>
+                    <span style={mono(9, llmTestResult.ok ? C.green : C.red)}>
+                      {llmTestResult.ok
+                        ? `● Conectado — ${apiModel} respondió en ${llmTestResult.latency_ms}ms`
+                        : `✗ Error — ${llmTestResult.error}`}
+                    </span>
+                  </div>
+                )}
+              </>
             )}
           </Panel>
 
@@ -633,8 +803,8 @@ function TabConfig({ sendCommand }: { sendCommand: (cmd: string, extra?: object)
               style={{ marginBottom: 8 }}
             />
             <div style={{ display:'flex', gap:8 }}>
-              <Btn onClick={testTts} disabled={testing} color={C.purple} style={{ flex:1, justifyContent:'center' }}>
-                {testing ? '◈ REPRODUCIENDO…' : '▶ PROBAR'}
+              <Btn onClick={testTts} disabled={testingTts} color={C.purple} style={{ flex:1, justifyContent:'center' }}>
+                {testingTts ? '◈ REPRODUCIENDO…' : '▶ PROBAR'}
               </Btn>
               <Btn onClick={() => setTestText('Hola Ricardo. Sistema JARVIS operativo al cien por ciento.')} small color={C.textDim}>
                 DEMO

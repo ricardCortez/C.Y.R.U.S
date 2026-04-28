@@ -1,8 +1,9 @@
 """
-JARVIS — LLM Manager.
+CYRUS — LLM Manager.
 
-Orchestrates LOCAL (Ollama) and API (Claude) backends with automatic
-fallback.  Injects the system prompt from ``soul.md`` and the conversation
+Orchestrates LOCAL (Ollama) and API (Claude/OpenAI/Groq/Gemini) backends.
+Active provider is configurable at runtime via set_provider().
+Injects the system prompt from ``soul.md`` and the conversation
 context template from ``prompts.yaml``.
 """
 
@@ -14,6 +15,9 @@ from typing import List, Optional
 
 from backend.modules.llm.claude_client import ClaudeClient
 from backend.modules.llm.ollama_client import OllamaClient
+from backend.modules.llm.openai_client import OpenAIClient
+from backend.modules.llm.groq_client import GroqClient
+from backend.modules.llm.gemini_client import GeminiClient
 from backend.modules.vision.models import VisionContext
 from backend.utils.exceptions import LLMError, OllamaUnavailableError
 from backend.utils.helpers import retry_async
@@ -21,18 +25,26 @@ from backend.utils.logger import get_logger
 
 logger = get_logger("jarvis.llm.manager")
 
+_API_PROVIDERS = {"openai", "anthropic", "groq", "gemini"}
+
 
 class LLMManager:
-    """Unified LLM interface with LOCAL → API fallback.
+    """Unified LLM interface with configurable active provider.
+
+    Active provider defaults to 'ollama'. Call set_provider() at runtime
+    to switch to an API provider without restarting.
 
     Args:
         ollama: Pre-configured :class:`OllamaClient`.
-        claude: Pre-configured :class:`ClaudeClient` (used as fallback).
-        soul_text: Raw markdown from ``soul.md`` — the JARVIS personality.
+        claude: Pre-configured :class:`ClaudeClient`.
+        soul_text: Raw markdown from ``soul.md`` — the CYRUS personality.
         prompts: Parsed ``prompts.yaml`` dict.
-        mode: ``"LOCAL"`` or ``"HYBRID"`` (enables API fallback).
+        mode: ``"LOCAL"`` or ``"HYBRID"`` (enables Ollama → API fallback).
         temperature: Default sampling temperature.
         max_tokens: Default max response tokens.
+        initial_provider: Starting provider name (from config).
+        initial_api_key: API key for the initial provider.
+        initial_api_model: Model for the initial provider.
     """
 
     def __init__(
@@ -44,6 +56,9 @@ class LLMManager:
         mode: str = "LOCAL",
         temperature: float = 0.7,
         max_tokens: int = 300,
+        initial_provider: str = "ollama",
+        initial_api_key: str = "",
+        initial_api_model: str = "",
     ) -> None:
         self._ollama = ollama
         self._claude = claude
@@ -52,6 +67,106 @@ class LLMManager:
         self._mode = mode.upper()
         self._temperature = temperature
         self._max_tokens = max_tokens
+
+        # Active provider state
+        self._active_provider: str = "ollama"
+        self._api_client: Optional[object] = None  # current API client instance
+
+        # Initialize from config if a non-ollama provider is set
+        if initial_provider in _API_PROVIDERS and initial_api_key:
+            try:
+                self.set_provider(initial_provider, initial_api_key, initial_api_model)
+            except Exception as exc:
+                logger.warning(f"[CYRUS] LLM: failed to init provider '{initial_provider}': {exc}")
+
+    # ------------------------------------------------------------------
+    # Provider management
+    # ------------------------------------------------------------------
+
+    def set_provider(self, provider: str, api_key: str, model: str) -> dict:
+        """Switch the active LLM provider.
+
+        Args:
+            provider: One of 'ollama', 'openai', 'anthropic', 'groq', 'gemini'.
+            api_key: API key (ignored for 'ollama').
+            model: Model ID to use.
+
+        Returns:
+            {"ok": bool, "error": str}
+        """
+        provider = provider.lower().strip()
+        if provider == "ollama":
+            self._active_provider = "ollama"
+            self._api_client = None
+            if model:
+                self._ollama._model = model
+            logger.info(f"[CYRUS] LLM: active provider → ollama ({self._ollama._model})")
+            return {"ok": True, "error": ""}
+
+        if provider not in _API_PROVIDERS:
+            return {"ok": False, "error": f"Provider desconocido: {provider}"}
+        if not api_key:
+            return {"ok": False, "error": "API key requerida"}
+        if not model:
+            return {"ok": False, "error": "Modelo requerido"}
+
+        try:
+            client = self._build_api_client(provider, api_key, model)
+            self._api_client = client
+            self._active_provider = provider
+            logger.info(f"[CYRUS] LLM: active provider → {provider} ({model})")
+            return {"ok": True, "error": ""}
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
+
+    async def test_connectivity(self, provider: str, api_key: str, model: str) -> dict:
+        """Test connectivity for a provider without changing the active one.
+
+        Args:
+            provider: Provider name.
+            api_key: API key to test.
+            model: Model to test.
+
+        Returns:
+            {"ok": bool, "latency_ms": int, "error": str}
+        """
+        if provider == "ollama":
+            available = await self._ollama.is_available()
+            return {
+                "ok": available,
+                "latency_ms": 0,
+                "error": "" if available else "Ollama no está corriendo en localhost:11434",
+            }
+        try:
+            client = self._build_api_client(provider, api_key, model)
+            return await client.test_connectivity()
+        except Exception as exc:
+            return {"ok": False, "latency_ms": 0, "error": str(exc)}
+
+    def get_active_provider(self) -> str:
+        return self._active_provider
+
+    def get_active_model(self) -> str:
+        if self._active_provider == "ollama":
+            return self._ollama._model
+        if hasattr(self._api_client, "_model"):
+            return self._api_client._model
+        if hasattr(self._api_client, "_model_name"):
+            return self._api_client._model_name
+        return ""
+
+    @staticmethod
+    def _build_api_client(provider: str, api_key: str, model: str):
+        """Instantiate the correct API client for the given provider."""
+        if provider == "openai":
+            return OpenAIClient(api_key=api_key, model=model)
+        if provider == "anthropic":
+            return ClaudeClient(api_key=api_key, model=model)
+        if provider == "groq":
+            return GroqClient(api_key=api_key, model=model)
+        if provider == "gemini":
+            return GeminiClient(api_key=api_key, model=model)
+        raise ValueError(f"Unknown provider: {provider}")
 
     # ------------------------------------------------------------------
     # Public API
@@ -130,16 +245,19 @@ class LLMManager:
         elif complexity == "complex":
             routed_max_tokens = min(self._max_tokens * 2, 600)
 
-        logger.info(f"[JARVIS] LLM: complexity={complexity} max_tokens={routed_max_tokens}")
+        logger.info(f"[CYRUS] LLM: provider={self._active_provider} complexity={complexity} max_tokens={routed_max_tokens}")
 
-        # Try local Ollama first — retry up to 2 times on transient errors (e.g.
-        # HTTP 500 during cold model load which can take 30+ seconds).
+        # Route to active provider
+        if self._active_provider in _API_PROVIDERS and self._api_client is not None:
+            return await self._api_generate(messages, system_prompt)
+
+        # Local Ollama — retry up to 3 times on transient errors
         _MAX_ATTEMPTS = 3
-        _RETRY_DELAY  = 5.0   # seconds between retries
+        _RETRY_DELAY  = 5.0
         for _attempt in range(1, _MAX_ATTEMPTS + 1):
             try:
                 logger.info(
-                    f"[JARVIS] LLM: attempting local Ollama inference"
+                    f"[CYRUS] LLM: attempting local Ollama inference"
                     f"{f' (attempt {_attempt}/{_MAX_ATTEMPTS})' if _attempt > 1 else ''}…"
                 )
                 raw = await self._ollama.chat(
@@ -149,24 +267,23 @@ class LLMManager:
                     max_tokens=routed_max_tokens,
                 )
                 if raw.strip():
-                    logger.info(f"[JARVIS] LLM: Ollama responded ({len(raw)} chars)")
+                    logger.info(f"[CYRUS] LLM: Ollama responded ({len(raw)} chars)")
                     return self._split_response(raw.strip())
-                logger.warning("[JARVIS] LLM: Ollama returned empty response")
-                break   # empty response is not a transient error — skip retries
+                logger.warning("[CYRUS] LLM: Ollama returned empty response")
+                break
             except OllamaUnavailableError as exc:
-                logger.warning(f"[JARVIS] LLM: Ollama unavailable — {exc}")
-                break   # connection refused → no point retrying immediately
+                logger.warning(f"[CYRUS] LLM: Ollama unavailable — {exc}")
+                break
             except LLMError as exc:
-                logger.warning(f"[JARVIS] LLM: Ollama error — {exc}")
+                logger.warning(f"[CYRUS] LLM: Ollama error — {exc}")
                 if _attempt < _MAX_ATTEMPTS:
-                    logger.info(
-                        f"[JARVIS] LLM: retrying in {_RETRY_DELAY:.0f}s "
-                        f"(model may still be loading)…"
-                    )
+                    logger.info(f"[CYRUS] LLM: retrying in {_RETRY_DELAY:.0f}s…")
                     await asyncio.sleep(_RETRY_DELAY)
 
-        # Fallback to Claude API (only in HYBRID mode)
+        # HYBRID fallback: try API provider if Ollama failed
         if self._mode == "HYBRID":
+            if self._api_client is not None:
+                return await self._api_generate(messages, system_prompt)
             return await self._claude_fallback(messages, system_prompt)
 
         # Graceful degradation
@@ -175,8 +292,27 @@ class LLMManager:
             "Lo siento, en este momento no puedo procesar tu solicitud. "
             "Mi motor de razonamiento parece estar fuera de línea.",
         )
-        logger.error("[JARVIS] LLM: all backends failed; returning canned response")
+        logger.error("[CYRUS] LLM: all backends failed; returning canned response")
         return canned, canned
+
+    async def _api_generate(self, messages: List[dict], system_prompt: str) -> tuple[str, str]:
+        """Generate using the active API client."""
+        try:
+            logger.info(f"[CYRUS] LLM: calling {self._active_provider} API…")
+            raw = await self._api_client.chat(
+                messages,
+                system_prompt=system_prompt,
+                temperature=self._temperature,
+            )
+            logger.info(f"[CYRUS] LLM: {self._active_provider} responded ({len(raw)} chars)")
+            return self._split_response(raw.strip())
+        except Exception as exc:
+            logger.error(f"[CYRUS] LLM: {self._active_provider} failed — {exc}")
+            msg = (
+                "Lo siento, hubo un problema con el servicio de IA. "
+                "Por favor intenta de nuevo en un momento."
+            )
+            return msg, msg
 
     async def _claude_fallback(self, messages: List[dict], system_prompt: str) -> tuple[str, str]:
         """Attempt Claude API with retry."""

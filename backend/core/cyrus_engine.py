@@ -216,6 +216,9 @@ class JARVISEngine:
             soul_text=self._cfg.soul_text,
             prompts=self._cfg.prompts,
             mode=self._cfg.system.mode,
+            initial_provider=getattr(llm_api_cfg, "provider", "anthropic"),
+            initial_api_key=getattr(llm_api_cfg, "api_key", ""),
+            initial_api_model=getattr(llm_api_cfg, "model", ""),
         )
         # ── Tool executor (ReAct loop for web search, files, system, etc.) ──
         self._tools = ToolExecutor(
@@ -834,6 +837,28 @@ class JARVISEngine:
         except Exception as exc:
             logger.error(f"[JARVIS] Failed to save local LLM model: {exc}")
 
+    async def _save_llm_provider(self, provider: str, api_key: str, model: str) -> None:
+        """Persist the active LLM provider config to config.yaml."""
+        import yaml as _yaml
+        config_path = self._cfg.project_root / "config" / "config.yaml"
+        try:
+            raw = _yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+            if provider == "ollama":
+                raw.setdefault("local", {}).setdefault("llm", {})["model"] = model or self._ollama._model
+            else:
+                api_section = raw.setdefault("api", {}).setdefault("llm", {})
+                api_section["provider"] = provider
+                api_section["model"] = model
+                if api_key:
+                    api_section["api_key"] = api_key
+            config_path.write_text(
+                _yaml.dump(raw, allow_unicode=True, default_flow_style=False, sort_keys=False),
+                encoding="utf-8",
+            )
+            logger.info(f"[CYRUS] LLM provider saved to config: {provider} / {model}")
+        except Exception as exc:
+            logger.error(f"[CYRUS] Failed to save LLM provider: {exc}")
+
     async def _run_enrollment(self, samples: int = 5) -> None:
         """Record N samples, transcribe each, register wake-word variants, and build voice profile."""
         # DEPRECATED: SpeakerProfile removed in Voice Intelligence v2.
@@ -1116,6 +1141,12 @@ class JARVISEngine:
         """Trigger greeting when a new frontend client connects."""
         # Send current wake words list so the UI can display them
         await self._bus.emit("wake_words", {"words": self._trigger.wake_words})
+        # Send current LLM provider state so the UI can restore the toggle
+        await self._bus.emit("llm_config", {
+            "provider": self._llm.get_active_provider(),
+            "model":    self._llm.get_active_model(),
+            "mode":     self._cfg.system.mode,
+        })
         # Debounce: skip if greeted less than 20 seconds ago
         if time.monotonic() - self._last_greeting_at < 20:
             return
@@ -1336,6 +1367,44 @@ class JARVISEngine:
                 except Exception:
                     pass
 
+        elif cmd == "set_llm_provider":
+            provider  = str(payload.get("provider", "")).strip().lower()
+            api_key   = str(payload.get("api_key", "")).strip()
+            model     = str(payload.get("model", "")).strip()
+            result    = self._llm.set_provider(provider, api_key, model)
+            if result["ok"]:
+                # Persist to config.yaml
+                await self._save_llm_provider(provider, api_key, model)
+                await self._bus.emit("llm_config", {
+                    "provider": self._llm.get_active_provider(),
+                    "model":    self._llm.get_active_model(),
+                    "mode":     self._cfg.system.mode,
+                })
+                await self._bus.emit("debug", {
+                    "text": f"✓ LLM provider → {provider} ({model})",
+                    "level": "ok",
+                })
+            else:
+                await self._bus.emit("debug", {
+                    "text": f"✗ LLM provider error: {result['error']}",
+                    "level": "warn",
+                })
+
+        elif cmd == "test_llm_connectivity":
+            provider = str(payload.get("provider", "")).strip().lower()
+            api_key  = str(payload.get("api_key", "")).strip()
+            model    = str(payload.get("model", "")).strip()
+            await self._bus.emit("debug", {"text": f"Probando conectividad {provider}…", "level": "info"})
+            result = await self._llm.test_connectivity(provider, api_key, model)
+            await self._bus.emit("llm_test_result", result)
+            level = "ok" if result["ok"] else "warn"
+            msg = (
+                f"✓ {provider} OK — {result['latency_ms']}ms"
+                if result["ok"]
+                else f"✗ {provider} error: {result['error']}"
+            )
+            await self._bus.emit("debug", {"text": msg, "level": level})
+
         elif cmd == "probe_services":
             await self._bus.emit("debug", {"text": "Comprobando servicios API...", "level": "info"})
             await self._emit_service_status()
@@ -1498,6 +1567,20 @@ class JARVISEngine:
             await asyncio.sleep(0.05)
             return
 
+        # Echo gate: discard audio captured while system is speaking or processing,
+        # or while the mute window is still active (absorbs speaker reverb).
+        _mute_left = self._audio_in.mute_remaining()
+        if self._state.status in (SystemStatus.SPEAKING, SystemStatus.PROCESSING):
+            logger.debug(
+                f"[CYRUS] Audio descartado — sistema ocupado ({self._state.status.value})"
+            )
+            return
+        if _mute_left > 0:
+            logger.debug(
+                f"[CYRUS] Audio descartado — mute activo ({_mute_left:.2f}s restantes)"
+            )
+            return
+
         # Speaker Intelligence — identify who is speaking
         speaker_result = await asyncio.get_running_loop().run_in_executor(
             None, self._speaker_intel.identify, pcm
@@ -1589,7 +1672,9 @@ class JARVISEngine:
             })
             await self._bus.emit("status", {"state": "idle", "message": "Esperando activación…"})
 
-        if self._in_conversation:
+        _strict_wake = getattr(getattr(self._cfg, "trigger", None), "strict_wake_word", False)
+
+        if self._in_conversation and not _strict_wake:
             # Already in an active session — use full transcript directly
             clean_input = transcript.strip()
             self._last_interaction_at = now
@@ -1601,7 +1686,7 @@ class JARVISEngine:
                 await self._state.set_status(SystemStatus.IDLE)
                 return
         else:
-            # Standby mode — require wake word
+            # Standby mode OR strict_wake_word=true — always require wake word
             triggered, clean_input = self._trigger.detect(transcript)
             if not triggered:
                 logger.debug(f"[JARVIS] No wake word in: '{transcript}'")
@@ -1814,16 +1899,16 @@ class JARVISEngine:
                         pass
                     self._barge_in_task = None
 
-                # Override the pre-set mute window with a short echo tail.
-                # The original mute_for(duration + 5s) was set before playback;
-                # by the time we reach here there are ~5s remaining.  Reducing
-                # it to 1.5s lets the mic reopen quickly while still absorbing
-                # immediate speaker reverb.  Adjust via config if needed.
+                # After playback ends, ensure the mute window covers at least
+                # echo_tail_secs more.  Only call mute_for() if the remaining
+                # window is LESS than the configured tail — avoids resetting a
+                # longer pre-computed window (duration + 5s) down to a short tail.
                 _echo_tail_cfg = getattr(
                     getattr(getattr(self._cfg, "audio", None), "input", None),
                     "echo_tail_secs", 1.5
                 )
-                self._audio_in.mute_for(_echo_tail_cfg)
+                if self._audio_in.mute_remaining() < _echo_tail_cfg:
+                    self._audio_in.mute_for(_echo_tail_cfg)
         except Exception as exc:
             logger.error(f"[JARVIS] TTS/playback failed: {exc}")
 

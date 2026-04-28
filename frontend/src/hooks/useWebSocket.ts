@@ -29,6 +29,8 @@ export function useWebSocket(): { connected: boolean; sendCommand: (cmd: string,
     setAvailableModels,
     setCurrentModel,
     setServiceStatus,
+    setLlmConfig,
+    setLlmTestResult,
   } = useJARVISStore()
 
   useEffect(() => {
@@ -110,6 +112,16 @@ export function useWebSocket(): { connected: boolean; sendCommand: (cmd: string,
 
         case 'service_status':
           setServiceStatus(evt.data as ServiceStatus)
+          break
+
+        case 'llm_config':
+          setLlmConfig(evt.data)
+          break
+
+        case 'llm_test_result':
+          setLlmTestResult(evt.data)
+          // Auto-clear after 8 seconds
+          setTimeout(() => setLlmTestResult(null), 8000)
           break
 
         case 'speaker_profiles':

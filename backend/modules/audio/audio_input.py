@@ -182,6 +182,10 @@ class AudioInput:
         self._muted_until = time.monotonic() + seconds
         logger.info(f"[JARVIS] AudioInput: mute_for({seconds:.2f}s) — free at T+{seconds:.2f}s")
 
+    def mute_remaining(self) -> float:
+        """Seconds of mute window still active. Returns 0.0 if not muted."""
+        return max(0.0, self._muted_until - time.monotonic())
+
     def stop_barge_in(self) -> None:
         """Abort the barge-in detection stream so its thread exits immediately.
 

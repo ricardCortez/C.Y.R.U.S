@@ -96,6 +96,10 @@ interface JARVISStore {
   // Microservice health status
   serviceStatus: ServiceStatus | null
 
+  // Active LLM provider config (synced from backend)
+  llmConfig: { provider: string; model: string; mode: string } | null
+  llmTestResult: { ok: boolean; latency_ms: number; error: string } | null
+
   // Visual params
   particleCount:  number
   bloomIntensity: number
@@ -120,6 +124,8 @@ interface JARVISStore {
   setAvailableModels:   (models: ModelInfo[]) => void
   setCurrentModel:      (model: string) => void
   setServiceStatus:     (s: ServiceStatus) => void
+  setLlmConfig:         (c: { provider: string; model: string; mode: string }) => void
+  setLlmTestResult:     (r: { ok: boolean; latency_ms: number; error: string } | null) => void
   setParticleCount:     (n: number) => void
   setBloomIntensity:    (v: number) => void
   setOrbSpeed:          (v: number) => void
@@ -169,6 +175,10 @@ export const useJARVISStore = create<JARVISStore>((set) => ({
 
   // Microservice health status
   serviceStatus: null,
+
+  // LLM provider state
+  llmConfig: null,
+  llmTestResult: null,
 
   // Visual params
   particleCount:  200,
@@ -234,6 +244,8 @@ export const useJARVISStore = create<JARVISStore>((set) => ({
   setTtsSpeed:    (v) => set({ ttsSpeed: Math.min(2.0, Math.max(0.5, v)) }),
   setAvailableModels: (models) => set({ availableModels: models }),
   setServiceStatus:   (s) => set({ serviceStatus: s }),
+  setLlmConfig:       (c) => set({ llmConfig: c }),
+  setLlmTestResult:   (r) => set({ llmTestResult: r }),
 
   setParticleCount:  (n) => set({ particleCount: Math.min(400, Math.max(100, n)) }),
   setBloomIntensity: (v) => set({ bloomIntensity: Math.min(2.5, Math.max(0.5, v)) }),
